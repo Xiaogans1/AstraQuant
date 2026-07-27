@@ -1585,7 +1585,7 @@ git commit -m "feat(ui): 建立 Astra 工作区与主题"
 - Create: `apps/desktop/src/components/ServiceError.tsx`
 - Modify: `apps/desktop/src/App.tsx`
 
-- [ ] **Step 1: Write failing page tests**
+- [x] **Step 1: Write failing page tests**
 
 Overview tests:
 
@@ -1623,7 +1623,7 @@ sidebar collapse and background effect, submit once, assert the mutation receive
 `Settings` object, resolve the mutation, and then assert `document.documentElement.dataset.theme`
 changed. A second test rejects the mutation and asserts the previously applied theme remains.
 
-- [ ] **Step 2: Run page tests and observe failures**
+- [x] **Step 2: Run page tests and observe failures**
 
 ```powershell
 pnpm --dir apps/desktop test -- src/pages
@@ -1631,7 +1631,7 @@ pnpm --dir apps/desktop test -- src/pages
 
 Expected: missing-page module failures.
 
-- [ ] **Step 3: Build overview and task pages**
+- [x] **Step 3: Build overview and task pages**
 
 Overview:
 
@@ -1651,7 +1651,7 @@ Tasks:
 - copyable task and correlation IDs;
 - cancel only for active states.
 
-- [ ] **Step 4: Build activity and settings pages**
+- [x] **Step 4: Build activity and settings pages**
 
 Activity displays timestamp, component, event name, task ID and correlation ID. It never displays
 raw JSON or environment data.
@@ -1671,7 +1671,7 @@ interface Settings {
 `QueryClientProvider`. Startup, offline and protocol errors use `ServiceError` with retry and
 open-log-directory actions.
 
-- [ ] **Step 5: Run frontend gates**
+- [x] **Step 5: Run frontend gates**
 
 ```powershell
 pnpm --dir apps/desktop test
@@ -1681,7 +1681,7 @@ pnpm --dir apps/desktop build
 
 Expected: all UI tests and production build pass.
 
-- [ ] **Step 6: Commit pages**
+- [x] **Step 6: Commit pages**
 
 ```powershell
 git add apps/desktop/src

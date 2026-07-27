@@ -82,3 +82,31 @@ it("rejects malformed JSON responses as a protocol error", async () => {
     status: 200,
   });
 });
+
+it("calls the default fetch with the browser global binding", async () => {
+  const originalFetch = globalThis.fetch;
+  const browserFetch = vi.fn(function (this: unknown) {
+    if (this !== globalThis) {
+      throw new TypeError("Illegal invocation");
+    }
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          active_workers: 0,
+          database_size_bytes: 0,
+          shutting_down: false,
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      ),
+    );
+  });
+  globalThis.fetch = browserFetch as typeof fetch;
+  try {
+    const client = new ApiClient(connectionFixture);
+    await expect(client.getRuntime()).resolves.toMatchObject({
+      active_workers: 0,
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

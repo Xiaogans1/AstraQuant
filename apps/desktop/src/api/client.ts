@@ -24,12 +24,16 @@ export class ApiError extends Error {
 
 export class ApiClient {
   private readonly baseUrl: string;
+  private readonly fetchImplementation: Fetch;
 
   constructor(
     private readonly connection: RuntimeConnection,
-    private readonly fetchImplementation: Fetch = fetch,
+    fetchImplementation?: Fetch,
   ) {
     this.baseUrl = connection.base_url.replace(/\/+$/, "");
+    this.fetchImplementation = (
+      fetchImplementation ?? globalThis.fetch
+    ).bind(globalThis);
   }
 
   getHealth(): Promise<Health> {
