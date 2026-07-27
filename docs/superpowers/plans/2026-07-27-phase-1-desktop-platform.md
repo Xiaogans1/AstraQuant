@@ -1130,7 +1130,7 @@ git commit -m "feat(api): 提供本地控制服务"
 - Modify: `pnpm-lock.yaml`
 - Create: `apps/desktop/src-tauri/Cargo.lock`
 
-- [ ] **Step 1: Create the frontend package**
+- [x] **Step 1: Create the frontend package**
 
 Use exact dependency families:
 
@@ -1174,7 +1174,7 @@ with `src/test/setup.ts`.
 Use a temporary `App.tsx` that renders `AstraQuant desktop bootstrap` so Rust work can be tested
 before the full UI.
 
-- [ ] **Step 2: Write failing Rust handshake tests**
+- [x] **Step 2: Write failing Rust handshake tests**
 
 Create `apps/desktop/src-tauri/Cargo.toml` before writing the test:
 
@@ -1262,7 +1262,7 @@ fn rejects_wrong_protocol_or_pid() {
 }
 ```
 
-- [ ] **Step 3: Run Rust tests and observe missing types**
+- [x] **Step 3: Run Rust tests and observe missing types**
 
 ```powershell
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml handshake
@@ -1270,7 +1270,7 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml handshake
 
 Expected: compilation fails because handshake types are not implemented.
 
-- [ ] **Step 4: Implement handshake validation**
+- [x] **Step 4: Implement handshake validation**
 
 Use Serde with `deny_unknown_fields`. Accept only:
 
@@ -1282,7 +1282,7 @@ Use Serde with `deny_unknown_fields`. Accept only:
 
 Expose only `base_url` and protocol version to the frontend; never expose the child PID.
 
-- [ ] **Step 5: Implement process ownership**
+- [x] **Step 5: Implement process ownership**
 
 `runtime.rs` must define:
 
@@ -1310,7 +1310,9 @@ Startup behavior:
 
 - generate a 32-byte token with the operating-system RNG and URL-safe base64;
 - resolve the repository root from `CARGO_MANIFEST_DIR`;
-- start `uv run astraquant-api serve` in the repository root;
+- start the final managed Python interpreter directly in the repository root so the supervised PID
+  equals the ready-message PID (on Windows resolve the base interpreter from `pyvenv.cfg` and use
+  the workspace virtual environment through an explicit `PYTHONPATH`);
 - pass `ASTRAQUANT_SESSION_TOKEN` and `.astraquant` state directory through environment variables;
 - pipe stdout/stderr;
 - read exactly one stdout line with a 10-second timeout;
@@ -1332,7 +1334,7 @@ fn open_log_directory(state: tauri::State<'_, RuntimeManager>)
 On application exit, send authenticated `POST /internal/shutdown`, wait up to five seconds, then
 kill and wait for the child if it remains alive.
 
-- [ ] **Step 6: Run Rust and frontend bootstrap checks**
+- [x] **Step 6: Run Rust and frontend bootstrap checks**
 
 ```powershell
 pnpm install
@@ -1345,7 +1347,7 @@ cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
 
 Expected: TypeScript and Rust checks pass.
 
-- [ ] **Step 7: Commit desktop process management**
+- [x] **Step 7: Commit desktop process management**
 
 ```powershell
 git add apps/desktop package.json pnpm-lock.yaml

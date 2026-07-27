@@ -54,10 +54,12 @@ node_modules/
 coverage/
 playwright-report/
 test-results/
+*.tsbuildinfo
 
 # Rust / Tauri
 target/
 src-tauri/target/
+**/src-tauri/gen/schemas/
 
 # Editors and operating systems
 .idea/
