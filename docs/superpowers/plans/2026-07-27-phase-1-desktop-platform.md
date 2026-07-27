@@ -871,7 +871,7 @@ git commit -m "feat(api): 增加示例 Worker 生命周期"
 - Create: `tests/api/test_logging.py`
 - Create: `tests/api/test_schemas.py`
 
-- [ ] **Step 1: Write failing configuration tests**
+- [x] **Step 1: Write failing configuration tests**
 
 Create `tests/api/test_config.py` with:
 
@@ -920,7 +920,7 @@ def test_redacts_nested_sensitive_values(tmp_path: Path) -> None:
     assert record["password"] == "[REDACTED]"
 ```
 
-- [ ] **Step 2: Run tests and observe missing modules**
+- [x] **Step 2: Run tests and observe missing modules**
 
 ```powershell
 uv run pytest tests/api/test_config.py tests/api/test_logging.py tests/api/test_schemas.py -v
@@ -928,7 +928,7 @@ uv run pytest tests/api/test_config.py tests/api/test_logging.py tests/api/test_
 
 Expected: missing-module failures.
 
-- [ ] **Step 3: Implement validated runtime configuration**
+- [x] **Step 3: Implement validated runtime configuration**
 
 `RuntimeConfig` is a frozen dataclass with:
 
@@ -943,7 +943,7 @@ shutdown_grace_seconds: float = 5.0
 Derived paths are `state/astraquant.sqlite3` and `logs/`. Resolve and create only descendants of
 `state_dir`; reject tokens shorter than 43 characters and ports outside `0..65535`.
 
-- [ ] **Step 4: Implement logging and API schemas**
+- [x] **Step 4: Implement logging and API schemas**
 
 Use Structlog processors to add UTC ISO timestamps and JSON output. Add a recursive redaction
 processor before the JSON renderer. Maintain an in-memory `deque[ActivityItem]` capped at 200 items
@@ -958,7 +958,7 @@ model_config = ConfigDict(extra="forbid")
 
 Task responses convert datetimes to UTC ISO 8601 and expose no database implementation fields.
 
-- [ ] **Step 5: Run configuration checks**
+- [x] **Step 5: Run configuration checks**
 
 ```powershell
 uv run pytest tests/api/test_config.py tests/api/test_logging.py tests/api/test_schemas.py -v
@@ -968,7 +968,7 @@ uv run mypy
 
 Expected: all new tests pass.
 
-- [ ] **Step 6: Commit platform configuration**
+- [x] **Step 6: Commit platform configuration**
 
 ```powershell
 git add packages/api/src/astraquant_api/config.py `
