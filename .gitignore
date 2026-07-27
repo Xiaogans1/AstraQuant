@@ -1,0 +1,71 @@
+# AstraQuant local runtime state
+/.astraquant/
+/data/
+/datasets/
+/artifacts/
+/reports/
+/logs/
+/models/
+/checkpoints/
+/research-upstream/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.pfx
+*.p12
+credentials*.json
+secrets*.json
+
+# Local databases and market data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.duckdb
+*.parquet
+*.arrow
+*.feather
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Node / frontend
+node_modules/
+.turbo/
+.vite/
+coverage/
+playwright-report/
+test-results/
+
+# Rust / Tauri
+target/
+src-tauri/target/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.log
