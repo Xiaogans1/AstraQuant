@@ -712,7 +712,7 @@ git commit -m "feat(api): 增加任务持久化与恢复"
 - Create: `tests/api/test_worker.py`
 - Create: `tests/api/test_supervisor.py`
 
-- [ ] **Step 1: Write failing worker protocol tests**
+- [x] **Step 1: Write failing worker protocol tests**
 
 Create `tests/api/test_worker.py`:
 
@@ -768,7 +768,7 @@ Create `tests/api/test_supervisor.py` using a temporary repository. Verify:
   `error_code="worker_exited"`;
 - `shutdown` cancels all live jobs and joins them within the supplied timeout.
 
-- [ ] **Step 2: Run tests and observe missing worker modules**
+- [x] **Step 2: Run tests and observe missing worker modules**
 
 Run:
 
@@ -778,7 +778,7 @@ uv run pytest tests/api/test_worker.py tests/api/test_supervisor.py -v
 
 Expected: collection fails because worker modules are missing.
 
-- [ ] **Step 3: Implement the process-safe worker protocol**
+- [x] **Step 3: Implement the process-safe worker protocol**
 
 `worker.py` must define picklable top-level values:
 
@@ -825,7 +825,7 @@ WorkerMessage(
 Catch ordinary exceptions and emit a redacted `FAILED` message. Do not include tracebacks or
 environment values in the queue payload.
 
-- [ ] **Step 4: Implement the supervisor**
+- [x] **Step 4: Implement the supervisor**
 
 `supervisor.py` must:
 
@@ -840,7 +840,7 @@ environment values in the queue payload.
 
 Keep process objects out of Pydantic models and SQLite.
 
-- [ ] **Step 5: Run worker and supervisor tests**
+- [x] **Step 5: Run worker and supervisor tests**
 
 Run:
 
@@ -852,7 +852,7 @@ uv run mypy
 
 Expected: spawned-process tests pass on Windows.
 
-- [ ] **Step 6: Commit workers**
+- [x] **Step 6: Commit workers**
 
 ```powershell
 git add packages/api/src/astraquant_api/worker.py `
