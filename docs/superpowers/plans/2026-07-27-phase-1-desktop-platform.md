@@ -1501,7 +1501,7 @@ git commit -m "feat(ui): 接入类型化本地 API"
 - Modify: `apps/desktop/src/App.tsx`
 - Modify: `apps/desktop/src/main.tsx`
 
-- [ ] **Step 1: Write failing theme tests**
+- [x] **Step 1: Write failing theme tests**
 
 Verify:
 
@@ -1524,7 +1524,7 @@ it("keeps safety tokens outside theme overrides", () => {
 });
 ```
 
-- [ ] **Step 2: Implement the token hierarchy**
+- [x] **Step 2: Implement the token hierarchy**
 
 `:root` defines immutable safety colors. `[data-theme="astra-minimal"]` and
 `[data-theme="astra-light"]` define only:
@@ -1538,7 +1538,7 @@ it("keeps safety tokens outside theme overrides", () => {
 Add `prefers-reduced-motion` and `[data-reduced-motion="true"]` rules that reduce transitions to
 near-zero without hiding progress state.
 
-- [ ] **Step 3: Implement the workspace shell**
+- [x] **Step 3: Implement the workspace shell**
 
 Build the visual structure approved in the browser mockup:
 
@@ -1552,7 +1552,7 @@ Build the visual structure approved in the browser mockup:
 
 Navigation remains local React state in Phase 1; do not add a router.
 
-- [ ] **Step 4: Run theme and shell checks**
+- [x] **Step 4: Run theme and shell checks**
 
 ```powershell
 pnpm --dir apps/desktop test -- src/theme/theme.test.ts
@@ -1562,7 +1562,7 @@ pnpm --dir apps/desktop build
 
 Expected: tests, strict typing and production frontend build pass.
 
-- [ ] **Step 5: Commit themes and shell**
+- [x] **Step 5: Commit themes and shell**
 
 ```powershell
 git add apps/desktop/src/theme apps/desktop/src/styles `

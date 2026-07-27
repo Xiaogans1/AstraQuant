@@ -1,0 +1,67 @@
+:root {
+  color-scheme: dark;
+  font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+
+  --font-display: "Bahnschrift", "Microsoft YaHei UI", sans-serif;
+  --font-body: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  --font-data: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+
+  --safety-live: #ff4f67;
+  --safety-paper: #55cfe1;
+  --safety-risk: #f6b94a;
+  --safety-buy: #f05252;
+  --safety-sell: #28b87a;
+  --safety-emergency: #e60032;
+
+  --rail-height: 58px;
+  --sidebar-width: 220px;
+  --sidebar-collapsed-width: 76px;
+}
+
+[data-theme="astra-minimal"] {
+  color-scheme: dark;
+  --canvas: #081014;
+  --panel: #0d171c;
+  --elevated: #132127;
+  --text-primary: #e8f2f3;
+  --text-secondary: #b5c5c8;
+  --text-muted: #72878d;
+  --border: #21343a;
+  --focus-ring: #8ae2e6;
+  --accent: #68d3d9;
+  --accent-soft: rgb(104 211 217 / 12%);
+  --shadow: 0 18px 54px rgb(0 0 0 / 28%);
+  --blur: 18px;
+  --radius: 14px;
+  --motion-duration: 180ms;
+}
+
+[data-theme="astra-light"] {
+  color-scheme: light;
+  --canvas: #edf2f1;
+  --panel: #f8fbfa;
+  --elevated: #ffffff;
+  --text-primary: #172327;
+  --text-secondary: #43565c;
+  --text-muted: #718187;
+  --border: #cbd7d7;
+  --focus-ring: #087f87;
+  --accent: #087f87;
+  --accent-soft: rgb(8 127 135 / 10%);
+  --shadow: 0 18px 48px rgb(33 57 61 / 11%);
+  --blur: 18px;
+  --radius: 14px;
+  --motion-duration: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration: 1ms;
+  }
+}
+
+[data-reduced-motion="true"] {
+  --motion-duration: 1ms;
+}
