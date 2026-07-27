@@ -5,8 +5,10 @@ from astraquant_domain.orders import (
     Environment,
     OrderRequest,
     OrderSide,
+    OrderStatus,
     OrderType,
     TimeInForce,
+    transition_order,
 )
 
 __all__ = [
@@ -14,7 +16,9 @@ __all__ = [
     "InstrumentId",
     "OrderRequest",
     "OrderSide",
+    "OrderStatus",
     "OrderType",
     "TimeInForce",
     "Venue",
+    "transition_order",
 ]

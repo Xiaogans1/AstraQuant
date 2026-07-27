@@ -51,3 +51,54 @@ class OrderRequest:
             raise ValueError("limit_price must be omitted for MARKET orders")
         if self.limit_price is not None and self.limit_price <= 0:
             raise ValueError("limit_price must be positive")
+
+
+class OrderStatus(StrEnum):
+    PENDING_SUBMIT = "PENDING_SUBMIT"
+    SUBMITTED = "SUBMITTED"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    CANCEL_PENDING = "CANCEL_PENDING"
+    FILLED = "FILLED"
+    CANCELED = "CANCELED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+
+
+_ALLOWED_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
+    OrderStatus.PENDING_SUBMIT: frozenset({OrderStatus.SUBMITTED, OrderStatus.REJECTED}),
+    OrderStatus.SUBMITTED: frozenset(
+        {
+            OrderStatus.PARTIALLY_FILLED,
+            OrderStatus.CANCEL_PENDING,
+            OrderStatus.FILLED,
+            OrderStatus.CANCELED,
+            OrderStatus.REJECTED,
+            OrderStatus.EXPIRED,
+        }
+    ),
+    OrderStatus.PARTIALLY_FILLED: frozenset(
+        {
+            OrderStatus.CANCEL_PENDING,
+            OrderStatus.FILLED,
+            OrderStatus.CANCELED,
+            OrderStatus.EXPIRED,
+        }
+    ),
+    OrderStatus.CANCEL_PENDING: frozenset(
+        {
+            OrderStatus.PARTIALLY_FILLED,
+            OrderStatus.FILLED,
+            OrderStatus.CANCELED,
+        }
+    ),
+    OrderStatus.FILLED: frozenset(),
+    OrderStatus.CANCELED: frozenset(),
+    OrderStatus.REJECTED: frozenset(),
+    OrderStatus.EXPIRED: frozenset(),
+}
+
+
+def transition_order(current: OrderStatus, target: OrderStatus) -> OrderStatus:
+    if target not in _ALLOWED_TRANSITIONS[current]:
+        raise ValueError(f"Invalid order transition: {current.value} -> {target.value}")
+    return target

@@ -8,8 +8,10 @@ from astraquant_domain.orders import (
     Environment,
     OrderRequest,
     OrderSide,
+    OrderStatus,
     OrderType,
     TimeInForce,
+    transition_order,
 )
 
 ORDER_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -71,3 +73,31 @@ def test_order_quantity_must_be_positive(quantity: Decimal) -> None:
             quantity=quantity,
             time_in_force=TimeInForce.IOC,
         )
+
+
+@pytest.mark.parametrize(
+    ("current", "target"),
+    [
+        (OrderStatus.PENDING_SUBMIT, OrderStatus.SUBMITTED),
+        (OrderStatus.SUBMITTED, OrderStatus.PARTIALLY_FILLED),
+        (OrderStatus.PARTIALLY_FILLED, OrderStatus.FILLED),
+        (OrderStatus.SUBMITTED, OrderStatus.CANCEL_PENDING),
+        (OrderStatus.CANCEL_PENDING, OrderStatus.CANCELED),
+    ],
+)
+def test_allow_valid_order_transition(current: OrderStatus, target: OrderStatus) -> None:
+    assert transition_order(current, target) is target
+
+
+@pytest.mark.parametrize(
+    ("current", "target"),
+    [
+        (OrderStatus.FILLED, OrderStatus.CANCELED),
+        (OrderStatus.CANCELED, OrderStatus.SUBMITTED),
+        (OrderStatus.REJECTED, OrderStatus.SUBMITTED),
+        (OrderStatus.PENDING_SUBMIT, OrderStatus.FILLED),
+    ],
+)
+def test_reject_invalid_order_transition(current: OrderStatus, target: OrderStatus) -> None:
+    with pytest.raises(ValueError, match="Invalid order transition"):
+        transition_order(current, target)
