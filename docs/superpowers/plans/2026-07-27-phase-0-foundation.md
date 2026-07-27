@@ -44,7 +44,7 @@ This plan intentionally covers only the independently testable Phase 0 foundatio
 - Create: `packages/domain/src/astraquant_domain/__init__.py`
 - Create: `uv.lock`
 
-- [ ] **Step 1: Install uv and Python 3.12**
+- [x] **Step 1: Install uv and Python 3.12**
 
 Run:
 
@@ -55,7 +55,7 @@ uv python install 3.12
 
 Expected: `uv --version` succeeds and `uv python find 3.12` prints a managed Python 3.12 executable.
 
-- [ ] **Step 2: Add cross-platform text configuration**
+- [x] **Step 2: Add cross-platform text configuration**
 
 Create `.python-version`:
 
@@ -95,7 +95,7 @@ Create `.gitattributes`:
 *.ps1 text eol=crlf
 ```
 
-- [ ] **Step 3: Create the root workspace configuration**
+- [x] **Step 3: Create the root workspace configuration**
 
 Create `pyproject.toml`:
 
@@ -124,6 +124,7 @@ members = ["packages/domain"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
+pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.ruff]
@@ -133,13 +134,16 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["astraquant_domain", "tools"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
 files = ["packages/domain/src", "tools", "tests"]
 ```
 
-- [ ] **Step 4: Create the dependency-free domain package**
+- [x] **Step 4: Create the dependency-free domain package**
 
 Create `packages/domain/pyproject.toml`:
 
@@ -165,7 +169,7 @@ Create `packages/domain/src/astraquant_domain/__init__.py`:
 """Stable domain contracts shared by AstraQuant runtimes."""
 ```
 
-- [ ] **Step 5: Lock and synchronize dependencies**
+- [x] **Step 5: Lock and synchronize dependencies**
 
 Run:
 
@@ -177,7 +181,7 @@ uv run python -c "import astraquant_domain; print(astraquant_domain.__doc__)"
 
 Expected: the import prints `Stable domain contracts shared by AstraQuant runtimes.`
 
-- [ ] **Step 6: Commit the workspace**
+- [x] **Step 6: Commit the workspace**
 
 ```powershell
 git add .python-version .editorconfig .gitattributes pyproject.toml uv.lock packages/domain
@@ -191,7 +195,7 @@ git commit -m "build: 初始化 Python 工作区"
 - Create: `packages/domain/src/astraquant_domain/identifiers.py`
 - Modify: `packages/domain/src/astraquant_domain/__init__.py`
 
-- [ ] **Step 1: Write failing identifier tests**
+- [x] **Step 1: Write failing identifier tests**
 
 Create `tests/domain/test_identifiers.py`:
 
@@ -221,7 +225,7 @@ def test_reject_invalid_identifier(value: str) -> None:
         InstrumentId.parse(value)
 ```
 
-- [ ] **Step 2: Run the tests and observe the missing module**
+- [x] **Step 2: Run the tests and observe the missing module**
 
 Run:
 
@@ -231,7 +235,7 @@ uv run pytest tests/domain/test_identifiers.py -v
 
 Expected: FAIL during collection with `ModuleNotFoundError: astraquant_domain.identifiers`.
 
-- [ ] **Step 3: Implement identifiers**
+- [x] **Step 3: Implement identifiers**
 
 Create `packages/domain/src/astraquant_domain/identifiers.py`:
 
@@ -298,7 +302,7 @@ from astraquant_domain.identifiers import InstrumentId, Venue
 __all__ = ["InstrumentId", "Venue"]
 ```
 
-- [ ] **Step 4: Run identifier tests**
+- [x] **Step 4: Run identifier tests**
 
 Run:
 
@@ -308,7 +312,7 @@ uv run pytest tests/domain/test_identifiers.py -v
 
 Expected: 7 tests pass.
 
-- [ ] **Step 5: Commit identifiers**
+- [x] **Step 5: Commit identifiers**
 
 ```powershell
 git add packages/domain/src/astraquant_domain tests/domain/test_identifiers.py
@@ -322,7 +326,7 @@ git commit -m "feat(domain): 增加交易标的标识"
 - Create: `packages/domain/src/astraquant_domain/orders.py`
 - Modify: `packages/domain/src/astraquant_domain/__init__.py`
 
-- [ ] **Step 1: Write failing order validation tests**
+- [x] **Step 1: Write failing order validation tests**
 
 Create `tests/domain/test_orders.py`:
 
@@ -402,7 +406,7 @@ def test_order_quantity_must_be_positive(quantity: Decimal) -> None:
         )
 ```
 
-- [ ] **Step 2: Run the tests and observe the missing order module**
+- [x] **Step 2: Run the tests and observe the missing order module**
 
 Run:
 
@@ -412,7 +416,7 @@ uv run pytest tests/domain/test_orders.py -v
 
 Expected: FAIL during collection with `ModuleNotFoundError: astraquant_domain.orders`.
 
-- [ ] **Step 3: Implement order values and validation**
+- [x] **Step 3: Implement order values and validation**
 
 Create `packages/domain/src/astraquant_domain/orders.py`:
 
@@ -497,7 +501,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Run order validation tests**
+- [x] **Step 4: Run order validation tests**
 
 Run:
 
@@ -507,7 +511,7 @@ uv run pytest tests/domain/test_orders.py -v
 
 Expected: 5 tests pass.
 
-- [ ] **Step 5: Commit order values**
+- [x] **Step 5: Commit order values**
 
 ```powershell
 git add packages/domain/src/astraquant_domain tests/domain/test_orders.py
@@ -521,7 +525,7 @@ git commit -m "feat(domain): 定义订单请求契约"
 - Modify: `packages/domain/src/astraquant_domain/orders.py`
 - Modify: `packages/domain/src/astraquant_domain/__init__.py`
 
-- [ ] **Step 1: Add failing transition tests**
+- [x] **Step 1: Add failing transition tests**
 
 Extend the existing import from `astraquant_domain.orders` so it reads:
 
@@ -568,7 +572,7 @@ def test_reject_invalid_order_transition(current: OrderStatus, target: OrderStat
         transition_order(current, target)
 ```
 
-- [ ] **Step 2: Run transition tests and observe missing symbols**
+- [x] **Step 2: Run transition tests and observe missing symbols**
 
 Run:
 
@@ -578,7 +582,7 @@ uv run pytest tests/domain/test_orders.py -v
 
 Expected: FAIL during collection because `OrderStatus` and `transition_order` do not exist.
 
-- [ ] **Step 3: Implement explicit transitions**
+- [x] **Step 3: Implement explicit transitions**
 
 Append to `packages/domain/src/astraquant_domain/orders.py`:
 
@@ -595,9 +599,7 @@ class OrderStatus(StrEnum):
 
 
 _ALLOWED_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
-    OrderStatus.PENDING_SUBMIT: frozenset(
-        {OrderStatus.SUBMITTED, OrderStatus.REJECTED}
-    ),
+    OrderStatus.PENDING_SUBMIT: frozenset({OrderStatus.SUBMITTED, OrderStatus.REJECTED}),
     OrderStatus.SUBMITTED: frozenset(
         {
             OrderStatus.PARTIALLY_FILLED,
@@ -665,7 +667,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 4: Run all order tests**
+- [x] **Step 4: Run all order tests**
 
 Run:
 
@@ -675,7 +677,7 @@ uv run pytest tests/domain/test_orders.py -v
 
 Expected: 14 tests pass.
 
-- [ ] **Step 5: Commit the state machine**
+- [x] **Step 5: Commit the state machine**
 
 ```powershell
 git add packages/domain/src/astraquant_domain tests/domain/test_orders.py
@@ -690,7 +692,7 @@ git commit -m "feat(domain): 增加订单状态机"
 - Create: `packages/domain/src/astraquant_domain/events.py`
 - Modify: `packages/domain/src/astraquant_domain/__init__.py`
 
-- [ ] **Step 1: Write failing event tests**
+- [x] **Step 1: Write failing event tests**
 
 Create `tests/domain/test_events.py`:
 
@@ -748,7 +750,7 @@ def test_reject_invalid_event_type(event_type: str) -> None:
         )
 ```
 
-- [ ] **Step 2: Run event tests and observe missing modules**
+- [x] **Step 2: Run event tests and observe missing modules**
 
 Run:
 
@@ -758,7 +760,7 @@ uv run pytest tests/domain/test_events.py -v
 
 Expected: FAIL during collection for missing `astraquant_domain.clocks`.
 
-- [ ] **Step 3: Implement clock contracts**
+- [x] **Step 3: Implement clock contracts**
 
 Create `packages/domain/src/astraquant_domain/clocks.py`:
 
@@ -791,7 +793,7 @@ class FixedClock:
         return self.value
 ```
 
-- [ ] **Step 4: Implement the event envelope**
+- [x] **Step 4: Implement the event envelope**
 
 Create `packages/domain/src/astraquant_domain/events.py`:
 
@@ -883,7 +885,7 @@ __all__ = [
 ]
 ```
 
-- [ ] **Step 5: Run event and domain tests**
+- [x] **Step 5: Run event and domain tests**
 
 Run:
 
@@ -893,7 +895,7 @@ uv run pytest tests/domain -v
 
 Expected: all domain tests pass.
 
-- [ ] **Step 6: Commit events and clocks**
+- [x] **Step 6: Commit events and clocks**
 
 ```powershell
 git add packages/domain/src/astraquant_domain tests/domain/test_events.py
@@ -907,7 +909,7 @@ git commit -m "feat(domain): 增加版本化领域事件"
 - Create: `tools/repository_policy.py`
 - Create: `tests/repository/test_repository_policy.py`
 
-- [ ] **Step 1: Write failing policy tests**
+- [x] **Step 1: Write failing policy tests**
 
 Create `tools/__init__.py`:
 
@@ -943,7 +945,7 @@ def test_reject_private_data_and_runtime_files() -> None:
     assert find_forbidden_paths(paths) == paths
 ```
 
-- [ ] **Step 2: Run policy tests and observe the missing module**
+- [x] **Step 2: Run policy tests and observe the missing module**
 
 Run:
 
@@ -953,7 +955,7 @@ uv run pytest tests/repository/test_repository_policy.py -v
 
 Expected: FAIL because `tools.repository_policy` does not exist.
 
-- [ ] **Step 3: Implement the policy checker**
+- [x] **Step 3: Implement the policy checker**
 
 Create `tools/repository_policy.py`:
 
@@ -1043,7 +1045,7 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-- [ ] **Step 4: Run policy tests and the live index check**
+- [x] **Step 4: Run policy tests and the live index check**
 
 Run:
 
@@ -1054,7 +1056,7 @@ uv run python -m tools.repository_policy
 
 Expected: 2 tests pass and the command prints `Repository policy passed.`
 
-- [ ] **Step 5: Commit the repository guard**
+- [x] **Step 5: Commit the repository guard**
 
 ```powershell
 git add tools tests/repository
@@ -1069,7 +1071,7 @@ git commit -m "build: 增加仓库数据边界检查"
 - Create: `docs/architecture/adr/0001-foundation-boundaries.md`
 - Modify: `README.md`
 
-- [ ] **Step 1: Create cross-platform CI**
+- [x] **Step 1: Create cross-platform CI**
 
 Create `.github/workflows/ci.yml`:
 
@@ -1094,10 +1096,10 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
-          python-version-file: .python-version
+          python-version: "3.12"
       - run: uv sync --locked --all-packages
       - run: uv run ruff format --check .
       - run: uv run ruff check .
@@ -1106,7 +1108,7 @@ jobs:
       - run: uv run python -m tools.repository_policy
 ```
 
-- [ ] **Step 2: Configure dependency updates**
+- [x] **Step 2: Configure dependency updates**
 
 Create `.github/dependabot.yml`:
 
@@ -1123,7 +1125,7 @@ updates:
       interval: weekly
 ```
 
-- [ ] **Step 3: Record the foundation decision**
+- [x] **Step 3: Record the foundation decision**
 
 Create `docs/architecture/adr/0001-foundation-boundaries.md`:
 
@@ -1154,7 +1156,7 @@ vn.py、Qlib、Tauri、FastAPI、DuckDB 和 SQLite 均在后续适配层使用�
 或跨进程接口。领域契约发生不兼容变化时必须显式升级版本。
 ```
 
-- [ ] **Step 4: Add developer quick start to README**
+- [x] **Step 4: Add developer quick start to README**
 
 Append:
 
@@ -1174,7 +1176,7 @@ uv run mypy
 本机安装的其他 Python 版本不会成为项目运行基线。
 ````
 
-- [ ] **Step 5: Run all local quality gates**
+- [x] **Step 5: Run all local quality gates**
 
 Run:
 
@@ -1189,7 +1191,7 @@ git diff --check
 
 Expected: Ruff reports no errors, mypy reports success, all tests pass, repository policy passes, and `git diff --check` is silent.
 
-- [ ] **Step 6: Commit CI and documentation**
+- [x] **Step 6: Commit CI and documentation**
 
 ```powershell
 git add .github README.md docs/architecture
@@ -1201,11 +1203,11 @@ git commit -m "ci: 建立跨平台质量门禁"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-07-27-phase-0-foundation.md`
 
-- [ ] **Step 1: Mark completed checkboxes in this plan**
+- [x] **Step 1: Mark completed checkboxes in this plan**
 
 Change each executed `- [ ]` marker to `- [x]` without altering the prescribed commands or expected outcomes.
 
-- [ ] **Step 2: Run the complete verification suite from a clean shell**
+- [x] **Step 2: Run the complete verification suite from a clean shell**
 
 Run:
 
@@ -1222,14 +1224,14 @@ git status -sb
 
 Expected: every command exits zero; `git status` only shows the plan checkbox update.
 
-- [ ] **Step 3: Commit plan execution state**
+- [x] **Step 3: Commit plan execution state**
 
 ```powershell
 git add docs/superpowers/plans/2026-07-27-phase-0-foundation.md
 git commit -m "docs: 记录 Phase 0 实施结果"
 ```
 
-- [ ] **Step 4: Push the feature branch and open a Draft PR**
+- [x] **Step 4: Push the feature branch and open a Draft PR**
 
 Run:
 
@@ -1240,7 +1242,7 @@ gh pr create --draft --base main --head feature/phase-0-foundation --title "feat
 
 The PR body must list the domain contracts, repository policy, CI platforms, exact verification commands, and any environmental limitation encountered during implementation.
 
-- [ ] **Step 5: Verify the remote branch and checks**
+- [x] **Step 5: Verify the remote branch and checks**
 
 Run:
 
