@@ -254,7 +254,7 @@ git commit -m "build: 扩展桌面平台工作区"
 - Create: `packages/api/src/astraquant_api/task_model.py`
 - Modify: `packages/api/src/astraquant_api/__init__.py`
 
-- [ ] **Step 1: Write failing task-state tests**
+- [x] **Step 1: Write failing task-state tests**
 
 Create `tests/api/test_task_model.py`:
 
@@ -333,7 +333,7 @@ def test_progress_must_be_bounded() -> None:
         )
 ```
 
-- [ ] **Step 2: Run the tests and observe the missing module**
+- [x] **Step 2: Run the tests and observe the missing module**
 
 Run:
 
@@ -343,7 +343,7 @@ uv run pytest tests/api/test_task_model.py -v
 
 Expected: collection fails with `ModuleNotFoundError: astraquant_api.task_model`.
 
-- [ ] **Step 3: Implement the task model**
+- [x] **Step 3: Implement the task model**
 
 Create `packages/api/src/astraquant_api/task_model.py`:
 
@@ -466,7 +466,7 @@ class TaskRecord:
 
 Export the stable symbols from `astraquant_api.__init__`.
 
-- [ ] **Step 4: Run the task tests**
+- [x] **Step 4: Run the task tests**
 
 Run:
 
@@ -478,7 +478,7 @@ uv run mypy
 
 Expected: all task-model tests pass and static checks succeed.
 
-- [ ] **Step 5: Commit task contracts**
+- [x] **Step 5: Commit task contracts**
 
 ```powershell
 git add packages/api/src/astraquant_api tests/api/test_task_model.py
