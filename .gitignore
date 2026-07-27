@@ -9,6 +9,7 @@
 /checkpoints/
 /research-upstream/
 /.worktrees/
+/.superpowers/
 
 # Secrets and local configuration
 .env
@@ -70,3 +71,4 @@ Desktop.ini
 *.temp
 *.bak
 *.log
+*.jsonl
