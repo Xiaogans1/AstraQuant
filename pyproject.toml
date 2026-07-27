@@ -1,0 +1,37 @@
+[project]
+name = "astraquant-workspace"
+version = "0.0.0"
+requires-python = ">=3.12,<3.13"
+dependencies = ["astraquant-domain"]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.17,<2",
+  "pytest>=8.4,<10",
+  "ruff>=0.12,<1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+astraquant-domain = { workspace = true }
+
+[tool.uv.workspace]
+members = ["packages/domain"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["packages/domain/src", "tools", "tests"]

@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astraquant-domain"
+version = "0.1.0"
+description = "Stable domain contracts for AstraQuant."
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astraquant_domain"]
