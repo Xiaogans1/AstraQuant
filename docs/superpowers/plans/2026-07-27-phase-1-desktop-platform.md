@@ -96,7 +96,7 @@ README.md                            Phase 1 development quick start
 - Modify: `uv.lock`
 - Create: `pnpm-lock.yaml`
 
-- [ ] **Step 1: Mark the approved design**
+- [x] **Step 1: Mark the approved design**
 
 Change the specification header to:
 
@@ -105,7 +105,7 @@ Change the specification header to:
 状态：已批准
 ```
 
-- [ ] **Step 2: Add the root Node workspace**
+- [x] **Step 2: Add the root Node workspace**
 
 Create `package.json`:
 
@@ -134,7 +134,7 @@ packages:
   - apps/*
 ```
 
-- [ ] **Step 3: Register the API package in uv**
+- [x] **Step 3: Register the API package in uv**
 
 Update the root workspace:
 
@@ -212,7 +212,7 @@ Create `packages/api/src/astraquant_api/__init__.py`:
 __version__ = "0.1.0"
 ```
 
-- [ ] **Step 4: Lock and synchronize both ecosystems**
+- [x] **Step 4: Lock and synchronize both ecosystems**
 
 Run:
 
@@ -225,7 +225,7 @@ uv run python -c "import astraquant_api; print(astraquant_api.__version__)"
 
 Expected: dependency synchronization succeeds and prints `0.1.0`.
 
-- [ ] **Step 5: Run existing gates**
+- [x] **Step 5: Run existing gates**
 
 Run:
 
@@ -239,7 +239,7 @@ git diff --check
 
 Expected: existing 29 tests pass and repository policy passes.
 
-- [ ] **Step 6: Commit the workspace**
+- [x] **Step 6: Commit the workspace**
 
 ```powershell
 git add docs/superpowers/specs/2026-07-27-phase-1-desktop-platform-design.md `
