@@ -1096,10 +1096,10 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v8
+      - uses: astral-sh/setup-uv@v9.0.0
         with:
           enable-cache: true
-          python-version-file: .python-version
+          python-version: "3.12"
       - run: uv sync --locked --all-packages
       - run: uv run ruff format --check .
       - run: uv run ruff check .
