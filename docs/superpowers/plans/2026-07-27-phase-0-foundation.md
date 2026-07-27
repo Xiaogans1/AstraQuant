@@ -1231,7 +1231,7 @@ git add docs/superpowers/plans/2026-07-27-phase-0-foundation.md
 git commit -m "docs: 记录 Phase 0 实施结果"
 ```
 
-- [ ] **Step 4: Push the feature branch and open a Draft PR**
+- [x] **Step 4: Push the feature branch and open a Draft PR**
 
 Run:
 
@@ -1242,7 +1242,7 @@ gh pr create --draft --base main --head feature/phase-0-foundation --title "feat
 
 The PR body must list the domain contracts, repository policy, CI platforms, exact verification commands, and any environmental limitation encountered during implementation.
 
-- [ ] **Step 5: Verify the remote branch and checks**
+- [x] **Step 5: Verify the remote branch and checks**
 
 Run:
 
