@@ -496,7 +496,7 @@ git commit -m "feat(api): 定义平台任务状态契约"
 - Create: `packages/api/src/astraquant_api/repository.py`
 - Create: `tests/api/test_repository.py`
 
-- [ ] **Step 1: Write failing persistence tests**
+- [x] **Step 1: Write failing persistence tests**
 
 Create `tests/api/test_repository.py`:
 
@@ -564,7 +564,7 @@ def test_round_trip_settings(tmp_path: Path) -> None:
     assert repository.get_setting("theme") == "astra-light"
 ```
 
-- [ ] **Step 2: Run the tests and verify missing persistence modules**
+- [x] **Step 2: Run the tests and verify missing persistence modules**
 
 Run:
 
@@ -574,7 +574,7 @@ uv run pytest tests/api/test_repository.py -v
 
 Expected: collection fails because `astraquant_api.database` is missing.
 
-- [ ] **Step 3: Implement engine and migration entry points**
+- [x] **Step 3: Implement engine and migration entry points**
 
 `database.py` must:
 
@@ -641,7 +641,7 @@ def downgrade() -> None:
     op.drop_table("tasks")
 ```
 
-- [ ] **Step 4: Implement repository operations**
+- [x] **Step 4: Implement repository operations**
 
 `repository.py` exposes exactly these operations:
 
@@ -683,7 +683,7 @@ Serialize datetimes as UTC-aware values and JSON with deterministic key ordering
 `interrupt_active_tasks` loads active rows, applies the public transition function, sets
 `finished_at=datetime.now(UTC)`, and persists one `task.interrupted` event per row.
 
-- [ ] **Step 5: Run persistence checks**
+- [x] **Step 5: Run persistence checks**
 
 Run:
 
@@ -695,7 +695,7 @@ uv run mypy
 
 Expected: persistence and recovery tests pass.
 
-- [ ] **Step 6: Commit persistence**
+- [x] **Step 6: Commit persistence**
 
 ```powershell
 git add packages/api/alembic.ini packages/api/migrations `
