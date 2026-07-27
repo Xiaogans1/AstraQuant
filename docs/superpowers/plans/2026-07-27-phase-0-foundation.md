@@ -134,6 +134,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["astraquant_domain", "tools"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -596,9 +599,7 @@ class OrderStatus(StrEnum):
 
 
 _ALLOWED_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
-    OrderStatus.PENDING_SUBMIT: frozenset(
-        {OrderStatus.SUBMITTED, OrderStatus.REJECTED}
-    ),
+    OrderStatus.PENDING_SUBMIT: frozenset({OrderStatus.SUBMITTED, OrderStatus.REJECTED}),
     OrderStatus.SUBMITTED: frozenset(
         {
             OrderStatus.PARTIALLY_FILLED,

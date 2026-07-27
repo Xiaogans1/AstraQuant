@@ -98,3 +98,17 @@ GitHub 只保存源代码、文档、数据结构定义、迁移脚本、示例�
 ## 风险声明
 
 本项目用于量化研究与软件工程实践，不构成投资建议。交易系统、行情数据和回测结果均可能存在错误；在任何真实资金使用前，必须经过充分测试、模拟运行、人工复核和独立风险评估。
+
+## 开发环境
+
+Phase 0 使用 Python 3.12 和 uv：
+
+```powershell
+uv python install 3.12
+uv sync --locked --all-packages
+uv run pytest
+uv run ruff check .
+uv run mypy
+```
+
+本机安装的其他 Python 版本不会成为项目运行基线。
