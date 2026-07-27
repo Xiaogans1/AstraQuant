@@ -2,7 +2,8 @@
 
 面向中国 A 股与国内期货的本地优先量化研究、回测与交易平台。
 
-> 当前状态：产品设计与技术验证阶段。仓库暂不包含可运行的交易程序，请勿用于真实资金交易。
+> 当前状态：Phase 1 桌面开发版已可运行，包含本地服务、SQLite、示例 Worker
+> 与任务工作区；尚未接入行情、回测、模拟或实盘交易，请勿用于真实资金交易。
 
 ## 为什么做 AstraQuant
 
@@ -99,16 +100,59 @@ GitHub 只保存源代码、文档、数据结构定义、迁移脚本、示例�
 
 本项目用于量化研究与软件工程实践，不构成投资建议。交易系统、行情数据和回测结果均可能存在错误；在任何真实资金使用前，必须经过充分测试、模拟运行、人工复核和独立风险评估。
 
+## Phase 1 可运行能力
+
+当前开发版已打通以下本地闭环：
+
+```text
+Tauri 桌面 → 随机会话令牌 → 127.0.0.1 FastAPI
+→ SQLite 任务状态 → 独立 Worker → 进度/取消/结果 → React 工作区
+```
+
+- Tauri 管理控制服务进程、随机端口、握手和安全关闭。
+- FastAPI 仅监听 IPv4 loopback，业务端点统一使用 Bearer 会话认证。
+- SQLite 保存任务历史和界面设置；异常重启后活动任务标记为 `INTERRUPTED`。
+- React 工作区提供总览、任务、本地活动、设置和两套基础主题。
+- 所有运行数据默认写入仓库根目录的 `.astraquant/`，该目录不会提交 Git。
+
+Phase 1 只保证开发环境运行，不提供安装包。
+
 ## 开发环境
 
-Phase 0 使用 Python 3.12 和 uv：
+### 前置条件
+
+- Windows 10/11 与 WebView2 Runtime。
+- Visual Studio Build Tools，包含 C++ 桌面生成工具。
+- Python 3.12。
+- [uv](https://docs.astral.sh/uv/)。
+- Node.js 24 与 pnpm 11.9。
+- Rust 1.96（MSVC toolchain）。
+
+首次准备：
 
 ```powershell
 uv python install 3.12
 uv sync --locked --all-packages
-uv run pytest
-uv run ruff check .
-uv run mypy
+pnpm install --frozen-lockfile
 ```
 
-本机安装的其他 Python 版本不会成为项目运行基线。
+启动桌面开发版：
+
+```powershell
+pnpm dev
+```
+
+常用检查：
+
+```powershell
+uv run pytest
+uv run ruff format --check .
+uv run ruff check .
+uv run mypy
+pnpm --dir apps/desktop test
+pnpm --dir apps/desktop check
+cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+```
+
+关闭桌面窗口时，Tauri 会请求本地服务完成受控关闭，并在超时后终止它。开发期间的
+数据库、日志和设置位于 `.astraquant/`；删除该目录会清除本机开发状态。

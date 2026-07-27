@@ -26,5 +26,41 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run mypy
-      - run: uv run pytest
+      - name: Run Python tests (Windows)
+        if: runner.os == 'Windows'
+        run: uv run pytest
+      - name: Run Python tests (portable)
+        if: runner.os != 'Windows'
+        run: uv run pytest -m "not windows_runtime"
       - run: uv run python -m tools.repository_policy
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --dir apps/desktop check
+      - run: pnpm --dir apps/desktop test
+      - run: pnpm --dir apps/desktop build
+
+  desktop-rust:
+    name: Desktop Rust
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.96.0"
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml --check
+      - run: cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml

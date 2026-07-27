@@ -17,7 +17,12 @@ from astraquant_api.task_model import (
     TaskStatus,
     transition_task,
 )
-from astraquant_api.worker import WorkerMessage, WorkerMessageKind, run_demo_worker
+from astraquant_api.worker import (
+    DEFAULT_DEMO_STEP_DELAY,
+    WorkerMessage,
+    WorkerMessageKind,
+    run_demo_worker,
+)
 
 WorkerTarget = Callable[[str, Any, Any, float], None]
 
@@ -34,7 +39,7 @@ class TaskSupervisor:
         self,
         repository: TaskRepository,
         *,
-        step_delay: float = 0.05,
+        step_delay: float = DEFAULT_DEMO_STEP_DELAY,
         worker_target: WorkerTarget = run_demo_worker,
     ) -> None:
         self._repository = repository

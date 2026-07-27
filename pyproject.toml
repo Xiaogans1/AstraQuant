@@ -27,6 +27,9 @@ members = ["packages/domain", "packages/api"]
 addopts = "-ra --strict-config --strict-markers"
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+  "windows_runtime: process lifecycle coverage that is required on Windows CI",
+]
 
 [tool.ruff]
 line-length = 100

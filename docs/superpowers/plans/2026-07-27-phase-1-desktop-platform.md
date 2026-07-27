@@ -1697,7 +1697,7 @@ git commit -m "feat(ui): 完成任务运行工作区"
 - Create: `docs/architecture/adr/0002-desktop-runtime.md`
 - Modify: `docs/superpowers/plans/2026-07-27-phase-1-desktop-platform.md`
 
-- [ ] **Step 1: Add a real service round-trip test**
+- [x] **Step 1: Add a real service round-trip test**
 
 The integration test must start the CLI with:
 
@@ -1719,7 +1719,7 @@ assert list((state_dir / "logs").glob("*.jsonl"))
 Add a second test that terminates the service during a running task, restarts it with the same
 state directory, and asserts that the task is `INTERRUPTED`.
 
-- [ ] **Step 2: Run the integration tests**
+- [x] **Step 2: Run the integration tests**
 
 ```powershell
 uv run pytest tests/integration/test_runtime_round_trip.py -v
@@ -1727,7 +1727,7 @@ uv run pytest tests/integration/test_runtime_round_trip.py -v
 
 Expected: complete and recovery round trips pass on Windows.
 
-- [ ] **Step 3: Extend CI**
+- [x] **Step 3: Extend CI**
 
 Keep the existing Python matrix and add:
 
@@ -1764,7 +1764,7 @@ Keep the existing Python matrix and add:
 The Windows Python job runs the process round-trip tests; Ubuntu excludes only tests explicitly
 marked `windows_runtime`.
 
-- [ ] **Step 4: Document development startup**
+- [x] **Step 4: Document development startup**
 
 README must state:
 
@@ -1788,7 +1788,7 @@ ADR 0002 records:
 - SQLite has one writer;
 - abnormal recovery produces `INTERRUPTED`.
 
-- [ ] **Step 5: Run every local gate**
+- [x] **Step 5: Run every local gate**
 
 ```powershell
 uv sync --locked --all-packages
@@ -1809,7 +1809,7 @@ git diff --check
 
 Expected: every command exits zero and no runtime data is tracked.
 
-- [ ] **Step 6: Run the desktop manually**
+- [x] **Step 6: Run the desktop manually**
 
 Run:
 
@@ -1826,7 +1826,7 @@ Verify:
 5. theme survives restart;
 6. closing the window leaves no `astraquant-api` or demo Worker process.
 
-- [ ] **Step 7: Record completion and commit**
+- [x] **Step 7: Record completion and commit**
 
 Mark every executed checkbox in this plan, then:
 

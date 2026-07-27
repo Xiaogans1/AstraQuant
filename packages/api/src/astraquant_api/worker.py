@@ -31,6 +31,8 @@ DEMO_STEPS = (
     "finalize",
 )
 
+DEFAULT_DEMO_STEP_DELAY = 1.0
+
 
 def run_demo_worker(
     task_id: str,

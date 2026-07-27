@@ -8,6 +8,7 @@ from astraquant_api.database import create_database, migrate_database
 from astraquant_api.repository import TaskRepository
 from astraquant_api.supervisor import TaskSupervisor
 from astraquant_api.task_model import TERMINAL_TASK_STATUSES, TaskRecord, TaskStatus
+from astraquant_api.worker import DEFAULT_DEMO_STEP_DELAY
 
 
 def crash_worker(
@@ -45,6 +46,10 @@ def create_task(repository: TaskRepository, key: str) -> TaskRecord:
     task = TaskRecord.create("demo.self_check", key)
     repository.create(task, event_type="task.created")
     return task
+
+
+def test_default_demo_duration_leaves_time_for_manual_cancellation() -> None:
+    assert DEFAULT_DEMO_STEP_DELAY >= 1
 
 
 def test_start_demo_reports_progress_and_success(tmp_path: Path) -> None:
