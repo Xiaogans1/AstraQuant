@@ -124,6 +124,7 @@ members = ["packages/domain"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
+pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.ruff]
