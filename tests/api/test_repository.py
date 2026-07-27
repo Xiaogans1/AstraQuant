@@ -31,9 +31,7 @@ def test_compare_and_swap_rejects_stale_revision(tmp_path: Path) -> None:
     repository.update(running, expected_revision=0, event_type="task.started")
 
     stale = task.evolve(status=TaskStatus.CANCELED, current_step="canceled")
-    assert (
-        repository.update(stale, expected_revision=0, event_type="task.canceled") is False
-    )
+    assert repository.update(stale, expected_revision=0, event_type="task.canceled") is False
 
 
 def test_recover_active_tasks_as_interrupted(tmp_path: Path) -> None:

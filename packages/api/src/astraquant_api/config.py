@@ -39,9 +39,7 @@ class RuntimeConfig:
             session_token=token,
             state_dir=state_dir,
             port=int(os.environ.get("ASTRAQUANT_PORT", "0")),
-            shutdown_grace_seconds=float(
-                os.environ.get("ASTRAQUANT_SHUTDOWN_GRACE_SECONDS", "5")
-            ),
+            shutdown_grace_seconds=float(os.environ.get("ASTRAQUANT_SHUTDOWN_GRACE_SECONDS", "5")),
         )
         config.database_path.parent.mkdir(parents=True, exist_ok=True)
         config.log_dir.mkdir(parents=True, exist_ok=True)

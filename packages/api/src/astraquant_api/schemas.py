@@ -52,9 +52,7 @@ class TaskResponse(StrictModel):
             worker_pid=task.worker_pid,
             created_at=task.created_at.isoformat(),
             started_at=None if task.started_at is None else task.started_at.isoformat(),
-            finished_at=(
-                None if task.finished_at is None else task.finished_at.isoformat()
-            ),
+            finished_at=(None if task.finished_at is None else task.finished_at.isoformat()),
             result=task.result,
             error_code=task.error_code,
             error_message=task.error_message,

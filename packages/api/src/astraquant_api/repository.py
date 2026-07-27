@@ -115,9 +115,7 @@ def _row_to_task(row: RowMapping) -> TaskRecord:
         worker_pid=row["worker_pid"],
         created_at=_as_utc(row["created_at"]),
         started_at=None if row["started_at"] is None else _as_utc(row["started_at"]),
-        finished_at=(
-            None if row["finished_at"] is None else _as_utc(row["finished_at"])
-        ),
+        finished_at=(None if row["finished_at"] is None else _as_utc(row["finished_at"])),
         result=None if result_json is None else json.loads(result_json),
         error_code=row["error_code"],
         error_message=row["error_message"],
@@ -149,22 +147,24 @@ class TaskRepository:
     def create(self, task: TaskRecord, *, event_type: str) -> None:
         with self._engine.begin() as connection:
             connection.execute(tasks.insert().values(**_task_values(task)))
-            connection.execute(
-                task_events.insert().values(**_event_values(task, event_type, None))
-            )
+            connection.execute(task_events.insert().values(**_event_values(task, event_type, None)))
 
     def get(self, task_id: str) -> TaskRecord | None:
         with self._engine.connect() as connection:
-            row = connection.execute(
-                sa.select(tasks).where(tasks.c.task_id == task_id)
-            ).mappings().one_or_none()
+            row = (
+                connection.execute(sa.select(tasks).where(tasks.c.task_id == task_id))
+                .mappings()
+                .one_or_none()
+            )
         return None if row is None else _row_to_task(row)
 
     def get_by_idempotency_key(self, key: str) -> TaskRecord | None:
         with self._engine.connect() as connection:
-            row = connection.execute(
-                sa.select(tasks).where(tasks.c.idempotency_key == key)
-            ).mappings().one_or_none()
+            row = (
+                connection.execute(sa.select(tasks).where(tasks.c.idempotency_key == key))
+                .mappings()
+                .one_or_none()
+            )
         return None if row is None else _row_to_task(row)
 
     def list_tasks(self, *, limit: int = 100) -> list[TaskRecord]:
@@ -194,9 +194,7 @@ class TaskRepository:
             if result.rowcount != 1:
                 return False
             connection.execute(
-                task_events.insert().values(
-                    **_event_values(task, event_type, reason)
-                )
+                task_events.insert().values(**_event_values(task, event_type, reason))
             )
         return True
 

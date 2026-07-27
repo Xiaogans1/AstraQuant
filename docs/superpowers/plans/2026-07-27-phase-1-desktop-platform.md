@@ -542,9 +542,7 @@ def test_recover_active_tasks_as_interrupted(tmp_path: Path) -> None:
     task = TaskRecord.create("demo.self_check", "idem-recover")
     repository.create(task, event_type="task.created")
     running = task.evolve(status=TaskStatus.RUNNING, current_step="working")
-    assert repository.update(
-        running, expected_revision=0, event_type="task.started"
-    )
+    assert repository.update(running, expected_revision=0, event_type="task.started")
 
     recovered = repository.interrupt_active_tasks("service_restarted")
 
@@ -1003,9 +1001,7 @@ def test_health_is_public(client: TestClient) -> None:
 
 def test_v1_requires_bearer_token(client: TestClient) -> None:
     assert client.get("/v1/runtime").status_code == 401
-    assert client.get(
-        "/v1/runtime", headers={"Authorization": "Bearer wrong"}
-    ).status_code == 401
+    assert client.get("/v1/runtime", headers={"Authorization": "Bearer wrong"}).status_code == 401
 
 
 def test_create_demo_task_is_idempotent(auth_client: TestClient) -> None:
