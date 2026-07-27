@@ -1835,7 +1835,7 @@ git add .github/workflows/ci.yml README.md docs tests/integration
 git commit -m "ci: 验证 Phase 1 桌面闭环"
 ```
 
-- [ ] **Step 8: Push and open a Draft PR**
+- [x] **Step 8: Push and open a Draft PR**
 
 ```powershell
 git push -u origin feature/phase-1-desktop-platform
