@@ -1363,7 +1363,7 @@ git commit -m "feat(desktop): 管理本地服务生命周期"
 - Create: `apps/desktop/src/api/queries.ts`
 - Create: `apps/desktop/src/runtime/tauri.ts`
 
-- [ ] **Step 1: Write failing client tests**
+- [x] **Step 1: Write failing client tests**
 
 Use a mocked `fetch` and verify:
 
@@ -1407,7 +1407,7 @@ it("maps structured API errors", async () => {
 });
 ```
 
-- [ ] **Step 2: Run frontend tests and observe missing client**
+- [x] **Step 2: Run frontend tests and observe missing client**
 
 ```powershell
 pnpm --dir apps/desktop test -- src/api/client.test.ts
@@ -1415,7 +1415,7 @@ pnpm --dir apps/desktop test -- src/api/client.test.ts
 
 Expected: module resolution fails.
 
-- [ ] **Step 3: Implement exact frontend contracts**
+- [x] **Step 3: Implement exact frontend contracts**
 
 Define discriminated string unions matching Python:
 
@@ -1455,7 +1455,7 @@ export interface Task {
 
 Add corresponding `Health`, `Runtime`, `ActivityItem`, and `Settings` interfaces.
 
-- [ ] **Step 4: Implement authenticated fetch and Query hooks**
+- [x] **Step 4: Implement authenticated fetch and Query hooks**
 
 `ApiClient` must set authorization centrally, require JSON responses, map non-2xx responses to
 `ApiError`, and implement every public `/v1` endpoint.
@@ -1471,7 +1471,7 @@ Query behavior:
 The Tauri adapter contains the only direct `invoke("runtime_connection")` and
 `invoke("open_log_directory")` calls.
 
-- [ ] **Step 5: Run client checks**
+- [x] **Step 5: Run client checks**
 
 ```powershell
 pnpm --dir apps/desktop test -- src/api/client.test.ts
@@ -1480,7 +1480,7 @@ pnpm --dir apps/desktop check
 
 Expected: client tests and strict TypeScript pass.
 
-- [ ] **Step 6: Commit frontend contracts**
+- [x] **Step 6: Commit frontend contracts**
 
 ```powershell
 git add apps/desktop/src/api apps/desktop/src/runtime
