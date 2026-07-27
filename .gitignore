@@ -8,6 +8,7 @@
 /models/
 /checkpoints/
 /research-upstream/
+/.worktrees/
 
 # Secrets and local configuration
 .env
