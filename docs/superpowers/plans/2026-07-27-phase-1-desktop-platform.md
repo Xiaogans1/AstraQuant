@@ -984,7 +984,7 @@ git commit -m "feat(api): 增加本地配置与脱敏日志"
 - Create: `tests/api/test_app.py`
 - Create: `tests/api/test_cli.py`
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Build the app with a temporary database and a fake supervisor. Test:
 
@@ -1040,7 +1040,7 @@ assert its keys equal `{"type", "protocol_version", "host", "port", "pid"}`, `po
 seeded task is `INTERRUPTED` before terminating the service through the authenticated shutdown
 endpoint.
 
-- [ ] **Step 2: Run tests and observe missing app**
+- [x] **Step 2: Run tests and observe missing app**
 
 ```powershell
 uv run pytest tests/api/test_app.py tests/api/test_cli.py -v
@@ -1048,7 +1048,7 @@ uv run pytest tests/api/test_app.py tests/api/test_cli.py -v
 
 Expected: missing-module failures.
 
-- [ ] **Step 3: Implement dependency-owned application state**
+- [x] **Step 3: Implement dependency-owned application state**
 
 Define:
 
@@ -1072,7 +1072,7 @@ class AppState:
 - `Idempotency-Key` validation between 8 and 200 visible ASCII characters;
 - exception handlers returning stable `{"code", "message"}` payloads.
 
-- [ ] **Step 4: Implement CLI lifecycle and ready handshake**
+- [x] **Step 4: Implement CLI lifecycle and ready handshake**
 
 `cli.main()` must:
 
@@ -1088,7 +1088,7 @@ class AppState:
 
 Logs and Uvicorn access output go to stderr or the JSONL sink, never stdout.
 
-- [ ] **Step 5: Run API and full Python gates**
+- [x] **Step 5: Run API and full Python gates**
 
 ```powershell
 uv run pytest tests/api/test_app.py tests/api/test_cli.py -v
@@ -1101,7 +1101,7 @@ uv run python -m tools.repository_policy
 
 Expected: all Python tests and repository policy pass.
 
-- [ ] **Step 6: Commit the API**
+- [x] **Step 6: Commit the API**
 
 ```powershell
 git add packages/api/src/astraquant_api/app.py `
