@@ -28,8 +28,8 @@ __all__ = [
     "OrderStatus",
     "OrderType",
     "SystemClock",
-    "TimeInForce",
     "Tick",
+    "TimeInForce",
     "Venue",
     "transition_order",
 ]
