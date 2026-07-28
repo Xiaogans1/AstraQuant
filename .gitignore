@@ -28,10 +28,16 @@ secrets*.json
 *.db-wal
 *.sqlite
 *.sqlite3
+*.sqlite-*
 *.duckdb
 *.parquet
 *.arrow
 *.feather
+*.onnx
+*.pt
+*.pth
+*.safetensors
+*.gguf
 
 # Python
 __pycache__/

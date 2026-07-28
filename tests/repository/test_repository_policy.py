@@ -1,4 +1,4 @@
-from tools.repository_policy import find_forbidden_paths
+from tools.repository_policy import MAX_FIXTURE_CSV_BYTES, find_forbidden_paths
 
 
 def test_allow_source_and_small_fixture_files() -> None:
@@ -12,7 +12,15 @@ def test_allow_source_and_small_fixture_files() -> None:
         ".env.example",
     ]
 
-    assert find_forbidden_paths(paths) == []
+    assert (
+        find_forbidden_paths(
+            paths,
+            file_sizes={
+                "tests/fixtures/market_data/cn_equity_daily_bars.csv": 1_024,
+            },
+        )
+        == []
+    )
 
 
 def test_reject_private_data_and_runtime_files() -> None:
@@ -22,8 +30,20 @@ def test_reject_private_data_and_runtime_files() -> None:
         "packages/data/src/astraquant_data/bundled_snapshot.parquet",
         "tests/fixtures/market_data/bundled_snapshot.duckdb",
         "runtime/astraquant.sqlite3",
+        "runtime/astraquant.sqlite-wal",
+        "downloads/history.csv",
+        "models/alpha.safetensors",
         "models/alpha.ckpt",
         "credentials-prod.json",
     ]
 
     assert find_forbidden_paths(paths) == paths
+
+
+def test_reject_oversized_market_data_fixture() -> None:
+    fixture = "tests/fixtures/market_data/too-large.csv"
+
+    assert find_forbidden_paths(
+        [fixture],
+        file_sizes={fixture: MAX_FIXTURE_CSV_BYTES + 1},
+    ) == [fixture]

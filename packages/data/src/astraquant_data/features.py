@@ -8,6 +8,7 @@ import os
 import shutil
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -15,9 +16,65 @@ from uuid import uuid4
 import pyarrow as pa  # type: ignore[import-untyped]
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
-from astraquant_domain import FeatureFrame, FeatureRow, InstrumentId
+from astraquant_domain import Bar, FeatureFrame, FeatureRow, InstrumentId
 
 _IDENTITY_COLUMNS = frozenset({"instrument_id", "event_time", "available_time"})
+BASELINE_FEATURE_VERSION = "returns-volume-v1"
+
+
+def build_baseline_features(
+    bars: Sequence[Bar],
+    decision_time: datetime,
+) -> FeatureFrame:
+    """Build deterministic daily return and volume-change features as of a cutoff."""
+
+    cutoff = _require_aware("decision_time", decision_time)
+    latest_rows: dict[tuple[str, str, datetime], Bar] = {}
+    for bar in bars:
+        if bar.event_time > cutoff or bar.available_time > cutoff:
+            continue
+        key = (str(bar.instrument_id), bar.frequency.value, bar.event_time)
+        previous_revision = latest_rows.get(key)
+        if previous_revision is None or bar.available_time > previous_revision.available_time:
+            latest_rows[key] = bar
+
+    by_instrument: dict[str, list[Bar]] = {}
+    for bar in latest_rows.values():
+        by_instrument.setdefault(str(bar.instrument_id), []).append(bar)
+
+    feature_rows: list[FeatureRow] = []
+    for instrument_id in sorted(by_instrument):
+        instrument_bars = sorted(
+            by_instrument[instrument_id],
+            key=lambda bar: (bar.event_time, bar.available_time),
+        )
+        for previous, current in pairwise(instrument_bars):
+            close_return = (
+                None if previous.close == 0 else float(current.close / previous.close - 1)
+            )
+            volume_change = (
+                None if previous.volume == 0 else float(current.volume / previous.volume - 1)
+            )
+            feature_rows.append(
+                FeatureRow(
+                    instrument_id=current.instrument_id,
+                    event_time=current.event_time,
+                    available_time=max(
+                        previous.available_time,
+                        current.available_time,
+                    ),
+                    values={
+                        "return_1d": close_return,
+                        "volume_change_1d": volume_change,
+                    },
+                )
+            )
+
+    return FeatureFrame(
+        decision_time=cutoff,
+        definition_version=BASELINE_FEATURE_VERSION,
+        rows=tuple(feature_rows),
+    )
 
 
 class PublishedFeatureSnapshot:

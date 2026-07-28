@@ -2,9 +2,10 @@
 
 面向中国 A 股与国内期货的本地优先、AI 主导量化研究与实时决策辅助平台。
 
-> 当前状态：Phase 1 桌面开发版已可运行，包含本地服务、SQLite、示例 Worker
-> 与任务工作区；尚未接入行情、回测、Paper 模拟或实时信号。项目不提供真实交易接入，
-> 请勿把任何提示视为自动成交或投资承诺。
+> 当前状态：Phase 2 桌面开发版已打通本地行情数据闭环，包含 A 股/国内期货离线样例、
+> 不可变 Parquet 快照、DuckDB as-of 查询、版本化特征快照和数据中心；尚未接入回测、
+> AI 模型、Paper 模拟或实时信号。项目不提供真实交易接入，请勿把任何提示视为自动
+> 成交或投资承诺。
 
 ## 为什么做 AstraQuant
 
@@ -71,6 +72,7 @@ AstraQuant 不会将多个大型项目简单拼接，也不会无来源复制代
 - [产品路线图](docs/roadmap/product-roadmap.md)
 - [AI 原生架构决策](docs/architecture/adr/0003-ai-native-boundaries.md)
 - [Git 与多端协作规范](docs/governance/git-workflow.md)
+- [本地行情数据运维](docs/operations/local-data.md)
 
 ## UI 方向
 
@@ -109,22 +111,26 @@ GitHub 只保存源代码、文档、数据结构定义、迁移脚本、示例�
 
 本项目用于量化研究与软件工程实践，不构成投资建议。交易系统、行情数据和回测结果均可能存在错误；在任何真实资金使用前，必须经过充分测试、模拟运行、人工复核和独立风险评估。
 
-## Phase 1 可运行能力
+## Phase 2 可运行能力
 
 当前开发版已打通以下本地闭环：
 
 ```text
 Tauri 桌面 → 随机会话令牌 → 127.0.0.1 FastAPI
-→ SQLite 任务状态 → 独立 Worker → 进度/取消/结果 → React 工作区
+→ 独立导入 Worker → 质量校验 → 不可变 Parquet + SQLite 目录
+→ DuckDB as-of 查询 → 版本化 FeatureFrame → React 数据中心
 ```
 
 - Tauri 管理控制服务进程、随机端口、握手和安全关闭。
 - FastAPI 仅监听 IPv4 loopback，业务端点统一使用 Bearer 会话认证。
 - SQLite 保存任务历史和界面设置；异常重启后活动任务标记为 `INTERRUPTED`。
-- React 工作区提供总览、任务、本地活动、设置和两套基础主题。
+- React 工作区提供总览、数据中心、任务、本地活动、设置和两套基础主题。
+- 数据中心可导入 `600000.SSE` 与 `RB0.SHFE` 离线样例，查看质量报告和最近十条行情。
+- 行情快照与特征快照使用内容寻址 ID；查询同时约束 `event_time` 和
+  `available_time`，防止未来信息泄漏。
 - 所有运行数据默认写入仓库根目录的 `.astraquant/`，该目录不会提交 Git。
 
-Phase 1 只保证开发环境运行，不提供安装包。
+Phase 2 只保证开发环境运行，不提供安装包。回测、AI 模型和实时行情从后续阶段开始。
 
 ## 开发环境
 
@@ -134,10 +140,16 @@ Phase 1 只保证开发环境运行，不提供安装包。
 - Visual Studio Build Tools，包含 C++ 桌面生成工具。
 - Python 3.12。
 - [uv](https://docs.astral.sh/uv/)。
-- Node.js 24 与 pnpm 11.9。
+- Node.js 24（脚本会通过 Corepack 使用 pnpm 11.9）。
 - Rust 1.96（MSVC toolchain）。
 
-首次准备：
+日常只需在仓库根目录执行：
+
+```powershell
+.\start.ps1
+```
+
+脚本会自动进入正确项目目录并准备缺失的项目依赖。首次手工准备依赖时可使用：
 
 ```powershell
 uv python install 3.12
@@ -145,14 +157,9 @@ uv sync --locked --all-packages
 pnpm install --frozen-lockfile
 ```
 
-一键准备依赖并启动桌面开发版：
-
-```powershell
-.\scripts\dev.ps1
-```
-
-依赖已经准备好时可使用 `.\scripts\dev.ps1 -SkipSync` 加快启动。脚本只启动 Tauri；
-Tauri 会自动拉起并管理本地 FastAPI，因此不需要再开一个 API 终端。
+`start.ps1` 只启动 Tauri；Tauri 会自动拉起并管理本地 FastAPI，因此不需要再开一个
+API 终端。自定义状态目录、备份恢复与 AKShare 可选开关见
+[本地行情数据运维](docs/operations/local-data.md)。
 
 常用检查：
 
