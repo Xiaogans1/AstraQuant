@@ -3,6 +3,7 @@
 from astraquant_domain.clocks import Clock, FixedClock, SystemClock
 from astraquant_domain.events import EventEnvelope
 from astraquant_domain.identifiers import InstrumentId, Venue
+from astraquant_domain.market_data import Adjustment, Bar, BarFrequency, Tick
 from astraquant_domain.orders import (
     Environment,
     OrderRequest,
@@ -14,6 +15,9 @@ from astraquant_domain.orders import (
 )
 
 __all__ = [
+    "Adjustment",
+    "Bar",
+    "BarFrequency",
     "Clock",
     "Environment",
     "EventEnvelope",
@@ -25,6 +29,7 @@ __all__ = [
     "OrderType",
     "SystemClock",
     "TimeInForce",
+    "Tick",
     "Venue",
     "transition_order",
 ]
