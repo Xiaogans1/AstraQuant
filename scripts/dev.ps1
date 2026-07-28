@@ -9,9 +9,36 @@ $previousLocation = Get-Location
 try {
     Set-Location -LiteralPath $projectRoot
 
-    foreach ($commandName in @("uv", "pnpm", "cargo")) {
+    foreach ($commandName in @("uv", "node", "cargo")) {
         if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) {
             throw "Required development command is missing: $commandName"
+        }
+    }
+
+    $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
+    if ($pnpmCommand) {
+        $pnpmExecutable = $pnpmCommand.Source
+        $pnpmPrefix = @()
+    }
+    else {
+        $corepackCommand = Get-Command corepack -ErrorAction SilentlyContinue
+        if (-not $corepackCommand) {
+            throw "Node.js Corepack is missing; reinstall Node.js 24 or newer"
+        }
+        $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"
+        $pnpmExecutable = $corepackCommand.Source
+        $pnpmPrefix = @("pnpm")
+    }
+
+    function Invoke-Pnpm {
+        param(
+            [Parameter(ValueFromRemainingArguments = $true)]
+            [string[]]$PnpmArguments
+        )
+
+        & $pnpmExecutable @pnpmPrefix @PnpmArguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "pnpm command failed with code $LASTEXITCODE"
         }
     }
 
@@ -24,17 +51,11 @@ try {
         }
 
         if (-not (Test-Path -LiteralPath (Join-Path $projectRoot "node_modules"))) {
-            pnpm install --frozen-lockfile
-            if ($LASTEXITCODE -ne 0) {
-                throw "pnpm dependency installation failed"
-            }
+            Invoke-Pnpm install --frozen-lockfile
         }
     }
 
-    pnpm dev
-    if ($LASTEXITCODE -ne 0) {
-        throw "AstraQuant development runtime exited with code $LASTEXITCODE"
-    }
+    Invoke-Pnpm dev
 }
 finally {
     Set-Location -LiteralPath $previousLocation
