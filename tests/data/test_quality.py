@@ -58,9 +58,7 @@ def test_information_available_after_fetch_time_is_rejected() -> None:
         source_fetched_at=FETCHED_AT,
     )
 
-    assert QualityCode.AVAILABLE_AFTER_SOURCE_FETCH in {
-        issue.code for issue in report.issues
-    }
+    assert QualityCode.AVAILABLE_AFTER_SOURCE_FETCH in {issue.code for issue in report.issues}
     assert report.publishable is False
 
 

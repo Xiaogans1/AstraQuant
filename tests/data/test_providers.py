@@ -76,10 +76,6 @@ def test_replay_stream_filters_instruments_and_orders_events() -> None:
     provider = ReplayStreamingProvider((later, other, earlier))
 
     async def collect() -> list[Tick]:
-        return [
-            event
-            async for event in provider.subscribe((selected,))
-            if isinstance(event, Tick)
-        ]
+        return [event async for event in provider.subscribe((selected,)) if isinstance(event, Tick)]
 
     assert asyncio.run(collect()) == [earlier, later]

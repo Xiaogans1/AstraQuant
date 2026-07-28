@@ -56,9 +56,7 @@ def bars_to_table(bars: list[Bar] | tuple[Bar, ...]) -> pa.Table:
             "close": _quantize(bar.close, _PRICE_QUANTUM),
             "volume": _quantize(bar.volume, _MEASURE_QUANTUM),
             "turnover": _optional_quantize(bar.turnover, _MEASURE_QUANTUM),
-            "open_interest": _optional_quantize(
-                bar.open_interest, _MEASURE_QUANTUM
-            ),
+            "open_interest": _optional_quantize(bar.open_interest, _MEASURE_QUANTUM),
             "settlement": _optional_quantize(bar.settlement, _PRICE_QUANTUM),
             "adjustment": bar.adjustment.value,
             "availability_estimated": bar.availability_estimated,
@@ -70,9 +68,7 @@ def bars_to_table(bars: list[Bar] | tuple[Bar, ...]) -> pa.Table:
 
 def table_to_bars(table: pa.Table) -> tuple[Bar, ...]:
     if table.schema != BAR_SCHEMA:
-        raise ValueError(
-            f"bar table schema does not match canonical schema: {table.schema}"
-        )
+        raise ValueError(f"bar table schema does not match canonical schema: {table.schema}")
     bars: list[Bar] = []
     for row in table.to_pylist():
         instrument_id = InstrumentId.parse(row["instrument_id"])

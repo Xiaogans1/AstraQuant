@@ -65,9 +65,7 @@ class ParquetSnapshotStore:
         if not calendar_version or not availability_policy:
             raise ValueError("calendar and availability policy must not be empty")
         fetched_at = source_fetched_at or self._clock.now()
-        expected_dates = expected_trading_dates or {
-            bar.trading_date for bar in bars
-        }
+        expected_dates = expected_trading_dates or {bar.trading_date for bar in bars}
         quality = evaluate_bars(
             bars,
             expected_trading_dates=expected_dates,
@@ -87,9 +85,7 @@ class ParquetSnapshotStore:
                 created_at=created_at,
                 source_fetched_at=fetched_at,
                 provider=dict(provider),
-                adjustment=(
-                    next(iter(adjustments)) if len(adjustments) == 1 else "mixed"
-                ),
+                adjustment=(next(iter(adjustments)) if len(adjustments) == 1 else "mixed"),
                 calendar_version=calendar_version,
                 series_kind=series_kind,
                 roll_policy=roll_policy,
@@ -103,12 +99,7 @@ class ParquetSnapshotStore:
             manifest_path = staging_path / "manifest.json"
             manifest_path.write_text(manifest.to_json(), encoding="utf-8", newline="\n")
             _fsync_file(manifest_path)
-            target = (
-                self._datasets_root
-                / dataset_id
-                / "snapshots"
-                / manifest.snapshot_id
-            )
+            target = self._datasets_root / dataset_id / "snapshots" / manifest.snapshot_id
             target.parent.mkdir(parents=True, exist_ok=True)
             if target.exists():
                 existing = SnapshotManifest.from_path(target / "manifest.json")
@@ -135,18 +126,10 @@ class ParquetSnapshotStore:
     ) -> tuple[SnapshotFile, ...]:
         groups: dict[tuple[str, str, str], list[Bar]] = defaultdict(list)
         for bar in bars:
-            asset_class = (
-                "equity"
-                if bar.instrument_id.venue in _EQUITY_VENUES
-                else "futures"
-            )
-            groups[
-                (asset_class, bar.frequency.value, bar.trading_date.isoformat())
-            ].append(bar)
+            asset_class = "equity" if bar.instrument_id.venue in _EQUITY_VENUES else "futures"
+            groups[(asset_class, bar.frequency.value, bar.trading_date.isoformat())].append(bar)
         files: list[SnapshotFile] = []
-        for (asset_class, frequency, trading_date), partition_bars in sorted(
-            groups.items()
-        ):
+        for (asset_class, frequency, trading_date), partition_bars in sorted(groups.items()):
             relative = Path(
                 "market=cn",
                 f"asset_class={asset_class}",

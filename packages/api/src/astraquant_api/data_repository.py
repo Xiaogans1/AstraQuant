@@ -159,9 +159,7 @@ class DataCatalogRepository:
         with self._engine.connect() as connection:
             row = (
                 connection.execute(
-                    sa.select(data_snapshots).where(
-                        data_snapshots.c.snapshot_id == snapshot_id
-                    )
+                    sa.select(data_snapshots).where(data_snapshots.c.snapshot_id == snapshot_id)
                 )
                 .mappings()
                 .one_or_none()

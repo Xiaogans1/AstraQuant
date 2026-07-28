@@ -39,9 +39,7 @@ class QualityReport:
 
     @property
     def publishable(self) -> bool:
-        return all(
-            issue.severity is not QualitySeverity.ERROR for issue in self.issues
-        )
+        return all(issue.severity is not QualitySeverity.ERROR for issue in self.issues)
 
 
 def evaluate_bars(
@@ -68,9 +66,7 @@ def evaluate_bars(
     ]
     for key, count in Counter(exact_keys).items():
         if count > 1:
-            findings[QualityCode.DUPLICATE_KEY].extend(
-                ["|".join(key)] * (count - 1)
-            )
+            findings[QualityCode.DUPLICATE_KEY].extend(["|".join(key)] * (count - 1))
 
     groups: dict[tuple[str, str], list[Bar]] = defaultdict(list)
     for bar in rows:
@@ -78,9 +74,7 @@ def evaluate_bars(
     for group in groups.values():
         previous_available: datetime | None = None
         previous_event: datetime | None = None
-        for bar in sorted(
-            group, key=lambda item: (item.event_time, item.available_time)
-        ):
+        for bar in sorted(group, key=lambda item: (item.event_time, item.available_time)):
             if (
                 previous_event is not None
                 and bar.event_time > previous_event

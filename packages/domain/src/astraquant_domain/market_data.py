@@ -50,9 +50,7 @@ class Bar:
             raise ValueError("available_time must not precede event_time")
         if self.volume < 0:
             raise ValueError("volume must be non-negative")
-        if self.high < max(self.open, self.close) or self.low > min(
-            self.open, self.close
-        ):
+        if self.high < max(self.open, self.close) or self.low > min(self.open, self.close):
             raise ValueError("OHLC values are inconsistent")
         if self.low > self.high:
             raise ValueError("OHLC low must not exceed high")

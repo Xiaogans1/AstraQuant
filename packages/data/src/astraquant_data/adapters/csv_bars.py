@@ -46,9 +46,7 @@ class CsvDailyBarProvider:
             actual_columns = set(reader.fieldnames or ())
             missing = _REQUIRED_COLUMNS - actual_columns
             if missing:
-                raise ValueError(
-                    f"CSV bar schema missing columns: {', '.join(sorted(missing))}"
-                )
+                raise ValueError(f"CSV bar schema missing columns: {', '.join(sorted(missing))}")
             bars = tuple(_row_to_bar(row) for row in reader)
         return tuple(
             bar

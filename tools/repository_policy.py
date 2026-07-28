@@ -38,6 +38,14 @@ FORBIDDEN_DIRECTORIES = {
     "models",
     "reports",
 }
+SOURCE_DATA_PREFIXES = (
+    PurePosixPath("packages/data"),
+    PurePosixPath("tests/data"),
+)
+
+
+def _is_data_source_path(path: PurePosixPath) -> bool:
+    return any(path == prefix or path.is_relative_to(prefix) for prefix in SOURCE_DATA_PREFIXES)
 
 
 def find_forbidden_paths(paths: Iterable[str]) -> list[str]:
@@ -46,11 +54,12 @@ def find_forbidden_paths(paths: Iterable[str]) -> list[str]:
         path = PurePosixPath(raw_path)
         lowered_name = path.name.lower()
         directory_parts = {part.lower() for part in path.parts[:-1]}
+        contains_forbidden_directory = bool(directory_parts & FORBIDDEN_DIRECTORIES)
         is_forbidden = (
             lowered_name in FORBIDDEN_NAMES
             or lowered_name.startswith(FORBIDDEN_PREFIXES)
             or path.suffix.lower() in FORBIDDEN_SUFFIXES
-            or bool(directory_parts & FORBIDDEN_DIRECTORIES)
+            or (contains_forbidden_directory and not _is_data_source_path(path))
         )
         if is_forbidden:
             forbidden.append(raw_path)

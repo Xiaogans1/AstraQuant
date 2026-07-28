@@ -12,13 +12,9 @@ from astraquant_data.providers import HistoryRequest
 from astraquant_domain import Adjustment, Bar, BarFrequency, Venue
 
 _EQUITY_VENUES = frozenset({Venue.SSE, Venue.SZSE, Venue.BSE})
-_FUTURES_VENUES = frozenset(
-    {Venue.CFFEX, Venue.SHFE, Venue.DCE, Venue.CZCE, Venue.INE, Venue.GFEX}
-)
+_FUTURES_VENUES = frozenset({Venue.CFFEX, Venue.SHFE, Venue.DCE, Venue.CZCE, Venue.INE, Venue.GFEX})
 _EQUITY_COLUMNS = frozenset({"日期", "开盘", "最高", "最低", "收盘", "成交量", "成交额"})
-_FUTURES_COLUMNS = frozenset(
-    {"date", "open", "high", "low", "close", "volume", "hold", "settle"}
-)
+_FUTURES_COLUMNS = frozenset({"date", "open", "high", "low", "close", "volume", "hold", "settle"})
 
 
 class ProviderSchemaError(ValueError):
@@ -94,11 +90,7 @@ class AkShareDailyBarProvider:
                 period="daily",
                 start_date=request.start.strftime("%Y%m%d"),
                 end_date=request.end.strftime("%Y%m%d"),
-                adjust=(
-                    ""
-                    if request.adjustment is Adjustment.NONE
-                    else request.adjustment.value
-                ),
+                adjust=("" if request.adjustment is Adjustment.NONE else request.adjustment.value),
                 timeout=15,
             )
             self._require_columns(set(frame.columns), _EQUITY_COLUMNS)
@@ -110,9 +102,7 @@ class AkShareDailyBarProvider:
         if venue in _FUTURES_VENUES:
             if request.adjustment is not Adjustment.NONE:
                 raise ValueError("futures daily bars do not accept stock adjustment modes")
-            frame = self._client.futures_zh_daily_sina(
-                symbol=request.instrument_id.symbol
-            )
+            frame = self._client.futures_zh_daily_sina(symbol=request.instrument_id.symbol)
             self._require_columns(set(frame.columns), _FUTURES_COLUMNS)
             return tuple(
                 self._futures_bar(request, row)

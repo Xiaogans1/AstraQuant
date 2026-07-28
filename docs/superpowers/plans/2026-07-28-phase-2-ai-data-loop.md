@@ -1515,7 +1515,7 @@ Run:
 ```powershell
 uv run pytest
 uv run ruff check .
-uv run ruff format --check .
+uv run ruff format --check packages tests tools
 uv run mypy
 uv run python -m tools.repository_policy
 pnpm --filter @astraquant/desktop test

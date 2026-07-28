@@ -13,6 +13,4 @@ def resolve_migration_url(
     cli_url = cli_arguments.get("database_url")
     if cli_url:
         return cli_url
-    raise RuntimeError(
-        "migration database URL is missing; pass -x database_url=sqlite:///path"
-    )
+    raise RuntimeError("migration database URL is missing; pass -x database_url=sqlite:///path")

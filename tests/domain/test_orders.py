@@ -21,9 +21,9 @@ INSTRUMENT = InstrumentId.parse("RB2610.SHFE")
 
 def test_virtual_order_environments_never_include_live_trading() -> None:
     assert {environment.value for environment in Environment} == {"BACKTEST", "PAPER"}
-    assert "LIVE" not in Path(
-        "packages/domain/src/astraquant_domain/orders.py"
-    ).read_text(encoding="utf-8")
+    assert "LIVE" not in Path("packages/domain/src/astraquant_domain/orders.py").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_create_limit_order() -> None:
