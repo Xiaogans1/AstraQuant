@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import { App } from "./App";
 
@@ -25,6 +26,10 @@ vi.mock("./api/client", () => ({
     });
     listTasks = vi.fn().mockResolvedValue([]);
     listActivity = vi.fn().mockResolvedValue([]);
+    listDatasets = vi.fn().mockResolvedValue([]);
+    listSnapshots = vi.fn().mockResolvedValue([]);
+    listBars = vi.fn().mockResolvedValue([]);
+    createDataImport = vi.fn();
     getSettings = vi.fn().mockResolvedValue({
       theme: "astra-minimal",
       reduced_motion: false,
@@ -46,4 +51,17 @@ it("renders the responsive workspace shell", async () => {
     "aria-current",
     "page",
   );
+});
+
+it("opens the enabled local data center", async () => {
+  render(<App />);
+
+  const dataButton = await screen.findByRole("button", { name: "数据中心" });
+  expect(dataButton).toBeEnabled();
+  await userEvent.click(dataButton);
+
+  expect(
+    await screen.findByRole("heading", { name: "数据只保存在本机" }),
+  ).toBeVisible();
+  expect(screen.getByText("不包含账户或下单连接")).toBeVisible();
 });

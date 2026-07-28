@@ -13,13 +13,18 @@ import type {
   RuntimeConnection,
   Settings,
 } from "./api/contracts";
+import { isTaskActive } from "./api/contracts";
 import {
   useActivityQuery,
+  useBarsQuery,
   useCancelTaskMutation,
+  useCreateDataImportMutation,
   useCreateDemoTaskMutation,
+  useDatasetsQuery,
   useHealthQuery,
   useRuntimeQuery,
   useSettingsQuery,
+  useSnapshotsQuery,
   useTasksQuery,
   useUpdateSettingsMutation,
 } from "./api/queries";
@@ -30,6 +35,7 @@ import { Sidebar } from "./components/Sidebar";
 import type { WorkspaceView } from "./components/Sidebar";
 import { StatusRail } from "./components/StatusRail";
 import { ActivityPage } from "./pages/ActivityPage";
+import { DataPage } from "./pages/DataPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TasksPage } from "./pages/TasksPage";
@@ -59,18 +65,23 @@ const viewCopy: Record<
     title: "总览",
     summary: "从本机服务、任务和活动记录开始，逐步搭建中国市场量化研究与执行闭环。",
   },
-  tasks: {
+  data: {
     index: "WORKSPACE / 02",
+    title: "数据中心",
+    summary: "导入只读行情，检查数据质量，并将通过校验的不可变快照送入后续 AI 特征流程。",
+  },
+  tasks: {
+    index: "WORKSPACE / 03",
     title: "任务中心",
     summary: "查看 Worker 长任务的状态、精确进度、执行结果与重启恢复记录。",
   },
   activity: {
-    index: "WORKSPACE / 03",
+    index: "WORKSPACE / 04",
     title: "本地活动",
     summary: "以关联 ID 串联服务与任务事件，不暴露原始环境信息或凭据。",
   },
   settings: {
-    index: "WORKSPACE / 04",
+    index: "WORKSPACE / 05",
     title: "设置",
     summary: "主题、动态效果与侧栏偏好只保存在本机状态库中。",
   },
@@ -154,12 +165,23 @@ function Workspace({
 }) {
   const [currentView, setCurrentView] = useState<WorkspaceView>("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(
+    null,
+  );
   const healthQuery = useHealthQuery(client);
   const runtimeQuery = useRuntimeQuery(client);
   const tasksQuery = useTasksQuery(client);
   const activityQuery = useActivityQuery(client);
   const settingsQuery = useSettingsQuery(client);
+  const datasetsQuery = useDatasetsQuery(client);
+  const effectiveDatasetId =
+    selectedDatasetId ?? datasetsQuery.data?.[0]?.dataset_id ?? null;
+  const snapshotsQuery = useSnapshotsQuery(client, effectiveDatasetId);
+  const latestSnapshotId =
+    snapshotsQuery.data?.[0]?.snapshot_id ?? null;
+  const barsQuery = useBarsQuery(client, latestSnapshotId);
   const createTask = useCreateDemoTaskMutation(client);
+  const createDataImport = useCreateDataImportMutation(client);
   const cancelTask = useCancelTaskMutation(client);
   const updateSettings = useUpdateSettingsMutation(client);
 
@@ -203,6 +225,8 @@ function Workspace({
   const tasks = tasksQuery.data ?? [];
   const activity = activityQuery.data ?? [];
   const settings = settingsQuery.data ?? defaultSettings;
+  const latestDataImport =
+    tasks.find((task) => task.task_type === "data.import") ?? null;
   const isStale =
     healthQuery.isError ||
     runtimeQuery.isError ||
@@ -249,6 +273,18 @@ function Workspace({
                 createTask,
                 cancelTask,
                 updateSettings,
+                datasets: datasetsQuery.data ?? [],
+                snapshots: snapshotsQuery.data ?? [],
+                bars: barsQuery.data ?? [],
+                selectedDatasetId: effectiveDatasetId,
+                dataLoading: datasetsQuery.isLoading,
+                dataStale:
+                  datasetsQuery.isError ||
+                  snapshotsQuery.isError ||
+                  barsQuery.isError,
+                createDataImport,
+                importTask: latestDataImport,
+                onSelectDataset: setSelectedDatasetId,
               })
             )}
           </div>
@@ -268,6 +304,15 @@ function renderView({
   createTask,
   cancelTask,
   updateSettings,
+  datasets,
+  snapshots,
+  bars,
+  selectedDatasetId,
+  dataLoading,
+  dataStale,
+  createDataImport,
+  importTask,
+  onSelectDataset,
 }: {
   currentView: WorkspaceView;
   runtime: NonNullable<ReturnType<typeof useRuntimeQuery>["data"]>;
@@ -278,6 +323,15 @@ function renderView({
   createTask: ReturnType<typeof useCreateDemoTaskMutation>;
   cancelTask: ReturnType<typeof useCancelTaskMutation>;
   updateSettings: ReturnType<typeof useUpdateSettingsMutation>;
+  datasets: NonNullable<ReturnType<typeof useDatasetsQuery>["data"]>;
+  snapshots: NonNullable<ReturnType<typeof useSnapshotsQuery>["data"]>;
+  bars: NonNullable<ReturnType<typeof useBarsQuery>["data"]>;
+  selectedDatasetId: string | null;
+  dataLoading: boolean;
+  dataStale: boolean;
+  createDataImport: ReturnType<typeof useCreateDataImportMutation>;
+  importTask: NonNullable<ReturnType<typeof useTasksQuery>["data"]>[number] | null;
+  onSelectDataset: (datasetId: string) => void;
 }) {
   if (currentView === "overview") {
     return (
@@ -292,6 +346,35 @@ function renderView({
         }
         onCreateDemoTask={(key) => createTask.mutate(key)}
         onCancelTask={(taskId) => cancelTask.mutate(taskId)}
+      />
+    );
+  }
+  if (currentView === "data") {
+    return (
+      <DataPage
+        datasets={datasets}
+        snapshots={snapshots}
+        bars={bars}
+        selectedDatasetId={selectedDatasetId}
+        importTask={importTask}
+        importError={
+          createDataImport.error instanceof Error
+            ? createDataImport.error.message
+            : null
+        }
+        importing={
+          createDataImport.isPending ||
+          (importTask !== null && isTaskActive(importTask))
+        }
+        loading={dataLoading}
+        stale={dataStale}
+        onImport={(request) =>
+          createDataImport.mutate({
+            request,
+            idempotencyKey: crypto.randomUUID(),
+          })
+        }
+        onSelectDataset={onSelectDataset}
       />
     );
   }

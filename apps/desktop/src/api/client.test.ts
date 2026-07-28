@@ -110,3 +110,60 @@ it("calls the default fetch with the browser global binding", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+it("calls the local data catalog and creates an idempotent import", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response("[]", {
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          ...taskFixture,
+          task_type: "data.import",
+        }),
+        {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+  const client = new ApiClient(connectionFixture, fetchMock);
+
+  await client.listDatasets();
+  await client.createDataImport(
+    {
+      provider: "fixture",
+      instrument_id: "600000.SSE",
+      frequency: "1d",
+      start: "2026-07-20",
+      end: "2026-07-24",
+      adjustment: "none",
+    },
+    "data-import-600000",
+  );
+
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    1,
+    "http://127.0.0.1:43127/v1/data/datasets",
+    expect.objectContaining({
+      headers: expect.objectContaining({
+        Authorization: "Bearer session-token",
+      }),
+    }),
+  );
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    2,
+    "http://127.0.0.1:43127/v1/data/imports",
+    expect.objectContaining({
+      method: "POST",
+      body: expect.stringContaining('"instrument_id":"600000.SSE"'),
+      headers: expect.objectContaining({
+        "Idempotency-Key": "data-import-600000",
+      }),
+    }),
+  );
+});

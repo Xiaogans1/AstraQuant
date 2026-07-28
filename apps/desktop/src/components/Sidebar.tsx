@@ -1,5 +1,6 @@
 export type WorkspaceView =
   | "overview"
+  | "data"
   | "tasks"
   | "activity"
   | "settings";
@@ -12,7 +13,7 @@ interface SidebarProps {
 }
 
 interface NavigationItem {
-  id: WorkspaceView | "data" | "research" | "trading";
+  id: WorkspaceView | "research" | "trading";
   label: string;
   glyph: string;
   disabled?: boolean;
@@ -20,10 +21,10 @@ interface NavigationItem {
 
 const navigation: NavigationItem[] = [
   { id: "overview", label: "总览", glyph: "OV" },
+  { id: "data", label: "数据中心", glyph: "DT" },
   { id: "tasks", label: "任务", glyph: "TK" },
   { id: "activity", label: "本地活动", glyph: "AC" },
   { id: "settings", label: "设置", glyph: "ST" },
-  { id: "data", label: "数据中心", glyph: "DT", disabled: true },
   { id: "research", label: "研究中心", glyph: "RS", disabled: true },
   { id: "trading", label: "交易中心", glyph: "TR", disabled: true },
 ];
@@ -40,7 +41,7 @@ export function Sidebar({
         {navigation.map((item, index) => (
           <div
             className={
-              index === 4 ? "sidebar__item sidebar__item--future" : "sidebar__item"
+              index === 5 ? "sidebar__item sidebar__item--future" : "sidebar__item"
             }
             key={item.id}
           >

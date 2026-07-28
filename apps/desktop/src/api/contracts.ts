@@ -33,7 +33,7 @@ export interface Runtime {
 
 export interface Task {
   task_id: string;
-  task_type: "demo.self_check";
+  task_type: "demo.self_check" | "data.import";
   status: TaskStatus;
   progress: number;
   current_step: string;

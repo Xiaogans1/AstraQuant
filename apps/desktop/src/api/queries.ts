@@ -7,6 +7,7 @@ import {
 import { ApiClient } from "./client";
 import { isTaskActive } from "./contracts";
 import type { Settings, Task } from "./contracts";
+import type { DataImportRequest } from "./data-contracts";
 
 export const queryKeys = {
   health: ["health"] as const,
@@ -15,6 +16,11 @@ export const queryKeys = {
   task: (taskId: string) => ["tasks", taskId] as const,
   activity: ["activity"] as const,
   settings: ["settings"] as const,
+  datasets: ["data", "datasets"] as const,
+  snapshots: (datasetId: string) =>
+    ["data", "datasets", datasetId, "snapshots"] as const,
+  bars: (snapshotId: string) =>
+    ["data", "snapshots", snapshotId, "bars"] as const,
 };
 
 export function useHealthQuery(client: ApiClient) {
@@ -71,6 +77,59 @@ export function useSettingsQuery(client: ApiClient) {
   });
 }
 
+export function useDatasetsQuery(client: ApiClient) {
+  return useQuery({
+    queryKey: queryKeys.datasets,
+    queryFn: () => client.listDatasets(),
+    refetchInterval: 3_000,
+  });
+}
+
+export function useSnapshotsQuery(
+  client: ApiClient,
+  datasetId: string | null,
+) {
+  return useQuery({
+    queryKey: queryKeys.snapshots(datasetId ?? "none"),
+    queryFn: () => client.listSnapshots(requireId(datasetId, "Dataset")),
+    enabled: datasetId !== null,
+    refetchInterval: 3_000,
+  });
+}
+
+export function useBarsQuery(
+  client: ApiClient,
+  snapshotId: string | null,
+) {
+  return useQuery({
+    queryKey: queryKeys.bars(snapshotId ?? "none"),
+    queryFn: () => client.listBars(requireId(snapshotId, "Snapshot")),
+    enabled: snapshotId !== null,
+  });
+}
+
+export function useCreateDataImportMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      request,
+      idempotencyKey,
+    }: {
+      request: DataImportRequest;
+      idempotencyKey: string;
+    }) => client.createDataImport(request, idempotencyKey),
+    onSuccess: async (task) => {
+      queryClient.setQueryData(queryKeys.task(task.task_id), task);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.runtime }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.activity }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.datasets }),
+      ]);
+    },
+  });
+}
+
 export function useCreateDemoTaskMutation(client: ApiClient) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -118,4 +177,11 @@ function requireTaskId(taskId: string | null): string {
     throw new Error("Task id is required");
   }
   return taskId;
+}
+
+function requireId(value: string | null, label: string): string {
+  if (value === null) {
+    throw new Error(`${label} id is required`);
+  }
+  return value;
 }

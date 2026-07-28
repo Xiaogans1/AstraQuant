@@ -7,6 +7,12 @@ import type {
   Settings,
   Task,
 } from "./contracts";
+import type {
+  BarPreview,
+  DataImportRequest,
+  DatasetSummary,
+  SnapshotSummary,
+} from "./data-contracts";
 
 type Fetch = typeof fetch;
 
@@ -67,6 +73,37 @@ export class ApiClient {
 
   listActivity(limit = 100): Promise<ActivityItem[]> {
     return this.request(`/v1/activity?limit=${encodeURIComponent(limit)}`);
+  }
+
+  listDatasets(): Promise<DatasetSummary[]> {
+    return this.request("/v1/data/datasets");
+  }
+
+  listSnapshots(datasetId: string): Promise<SnapshotSummary[]> {
+    return this.request(
+      `/v1/data/datasets/${encodeURIComponent(datasetId)}/snapshots`,
+    );
+  }
+
+  getSnapshot(snapshotId: string): Promise<SnapshotSummary> {
+    return this.request(`/v1/data/snapshots/${encodeURIComponent(snapshotId)}`);
+  }
+
+  listBars(snapshotId: string, limit = 10): Promise<BarPreview[]> {
+    return this.request(
+      `/v1/data/snapshots/${encodeURIComponent(snapshotId)}/bars?limit=${encodeURIComponent(limit)}`,
+    );
+  }
+
+  createDataImport(
+    request: DataImportRequest,
+    idempotencyKey: string,
+  ): Promise<Task> {
+    return this.request("/v1/data/imports", {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(request),
+    });
   }
 
   getSettings(): Promise<Settings> {
