@@ -22,6 +22,7 @@ class MarketDataQuery:
     def __init__(self, table: pa.Table) -> None:
         self._connection = duckdb.connect(":memory:")
         self._connection.register("approved_bars", table)
+        self._instrument_ids = tuple(sorted(set(table.column("instrument_id").to_pylist())))
 
     @classmethod
     def from_manifest(
@@ -100,6 +101,9 @@ class MarketDataQuery:
 
     def close(self) -> None:
         self._connection.close()
+
+    def instrument_ids(self) -> list[str]:
+        return list(self._instrument_ids)
 
 
 def _validate_instruments(instrument_ids: Sequence[str]) -> list[str]:

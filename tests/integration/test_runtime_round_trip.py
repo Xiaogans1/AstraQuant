@@ -44,6 +44,7 @@ def running_runtime(state_dir: Path) -> Iterator[tuple[subprocess.Popen[str], ht
         python_paths = [
             virtual_environment / "Lib" / "site-packages",
             repository_root / "packages" / "api" / "src",
+            repository_root / "packages" / "data" / "src",
             repository_root / "packages" / "domain" / "src",
         ]
         environment["PYTHONPATH"] = os.pathsep.join(map(str, python_paths))

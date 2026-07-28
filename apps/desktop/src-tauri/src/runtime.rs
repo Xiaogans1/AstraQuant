@@ -268,6 +268,7 @@ fn runtime_launch_spec(project_root: &Path) -> RuntimeLaunchSpec {
             let search_paths = [
                 virtual_environment.join("Lib").join("site-packages"),
                 project_root.join("packages").join("api").join("src"),
+                project_root.join("packages").join("data").join("src"),
                 project_root.join("packages").join("domain").join("src"),
             ];
             if let Ok(python_path) = std::env::join_paths(search_paths) {
@@ -357,5 +358,23 @@ mod tests {
             "python"
         }));
         assert_eq!(spec.arguments, ["-m", "astraquant_api.cli", "serve"]);
+    }
+
+    #[test]
+    fn windows_runtime_exposes_every_workspace_python_package() {
+        if !cfg!(windows) {
+            return;
+        }
+        let spec = runtime_launch_spec(&project_root());
+        let python_path = spec
+            .environment
+            .iter()
+            .find(|(name, _)| name == "PYTHONPATH")
+            .map(|(_, value)| value.to_string_lossy())
+            .expect("Windows managed runtime must define PYTHONPATH");
+
+        assert!(python_path.contains("packages\\api\\src"));
+        assert!(python_path.contains("packages\\data\\src"));
+        assert!(python_path.contains("packages\\domain\\src"));
     }
 }

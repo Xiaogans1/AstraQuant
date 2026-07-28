@@ -11,6 +11,7 @@ import uvicorn
 
 from astraquant_api.app import AppState, create_app
 from astraquant_api.config import RuntimeConfig
+from astraquant_api.data_repository import DataCatalogRepository
 from astraquant_api.database import create_database, migrate_database
 from astraquant_api.logging import ActivityBuffer, configure_logging
 from astraquant_api.repository import TaskRepository
@@ -36,15 +37,20 @@ def serve() -> None:
     engine = create_database(database_url)
     repository = TaskRepository(engine)
     repository.interrupt_active_tasks("service_restarted")
+    data_catalog = DataCatalogRepository(engine)
+    data_catalog.reconcile_staged()
     activity = ActivityBuffer()
     logger = configure_logging(config.log_dir, activity)
     supervisor = TaskSupervisor(repository)
     state = AppState(
         repository=repository,
+        data_catalog=data_catalog,
         supervisor=supervisor,
         activity=activity,
         session_token=config.session_token,
         state_dir=config.state_dir,
+        allowed_data_instruments=config.allowed_data_instruments,
+        enable_akshare=config.enable_akshare,
         shutdown_grace_seconds=config.shutdown_grace_seconds,
     )
     application = create_app(state)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Event
@@ -11,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from astraquant_api import __version__
+from astraquant_api.data_repository import DataCatalogRepository
 from astraquant_api.logging import ActivityBuffer
 from astraquant_api.repository import TaskRepository
 from astraquant_api.schemas import (
@@ -26,6 +28,13 @@ from astraquant_api.task_model import TaskRecord
 class Supervisor(Protocol):
     def start_demo(self, task: TaskRecord) -> TaskRecord: ...
 
+    def start(
+        self,
+        task: TaskRecord,
+        worker_target: Callable[..., None],
+        worker_args: tuple[object, ...],
+    ) -> TaskRecord: ...
+
     def cancel(self, task_id: str) -> TaskRecord: ...
 
     def active_count(self) -> int: ...
@@ -36,10 +45,13 @@ class Supervisor(Protocol):
 @dataclass(slots=True)
 class AppState:
     repository: TaskRepository
+    data_catalog: DataCatalogRepository
     supervisor: Supervisor
     activity: ActivityBuffer
     session_token: str
     state_dir: Path
+    allowed_data_instruments: frozenset[str] = frozenset({"600000.SSE", "RB0.SHFE"})
+    enable_akshare: bool = False
     shutdown_grace_seconds: float = 5.0
     shutting_down: bool = False
     shutdown_event: Event = field(default_factory=Event)
@@ -200,6 +212,9 @@ def create_app(state: AppState) -> FastAPI:
             content={"status": "shutting_down"},
         )
 
+    from astraquant_api.data_routes import build_data_router
+
+    app.include_router(build_data_router(state, authenticated))
     return app
 
 

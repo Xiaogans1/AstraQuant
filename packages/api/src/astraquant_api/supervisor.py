@@ -24,7 +24,7 @@ from astraquant_api.worker import (
     run_demo_worker,
 )
 
-WorkerTarget = Callable[[str, Any, Any, float], None]
+WorkerTarget = Callable[..., None]
 
 
 @dataclass(slots=True)
@@ -57,14 +57,22 @@ class TaskSupervisor:
         self._monitor.start()
 
     def start_demo(self, task: TaskRecord) -> TaskRecord:
+        return self.start(task, self._worker_target, (self._step_delay,))
+
+    def start(
+        self,
+        task: TaskRecord,
+        worker_target: WorkerTarget,
+        worker_args: tuple[object, ...],
+    ) -> TaskRecord:
         if task.status is not TaskStatus.PENDING:
             raise ValueError("only pending tasks can be started")
 
         queue = self._context.Queue()
         cancel = self._context.Event()
         process = self._context.Process(
-            target=self._worker_target,
-            args=(task.task_id, queue, cancel, self._step_delay),
+            target=worker_target,
+            args=(task.task_id, queue, cancel, *worker_args),
         )
         process.start()
         running = task.evolve(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from astraquant_api.app import AppState, create_app
+from astraquant_api.data_repository import DataCatalogRepository
 from astraquant_api.database import create_database, migrate_database
 from astraquant_api.logging import ActivityBuffer
 from astraquant_api.repository import TaskRepository
@@ -38,6 +40,14 @@ class FakeSupervisor:
             event_type="task.started",
         )
         return running
+
+    def start(
+        self,
+        task: TaskRecord,
+        _worker_target: Callable[..., None],
+        _worker_args: tuple[object, ...],
+    ) -> TaskRecord:
+        return self.start_demo(task)
 
     def cancel(self, task_id: str) -> TaskRecord:
         task = self.repository.get(task_id)
@@ -90,10 +100,12 @@ class FakeSupervisor:
 def app_state(tmp_path: Path) -> AppState:
     database_url = f"sqlite:///{tmp_path / 'api.sqlite3'}"
     migrate_database(database_url)
-    repository = TaskRepository(create_database(database_url))
+    engine = create_database(database_url)
+    repository = TaskRepository(engine)
     activity = ActivityBuffer()
     return AppState(
         repository=repository,
+        data_catalog=DataCatalogRepository(engine),
         supervisor=FakeSupervisor(repository),
         activity=activity,
         session_token=TOKEN,

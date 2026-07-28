@@ -13,6 +13,8 @@ class RuntimeConfig:
     host: Literal["127.0.0.1"] = "127.0.0.1"
     port: int = 0
     shutdown_grace_seconds: float = 5.0
+    allowed_data_instruments: frozenset[str] = frozenset({"600000.SSE", "RB0.SHFE"})
+    enable_akshare: bool = False
 
     def __post_init__(self) -> None:
         if len(self.session_token) < 43:
@@ -40,6 +42,15 @@ class RuntimeConfig:
             state_dir=state_dir,
             port=int(os.environ.get("ASTRAQUANT_PORT", "0")),
             shutdown_grace_seconds=float(os.environ.get("ASTRAQUANT_SHUTDOWN_GRACE_SECONDS", "5")),
+            allowed_data_instruments=frozenset(
+                item.strip().upper()
+                for item in os.environ.get(
+                    "ASTRAQUANT_DATA_INSTRUMENTS",
+                    "600000.SSE,RB0.SHFE",
+                ).split(",")
+                if item.strip()
+            ),
+            enable_akshare=os.environ.get("ASTRAQUANT_ENABLE_AKSHARE", "0") == "1",
         )
         config.database_path.parent.mkdir(parents=True, exist_ok=True)
         config.log_dir.mkdir(parents=True, exist_ok=True)

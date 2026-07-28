@@ -145,11 +145,14 @@ uv sync --locked --all-packages
 pnpm install --frozen-lockfile
 ```
 
-启动桌面开发版：
+一键准备依赖并启动桌面开发版：
 
 ```powershell
-pnpm dev
+.\scripts\dev.ps1
 ```
+
+依赖已经准备好时可使用 `.\scripts\dev.ps1 -SkipSync` 加快启动。脚本只启动 Tauri；
+Tauri 会自动拉起并管理本地 FastAPI，因此不需要再开一个 API 终端。
 
 常用检查：
 

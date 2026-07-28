@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 
 import sqlalchemy as sa
 from sqlalchemy import Engine, RowMapping
@@ -78,6 +79,16 @@ class DataQualityIssueRecord:
     sample_keys: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class DataDatasetRecord:
+    dataset_id: str
+    name: str
+    asset_class: str
+    frequency: str
+    snapshot_count: int
+    latest_snapshot_id: str | None
+
+
 class DataCatalogRepository:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -120,23 +131,22 @@ class DataCatalogRepository:
             result = connection.execute(snapshot_statement)
             if result.rowcount != 1:
                 return
-            connection.execute(
-                data_quality_issues.insert(),
-                [
-                    {
-                        "snapshot_id": manifest.snapshot_id,
-                        "code": issue.code.value,
-                        "severity": issue.severity.value,
-                        "count": issue.count,
-                        "samples_json": json.dumps(
-                            issue.sample_keys,
-                            ensure_ascii=False,
-                            separators=(",", ":"),
-                        ),
-                    }
-                    for issue in manifest.quality.issues
-                ],
-            )
+            quality_values = [
+                {
+                    "snapshot_id": manifest.snapshot_id,
+                    "code": issue.code.value,
+                    "severity": issue.severity.value,
+                    "count": issue.count,
+                    "samples_json": json.dumps(
+                        issue.sample_keys,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                }
+                for issue in manifest.quality.issues
+            ]
+            if quality_values:
+                connection.execute(data_quality_issues.insert(), quality_values)
 
     def mark_published(self, snapshot_id: str) -> bool:
         with self._engine.begin() as connection:
@@ -165,6 +175,69 @@ class DataCatalogRepository:
                 .one_or_none()
             )
         return None if row is None else _row_to_snapshot(row)
+
+    def get_visible_snapshot(self, snapshot_id: str) -> DataSnapshotRecord | None:
+        snapshot = self.get_snapshot(snapshot_id)
+        if snapshot is None or snapshot.status is SnapshotStatus.STAGED:
+            return None
+        return snapshot
+
+    def list_datasets(self) -> list[DataDatasetRecord]:
+        visible = data_snapshots.c.status != SnapshotStatus.STAGED.value
+        statement = (
+            sa.select(
+                data_datasets,
+                sa.func.count(data_snapshots.c.snapshot_id).label("snapshot_count"),
+            )
+            .join(
+                data_snapshots,
+                sa.and_(
+                    data_snapshots.c.dataset_id == data_datasets.c.dataset_id,
+                    visible,
+                ),
+            )
+            .group_by(data_datasets.c.dataset_id)
+            .order_by(data_datasets.c.created_at.desc())
+        )
+        with self._engine.connect() as connection:
+            rows = list(connection.execute(statement).mappings())
+            records: list[DataDatasetRecord] = []
+            for row in rows:
+                latest = connection.execute(
+                    sa.select(data_snapshots.c.snapshot_id)
+                    .where(data_snapshots.c.dataset_id == row["dataset_id"])
+                    .where(visible)
+                    .order_by(data_snapshots.c.created_at.desc())
+                    .limit(1)
+                ).scalar_one_or_none()
+                records.append(
+                    DataDatasetRecord(
+                        dataset_id=row["dataset_id"],
+                        name=row["name"],
+                        asset_class=row["asset_class"],
+                        frequency=row["frequency"],
+                        snapshot_count=row["snapshot_count"],
+                        latest_snapshot_id=latest,
+                    )
+                )
+        return records
+
+    def list_staged_snapshots(self) -> list[DataSnapshotRecord]:
+        with self._engine.connect() as connection:
+            rows = connection.execute(
+                sa.select(data_snapshots).where(
+                    data_snapshots.c.status == SnapshotStatus.STAGED.value
+                )
+            ).mappings()
+            return [_row_to_snapshot(row) for row in rows]
+
+    def reconcile_staged(self) -> int:
+        recovered = 0
+        for snapshot in self.list_staged_snapshots():
+            if not Path(snapshot.manifest_path).is_file():
+                continue
+            recovered += int(self.mark_published(snapshot.snapshot_id))
+        return recovered
 
     def list_snapshots(self, dataset_id: str) -> list[DataSnapshotRecord]:
         with self._engine.connect() as connection:
