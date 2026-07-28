@@ -5,6 +5,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from astraquant_api.migration_config import resolve_migration_url
 from astraquant_api.repository import metadata
 
 config = context.config
@@ -13,6 +14,13 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = metadata
+config.set_main_option(
+    "sqlalchemy.url",
+    resolve_migration_url(
+        configured_url=config.get_main_option("sqlalchemy.url") or None,
+        cli_arguments=context.get_x_argument(as_dictionary=True),
+    ).replace("%", "%%"),
+)
 
 
 def run_migrations_offline() -> None:

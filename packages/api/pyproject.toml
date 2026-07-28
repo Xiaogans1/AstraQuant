@@ -9,6 +9,7 @@ description = "Local control service for AstraQuant"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "alembic>=1.18,<2",
+  "astraquant-data",
   "astraquant-domain",
   "fastapi>=0.140,<1",
   "pydantic>=2.13,<3",
@@ -21,6 +22,7 @@ dependencies = [
 astraquant-api = "astraquant_api.cli:main"
 
 [tool.uv.sources]
+astraquant-data = { workspace = true }
 astraquant-domain = { workspace = true }
 
 [tool.hatch.build.targets.wheel]

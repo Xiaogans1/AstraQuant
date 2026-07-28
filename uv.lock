@@ -102,6 +102,7 @@ version = "0.1.0"
 source = { editable = "packages/api" }
 dependencies = [
     { name = "alembic" },
+    { name = "astraquant-data" },
     { name = "astraquant-domain" },
     { name = "fastapi" },
     { name = "pydantic" },
@@ -113,6 +114,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.18,<2" },
+    { name = "astraquant-data", editable = "packages/data" },
     { name = "astraquant-domain", editable = "packages/domain" },
     { name = "fastapi", specifier = ">=0.140,<1" },
     { name = "pydantic", specifier = ">=2.13,<3" },
