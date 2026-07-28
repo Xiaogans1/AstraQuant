@@ -12,7 +12,7 @@
 
 ## Scope and file map
 
-This plan intentionally covers only the independently testable Phase 0 foundation. Desktop UI, local API, market-data storage, backtesting, Paper Trading, and CTP integration each receive a separate implementation plan after this foundation is merged.
+This plan intentionally covers only the independently testable Phase 0 foundation. Desktop UI, local API, market-data storage, backtesting, Paper Trading, and real-time advisory signals each receive a separate implementation plan after this foundation is merged. Real brokerage or CTP order integration is outside the product boundary.
 
 | Path | Responsibility |
 | --- | --- |
