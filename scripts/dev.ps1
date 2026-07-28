@@ -9,7 +9,7 @@ $previousLocation = Get-Location
 try {
     Set-Location -LiteralPath $projectRoot
 
-    foreach ($commandName in @("uv", "node", "cargo")) {
+    foreach ($commandName in @("uv", "node", "npm", "cargo")) {
         if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) {
             throw "Required development command is missing: $commandName"
         }
@@ -55,7 +55,10 @@ try {
         }
     }
 
-    Invoke-Pnpm dev
+    npm --prefix apps/desktop run tauri -- dev
+    if ($LASTEXITCODE -ne 0) {
+        throw "AstraQuant development runtime exited with code $LASTEXITCODE"
+    }
 }
 finally {
     Set-Location -LiteralPath $previousLocation

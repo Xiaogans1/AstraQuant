@@ -6,7 +6,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "pnpm --dir apps/desktop tauri dev",
+    "dev": "npm --prefix apps/desktop run tauri -- dev",
     "frontend:check": "pnpm --dir apps/desktop check",
     "frontend:test": "pnpm --dir apps/desktop test",
     "rust:check": "cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml",
