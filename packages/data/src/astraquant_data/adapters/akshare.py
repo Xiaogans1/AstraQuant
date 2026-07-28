@@ -127,6 +127,7 @@ class AkShareDailyBarProvider:
         return Bar(
             instrument_id=request.instrument_id,
             frequency=request.frequency,
+            trading_date=trading_date,
             event_time=session.session_close,
             available_time=session.session_close + timedelta(minutes=1),
             open=_decimal(row["开盘"]),
@@ -147,6 +148,7 @@ class AkShareDailyBarProvider:
         return Bar(
             instrument_id=request.instrument_id,
             frequency=request.frequency,
+            trading_date=trading_date,
             event_time=session.session_close,
             available_time=session.session_close + timedelta(minutes=1),
             open=_decimal(row["open"]),

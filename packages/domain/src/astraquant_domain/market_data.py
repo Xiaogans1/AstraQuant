@@ -1,7 +1,7 @@
 """Canonical market-data records shared by batch and streaming providers."""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
@@ -29,6 +29,7 @@ def _require_aware(name: str, value: datetime) -> None:
 class Bar:
     instrument_id: InstrumentId
     frequency: BarFrequency
+    trading_date: date
     event_time: datetime
     available_time: datetime
     open: Decimal

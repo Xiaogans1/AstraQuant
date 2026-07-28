@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -16,6 +16,7 @@ def make_bar(**changes: object) -> Bar:
     values: dict[str, object] = {
         "instrument_id": InstrumentId.parse("600000.SSE"),
         "frequency": BarFrequency.DAY,
+        "trading_date": date(2026, 7, 24),
         "event_time": datetime(2026, 7, 24, 7, 0, tzinfo=UTC),
         "available_time": datetime(2026, 7, 24, 7, 1, tzinfo=UTC),
         "open": Decimal("10.00"),
@@ -35,6 +36,17 @@ def make_bar(**changes: object) -> Bar:
 
 def test_bar_accepts_valid_ohlc_and_point_in_time_order() -> None:
     assert make_bar().close == Decimal("10.50")
+
+
+def test_bar_keeps_trading_date_separate_from_event_natural_date() -> None:
+    bar = make_bar(
+        trading_date=date(2026, 7, 25),
+        event_time=datetime(2026, 7, 24, 13, 0, tzinfo=UTC),
+        available_time=datetime(2026, 7, 24, 13, 0, 1, tzinfo=UTC),
+    )
+
+    assert bar.trading_date == date(2026, 7, 25)
+    assert bar.event_time.date() == date(2026, 7, 24)
 
 
 @pytest.mark.parametrize(
