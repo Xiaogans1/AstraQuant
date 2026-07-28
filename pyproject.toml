@@ -2,7 +2,7 @@
 name = "astraquant-workspace"
 version = "0.0.0"
 requires-python = ">=3.12,<3.13"
-dependencies = ["astraquant-api", "astraquant-domain"]
+dependencies = ["astraquant-api", "astraquant-data[akshare]", "astraquant-domain"]
 
 [dependency-groups]
 dev = [
@@ -18,10 +18,11 @@ package = false
 
 [tool.uv.sources]
 astraquant-domain = { workspace = true }
+astraquant-data = { workspace = true }
 astraquant-api = { workspace = true }
 
 [tool.uv.workspace]
-members = ["packages/domain", "packages/api"]
+members = ["packages/domain", "packages/data", "packages/api"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
@@ -34,15 +35,15 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["packages/domain/src", "packages/api/src"]
+src = ["packages/domain/src", "packages/data/src", "packages/api/src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["astraquant_api", "astraquant_domain", "tools"]
+known-first-party = ["astraquant_api", "astraquant_data", "astraquant_domain", "tools"]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["packages/domain/src", "packages/api/src", "tools", "tests"]
+files = ["packages/domain/src", "packages/data/src", "packages/api/src", "tools", "tests"]

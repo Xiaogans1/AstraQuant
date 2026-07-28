@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astraquant-data"
+version = "0.1.0"
+description = "Local market-data storage and point-in-time query services for AstraQuant."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "astraquant-domain",
+  "duckdb>=1.5,<2",
+  "pyarrow>=25,<26",
+]
+
+[project.optional-dependencies]
+akshare = ["akshare>=1.18.64,<1.19"]
+
+[tool.uv.sources]
+astraquant-domain = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astraquant_data"]
