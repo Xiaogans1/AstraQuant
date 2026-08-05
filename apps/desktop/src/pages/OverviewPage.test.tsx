@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 import type { ApiClient } from "../api/client";
 import type {
@@ -173,4 +174,30 @@ it("keeps six named index slots without inventing values when the API fails", as
   expect(screen.getByText("上证指数")).toBeVisible();
   expect(screen.getAllByText("暂无真实数据")).toHaveLength(6);
   expect(screen.queryByText("3,421.68")).not.toBeInTheDocument();
+});
+
+it("searches the real catalog and adds the selected instrument", async () => {
+  const user = userEvent.setup();
+  const client = renderMarketHome(homeFixture());
+  vi.mocked(client.searchMarketInstruments).mockResolvedValue([
+    { instrument_id: "600000.SSE", name: "浦发银行", kind: "equity" },
+  ]);
+
+  await user.type(await screen.findByRole("searchbox", { name: "搜索证券" }), "600000");
+  await user.click(await screen.findByRole("button", { name: /浦发银行.*加入自选/ }));
+
+  expect(client.searchMarketInstruments).toHaveBeenCalledWith("600000");
+  expect(client.addWatchlistInstrument).toHaveBeenCalledWith("600000.SSE");
+});
+
+it("shows a visible error when the real catalog search fails", async () => {
+  const user = userEvent.setup();
+  const client = renderMarketHome(homeFixture());
+  vi.mocked(client.searchMarketInstruments).mockRejectedValue(
+    new Error("Eastmoney SDK call failed"),
+  );
+
+  await user.type(await screen.findByRole("searchbox", { name: "搜索证券" }), "600000");
+
+  expect(await screen.findByText("证券目录搜索失败，请稍后重试")).toBeVisible();
 });

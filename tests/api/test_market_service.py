@@ -62,7 +62,7 @@ class FakeProvider:
         return [{"instrument_id": str(instrument_id), "index": index} for index in range(count)]
 
     def search(self, query: str) -> list[dict[str, Any]]:
-        return [{"symbol": query}]
+        return [{"symbol": "SHSE.600000", "sec_name": "浦发银行"}]
 
     def trading_dates(self, start: date, end: date) -> list[date]:
         return [start] if start == end else []
@@ -140,6 +140,17 @@ def test_watchlist_changes_apply_to_the_next_poll() -> None:
         assert "600000.SSE" in provider.polls[-1]
         assert service.home_snapshot().watchlist[0].instrument_id == "600000.SSE"
         await service.stop()
+
+    asyncio.run(scenario())
+
+
+def test_search_result_name_is_reused_in_watchlist() -> None:
+    async def scenario() -> None:
+        service, _, _ = build_service()
+        await service.search("浦发")
+        service.add_watchlist("600000.SSE")
+
+        assert service.home_snapshot().watchlist[0].name == "浦发银行"
 
     asyncio.run(scenario())
 

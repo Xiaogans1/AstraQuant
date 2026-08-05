@@ -29,7 +29,7 @@ class EastmoneyClient(Protocol):
         count: int,
     ) -> list[dict[str, Any]]: ...
 
-    def symbol_infos(self, symbols: list[str]) -> list[dict[str, Any]]: ...
+    def search_symbols(self, query: str) -> list[dict[str, Any]]: ...
 
     def trading_dates(
         self,
@@ -120,7 +120,7 @@ class EastmoneyProvider:
         )
 
     def search(self, query: str) -> list[dict[str, Any]]:
-        return self._client.symbol_infos([query.strip().upper()])
+        return self._client.search_symbols(query.strip())
 
     def trading_dates(self, start: date, end: date) -> list[date]:
         values = self._client.trading_dates(

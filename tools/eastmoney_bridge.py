@@ -16,6 +16,9 @@ PROTOCOL_STDOUT = cast(TextIO, sys.__stdout__)
 if PROTOCOL_STDOUT is None:
     raise RuntimeError("protocol stdout is unavailable")
 
+_SYMBOL_CATALOG: list[dict[str, Any]] | None = None
+_SEARCH_LIMIT = 20
+
 
 def json_safe(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
@@ -52,8 +55,8 @@ def invoke(method: str, params: dict[str, Any]) -> Any:
                 count=params["count"],
                 df=True,
             )
-        if method == "symbol_infos":
-            return gm.get_symbol_infos(symbols=params["symbols"], df=True)
+        if method == "search_symbols":
+            return search_symbols(str(params["query"]))
         if method == "trading_dates":
             return gm.get_trading_dates(
                 exchange=params["exchange"],
@@ -61,6 +64,40 @@ def invoke(method: str, params: dict[str, Any]) -> Any:
                 end_date=params["end_date"],
             )
     raise ValueError("unsupported_method")
+
+
+def search_symbols(query: str) -> list[dict[str, Any]]:
+    global _SYMBOL_CATALOG
+    if _SYMBOL_CATALOG is None:
+        catalog: list[dict[str, Any]] = []
+        for security_types, exchanges in (
+            (
+                [gm.SEC_TYPE_STOCK, gm.SEC_TYPE_FUND],
+                ["SHSE", "SZSE", "BSE"],
+            ),
+            (
+                [gm.SEC_TYPE_FUTURE],
+                ["CFFEX", "SHFE", "DCE", "CZCE", "INE", "GFEX"],
+            ),
+        ):
+            rows = gm.get_instrumentinfos(
+                sec_types=security_types,
+                exchanges=exchanges,
+                df=False,
+            )
+            catalog.extend(row for row in rows if isinstance(row, dict))
+        _SYMBOL_CATALOG = catalog
+
+    normalized = query.strip().casefold()
+    if not normalized:
+        return []
+    matches = [
+        row
+        for row in _SYMBOL_CATALOG
+        if normalized in str(row.get("symbol", "")).casefold()
+        or normalized in str(row.get("sec_name", "")).casefold()
+    ]
+    return matches[:_SEARCH_LIMIT]
 
 
 def respond(payload: dict[str, Any]) -> None:

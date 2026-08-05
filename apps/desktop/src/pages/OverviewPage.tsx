@@ -131,6 +131,7 @@ export function OverviewPage({ client }: { client: ApiClient }) {
           {search.trim().length >= 2 ? (
             <div className="market-search-results">
               {searchQuery.isLoading ? <p>正在搜索东财证券目录…</p> : null}
+              {searchQuery.isError ? <p role="alert">证券目录搜索失败，请稍后重试</p> : null}
               {searchQuery.data?.map((item) => (
                 <button
                   key={item.instrument_id}
@@ -156,7 +157,7 @@ export function OverviewPage({ client }: { client: ApiClient }) {
                 <tbody>
                   {home.watchlist.map((item) => (
                     <tr key={item.instrument_id} data-selected={item.instrument_id === selected?.instrument_id} onClick={() => setSelectedId(item.instrument_id)}>
-                      <td><strong>{item.name}</strong><small>{item.instrument_id}</small></td>
+                      <td><div className="instrument-identity"><strong>{item.name}</strong><span>{item.instrument_id}</span></div></td>
                       <td>{formatNumber(item.last_price)}</td>
                       <td><MarketChange value={item.change_percent} /></td>
                       <td>{item.last_price === null ? "暂无真实数据" : state === "STALE" ? "已延迟" : "真实快照"}</td>

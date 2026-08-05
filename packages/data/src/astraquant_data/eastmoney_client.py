@@ -123,8 +123,8 @@ class EastmoneyBridgeClient:
             )
         )
 
-    def symbol_infos(self, symbols: Sequence[str]) -> list[dict[str, Any]]:
-        return self._list_result(self._request("symbol_infos", {"symbols": list(symbols)}))
+    def search_symbols(self, query: str) -> list[dict[str, Any]]:
+        return self._list_result(self._request("search_symbols", {"query": query}))
 
     def trading_dates(self, *, exchange: str, start_date: str, end_date: str) -> list[Any]:
         result = self._request(

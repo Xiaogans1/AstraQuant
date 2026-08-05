@@ -104,7 +104,10 @@ export function useAddWatchlistMutation(client: ApiClient) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (instrumentId: string) => client.addWatchlistInstrument(instrumentId),
-    onSuccess: (home) => queryClient.setQueryData(queryKeys.marketHome, home),
+    onSuccess: async (home) => {
+      queryClient.setQueryData(queryKeys.marketHome, home);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.marketHome });
+    },
   });
 }
 

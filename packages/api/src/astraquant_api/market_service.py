@@ -10,6 +10,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from astraquant_api.secret_store import SecretStore
+from astraquant_data.eastmoney_protocol import from_eastmoney_symbol
 from astraquant_data.live_providers import ConnectionState, LiveMarketProvider, ProviderHealth
 from astraquant_data.subscriptions import CORE_INDICES, SubscriptionBudget
 from astraquant_domain import Clock, InstrumentId, LiveQuote, SystemClock
@@ -54,6 +55,7 @@ class MarketDataService:
         self._task: asyncio.Task[None] | None = None
         self._quotes: dict[str, LiveQuote] = {}
         self._history: dict[str, list[dict[str, Any]]] = {}
+        self._instrument_names: dict[str, str] = {}
         self._selected: str | None = None
         self._connection = ProviderHealth(provider_id="eastmoney")
 
@@ -135,7 +137,7 @@ class MarketDataService:
         watchlist = tuple(
             MarketItemSnapshot(
                 instrument_id=instrument_id,
-                name=None,
+                name=self._instrument_names.get(instrument_id),
                 kind=None,
                 quote=self._quotes.get(instrument_id),
             )
@@ -199,7 +201,16 @@ class MarketDataService:
     async def search(self, query: str) -> list[dict[str, Any]]:
         if self._provider is None:
             return []
-        return await asyncio.to_thread(self._provider.search, query)
+        rows = await asyncio.to_thread(self._provider.search, query)
+        for row in rows:
+            try:
+                instrument_id = str(from_eastmoney_symbol(str(row.get("symbol", ""))))
+            except ValueError:
+                continue
+            name = str(row.get("sec_name", "")).strip()
+            if name:
+                self._instrument_names[instrument_id] = name
+        return rows
 
     @staticmethod
     def reconnect_delay_seconds(attempt: int) -> int:

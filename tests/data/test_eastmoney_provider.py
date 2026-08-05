@@ -15,6 +15,7 @@ class FakeBridgeClient:
         self.configured: list[str] = []
         self.current_symbols: list[list[str]] = []
         self.history_requests: list[dict[str, Any]] = []
+        self.search_queries: list[str] = []
         self.fail_current = False
 
     def start(self) -> None:
@@ -51,8 +52,9 @@ class FakeBridgeClient:
         self.history_requests.append(request)
         return []
 
-    def symbol_infos(self, symbols: list[str]) -> list[dict[str, Any]]:
-        return [{"symbol": symbol, "sec_name": symbol} for symbol in symbols]
+    def search_symbols(self, query: str) -> list[dict[str, Any]]:
+        self.search_queries.append(query)
+        return [{"symbol": "SHSE.600000", "sec_name": "浦发银行"}]
 
     def trading_dates(self, **_: str) -> list[str]:
         return ["2026-08-05"]
@@ -95,6 +97,15 @@ def test_history_requests_sixty_second_bars_with_a_bounded_count() -> None:
     assert client.history_requests == [
         {"symbol": "SHSE.000001", "frequency": "60s", "count": 33000}
     ]
+
+
+def test_search_delegates_a_trimmed_query_to_the_catalog_bridge() -> None:
+    market, client = provider()
+
+    result = market.search("  浦发  ")
+
+    assert result[0]["symbol"] == "SHSE.600000"
+    assert client.search_queries == ["浦发"]
 
 
 def test_child_failure_moves_health_to_error_without_private_message() -> None:
