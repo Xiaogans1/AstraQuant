@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import os
 import socket
 import sys
+from pathlib import Path
 from threading import Thread
 
 import uvicorn
@@ -14,8 +16,16 @@ from astraquant_api.config import RuntimeConfig
 from astraquant_api.data_repository import DataCatalogRepository
 from astraquant_api.database import create_database, migrate_database
 from astraquant_api.logging import ActivityBuffer, configure_logging
+from astraquant_api.market_config import load_eastmoney_runtime_config
+from astraquant_api.market_service import MarketDataService
 from astraquant_api.repository import TaskRepository
+from astraquant_api.secret_store import CredentialSecretStore
 from astraquant_api.supervisor import TaskSupervisor
+from astraquant_data.adapters.eastmoney import EastmoneyProvider
+from astraquant_data.eastmoney_client import EastmoneyBridgeClient
+from astraquant_data.live_providers import LiveMarketProvider
+from astraquant_data.subscriptions import SubscriptionBudget
+from astraquant_domain import SystemClock
 
 PROTOCOL_VERSION = 1
 
@@ -42,6 +52,33 @@ def serve() -> None:
     activity = ActivityBuffer()
     logger = configure_logging(config.log_dir, activity)
     supervisor = TaskSupervisor(repository)
+    secret_store = CredentialSecretStore()
+    market_config = load_eastmoney_runtime_config(repository)
+    bridge_script = Path(__file__).resolve().parents[4] / "tools" / "eastmoney_bridge.py"
+
+    def market_provider_factory(sdk_python: Path, timeout_seconds: float) -> LiveMarketProvider:
+        client = EastmoneyBridgeClient(
+            python_executable=sdk_python,
+            bridge_script=bridge_script,
+            timeout_seconds=timeout_seconds,
+        )
+        return EastmoneyProvider(client=client, clock=SystemClock())
+
+    market_provider = (
+        None
+        if market_config.sdk_python is None
+        else market_provider_factory(
+            market_config.sdk_python,
+            market_config.request_timeout_seconds,
+        )
+    )
+    market_service = MarketDataService(
+        provider=market_provider,
+        budget=SubscriptionBudget(),
+        secret_store=secret_store,
+        poll_interval_seconds=market_config.poll_interval_seconds,
+        stale_after_seconds=market_config.stale_after_seconds,
+    )
     state = AppState(
         repository=repository,
         data_catalog=data_catalog,
@@ -49,6 +86,9 @@ def serve() -> None:
         activity=activity,
         session_token=config.session_token,
         state_dir=config.state_dir,
+        market_service=market_service,
+        secret_store=secret_store,
+        market_provider_factory=market_provider_factory,
         allowed_data_instruments=config.allowed_data_instruments,
         enable_akshare=config.enable_akshare,
         shutdown_grace_seconds=config.shutdown_grace_seconds,
@@ -97,6 +137,7 @@ def serve() -> None:
     try:
         server.run(sockets=[server_socket])
     finally:
+        asyncio.run(market_service.stop())
         supervisor.shutdown(config.shutdown_grace_seconds)
         engine.dispose()
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from dataclasses import dataclass, replace
-from datetime import time
+from datetime import datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -31,7 +31,7 @@ class MarketHomeSnapshot:
     core_indices: tuple[MarketItemSnapshot, ...]
     watchlist: tuple[MarketItemSnapshot, ...]
     selected_instrument: MarketItemSnapshot | None
-    as_of: object | None
+    as_of: datetime | None
 
 
 class MarketDataService:
@@ -102,6 +102,12 @@ class MarketDataService:
 
     def connection(self) -> ProviderHealth:
         return self._connection
+
+    def configure_provider(self, provider: LiveMarketProvider) -> None:
+        if self._task is not None and not self._task.done():
+            raise RuntimeError("market service must be stopped before reconfiguration")
+        self._provider = provider
+        self._connection = ProviderHealth(provider_id="eastmoney")
 
     def add_watchlist(self, instrument_id: str) -> None:
         self._budget.add_persistent(instrument_id)

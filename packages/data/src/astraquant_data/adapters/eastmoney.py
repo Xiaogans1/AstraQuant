@@ -21,11 +21,23 @@ class EastmoneyClient(Protocol):
 
     def current(self, symbols: list[str]) -> list[dict[str, Any]]: ...
 
-    def history_n(self, **request: Any) -> list[dict[str, Any]]: ...
+    def history_n(
+        self,
+        *,
+        symbol: str,
+        frequency: str,
+        count: int,
+    ) -> list[dict[str, Any]]: ...
 
     def symbol_infos(self, symbols: list[str]) -> list[dict[str, Any]]: ...
 
-    def trading_dates(self, **request: str) -> list[Any]: ...
+    def trading_dates(
+        self,
+        *,
+        exchange: str,
+        start_date: str,
+        end_date: str,
+    ) -> list[Any]: ...
 
 
 class EastmoneyProvider:

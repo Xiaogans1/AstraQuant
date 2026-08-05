@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from astraquant_api import __version__
 from astraquant_api.data_repository import DataCatalogRepository
 from astraquant_api.logging import ActivityBuffer
+from astraquant_api.market_service import MarketDataService
 from astraquant_api.repository import TaskRepository
 from astraquant_api.schemas import (
     ActivityItem,
@@ -22,7 +23,9 @@ from astraquant_api.schemas import (
     Settings,
     TaskResponse,
 )
+from astraquant_api.secret_store import SecretStore
 from astraquant_api.task_model import TaskRecord
+from astraquant_data.live_providers import LiveMarketProvider
 
 
 class Supervisor(Protocol):
@@ -50,6 +53,9 @@ class AppState:
     activity: ActivityBuffer
     session_token: str
     state_dir: Path
+    market_service: MarketDataService | None = None
+    secret_store: SecretStore | None = None
+    market_provider_factory: Callable[[Path, float], LiveMarketProvider] | None = None
     allowed_data_instruments: frozenset[str] = frozenset({"600000.SSE", "RB0.SHFE"})
     enable_akshare: bool = False
     shutdown_grace_seconds: float = 5.0
@@ -76,7 +82,7 @@ def create_app(state: AppState) -> FastAPI:
             "https://tauri.localhost",
         ],
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PATCH"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
     )
 
@@ -215,6 +221,22 @@ def create_app(state: AppState) -> FastAPI:
     from astraquant_api.data_routes import build_data_router
 
     app.include_router(build_data_router(state, authenticated))
+    if (
+        state.market_service is not None
+        and state.secret_store is not None
+        and state.market_provider_factory is not None
+    ):
+        from astraquant_api.market_routes import build_market_router
+
+        app.include_router(
+            build_market_router(
+                repository=state.repository,
+                service=state.market_service,
+                secret_store=state.secret_store,
+                provider_factory=state.market_provider_factory,
+                authenticated=authenticated,
+            )
+        )
     return app
 
 
