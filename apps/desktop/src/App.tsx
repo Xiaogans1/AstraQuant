@@ -13,12 +13,10 @@ import type {
   RuntimeConnection,
   Settings,
 } from "./api/contracts";
-import { isTaskActive } from "./api/contracts";
 import {
   useActivityQuery,
   useBarsQuery,
   useCancelTaskMutation,
-  useCreateDataImportMutation,
   useDatasetsQuery,
   useHealthQuery,
   useRuntimeQuery,
@@ -68,7 +66,7 @@ const viewCopy: Record<
   data: {
     index: "CONNECTIONS / 02",
     title: "数据与连接",
-    summary: "导入只读行情，检查数据质量，并将通过校验的不可变快照送入后续 AI 特征流程。",
+    summary: "接入真实只读行情，管理本地历史仓库，并将通过质量校验的快照送入后续 AI 特征流程。",
   },
   tasks: {
     index: "WORKSPACE / 03",
@@ -174,13 +172,24 @@ function Workspace({
   const activityQuery = useActivityQuery(client);
   const settingsQuery = useSettingsQuery(client);
   const datasetsQuery = useDatasetsQuery(client);
+  const realDatasets = useMemo(
+    () =>
+      (datasetsQuery.data ?? []).filter(
+        (dataset) =>
+          dataset.latest_provider_id !== null &&
+          dataset.latest_provider_id !== "fixture",
+      ),
+    [datasetsQuery.data],
+  );
   const effectiveDatasetId =
-    selectedDatasetId ?? datasetsQuery.data?.[0]?.dataset_id ?? null;
+    (selectedDatasetId !== null &&
+    realDatasets.some((dataset) => dataset.dataset_id === selectedDatasetId)
+      ? selectedDatasetId
+      : realDatasets[0]?.dataset_id) ?? null;
   const snapshotsQuery = useSnapshotsQuery(client, effectiveDatasetId);
   const latestSnapshotId =
     snapshotsQuery.data?.[0]?.snapshot_id ?? null;
   const barsQuery = useBarsQuery(client, latestSnapshotId);
-  const createDataImport = useCreateDataImportMutation(client);
   const cancelTask = useCancelTaskMutation(client);
   const updateSettings = useUpdateSettingsMutation(client);
 
@@ -224,8 +233,6 @@ function Workspace({
   const tasks = tasksQuery.data ?? [];
   const activity = activityQuery.data ?? [];
   const settings = settingsQuery.data ?? defaultSettings;
-  const latestDataImport =
-    tasks.find((task) => task.task_type === "data.import") ?? null;
   const isStale =
     healthQuery.isError ||
     runtimeQuery.isError ||
@@ -276,7 +283,7 @@ function Workspace({
                 isStale,
                 cancelTask,
                 updateSettings,
-                datasets: datasetsQuery.data ?? [],
+                datasets: realDatasets,
                 snapshots: snapshotsQuery.data ?? [],
                 bars: barsQuery.data ?? [],
                 selectedDatasetId: effectiveDatasetId,
@@ -285,8 +292,6 @@ function Workspace({
                   datasetsQuery.isError ||
                   snapshotsQuery.isError ||
                   barsQuery.isError,
-                createDataImport,
-                importTask: latestDataImport,
                 onSelectDataset: setSelectedDatasetId,
               })
             )}
@@ -313,8 +318,6 @@ function renderView({
   selectedDatasetId,
   dataLoading,
   dataStale,
-  createDataImport,
-  importTask,
   onSelectDataset,
 }: {
   client: ApiClient;
@@ -332,8 +335,6 @@ function renderView({
   selectedDatasetId: string | null;
   dataLoading: boolean;
   dataStale: boolean;
-  createDataImport: ReturnType<typeof useCreateDataImportMutation>;
-  importTask: NonNullable<ReturnType<typeof useTasksQuery>["data"]>[number] | null;
   onSelectDataset: (datasetId: string) => void;
 }) {
   if (currentView === "overview") {
@@ -348,24 +349,8 @@ function renderView({
           snapshots={snapshots}
           bars={bars}
           selectedDatasetId={selectedDatasetId}
-          importTask={importTask}
-          importError={
-            createDataImport.error instanceof Error
-              ? createDataImport.error.message
-              : null
-          }
-          importing={
-            createDataImport.isPending ||
-            (importTask !== null && isTaskActive(importTask))
-          }
           loading={dataLoading}
           stale={dataStale}
-          onImport={(request) =>
-            createDataImport.mutate({
-              request,
-              idempotencyKey: crypto.randomUUID(),
-            })
-          }
           onSelectDataset={onSelectDataset}
         />
       </>

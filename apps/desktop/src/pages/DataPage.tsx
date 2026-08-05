@@ -1,12 +1,8 @@
-import { useState } from "react";
-
 import type {
   BarPreview,
-  DataImportRequest,
   DatasetSummary,
   SnapshotSummary,
 } from "../api/data-contracts";
-import type { Task } from "../api/contracts";
 import { EmptyState } from "../components/EmptyState";
 import { Panel } from "../components/Panel";
 import { QualityBadge } from "../components/QualityBadge";
@@ -16,38 +12,23 @@ interface DataPageProps {
   snapshots: SnapshotSummary[];
   bars: BarPreview[];
   selectedDatasetId: string | null;
-  importing: boolean;
   loading: boolean;
   stale: boolean;
-  importTask?: Task | null;
-  importError?: string | null;
-  onImport: (request: DataImportRequest) => void;
   onSelectDataset: (datasetId: string) => void;
 }
-
-const initialRequest: DataImportRequest = {
-  provider: "fixture",
-  instrument_id: "600000.SSE",
-  frequency: "1d",
-  start: "2026-07-20",
-  end: "2026-07-24",
-  adjustment: "none",
-};
 
 export function DataPage({
   datasets,
   snapshots,
   bars,
   selectedDatasetId,
-  importing,
   loading,
   stale,
-  importTask = null,
-  importError = null,
-  onImport,
   onSelectDataset,
 }: DataPageProps) {
-  const [request, setRequest] = useState(initialRequest);
+  const realDatasets = datasets.filter(
+    (dataset) => dataset.latest_provider_id !== null && dataset.latest_provider_id !== "fixture",
+  );
   const latestSnapshot = snapshots[0];
 
   return (
@@ -66,121 +47,25 @@ export function DataPage({
           <p>不包含账户或下单连接</p>
         </div>
         <ol className="data-pulse">
-          <li data-active="true"><span>01</span>只读来源</li>
-          <li data-active="true"><span>02</span>质量校验</li>
-          <li data-active={latestSnapshot !== undefined}><span>03</span>不可变快照</li>
+          <li data-active="true"><span>01</span>东财只读行情</li>
+          <li data-active={realDatasets.length > 0}><span>02</span>真实历史仓库</li>
+          <li data-active={latestSnapshot !== undefined}><span>03</span>质量快照</li>
         </ol>
       </section>
 
       <div className="data-workbench">
         <div className="data-workbench__left">
-          <Panel title="导入本地样例" eyebrow="IMPORT / READ ONLY">
-            <form
-              className="data-import-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onImport(request);
-              }}
-            >
-              <label>
-                <span>市场样例</span>
-                <select
-                  value={request.instrument_id}
-                  onChange={(event) => {
-                    const instrument = event.target.value;
-                    setRequest((current) => ({
-                      ...current,
-                      instrument_id: instrument,
-                      adjustment: instrument.endsWith(".SHFE")
-                        ? "none"
-                        : current.adjustment,
-                    }));
-                  }}
-                >
-                  <option value="600000.SSE">浦发银行 · 600000.SSE</option>
-                  <option value="RB0.SHFE">螺纹连续 · RB0.SHFE</option>
-                </select>
-              </label>
-              <div className="data-import-form__dates">
-                <label>
-                  <span>开始日期</span>
-                  <input
-                    type="date"
-                    value={request.start}
-                    onChange={(event) =>
-                      setRequest((current) => ({
-                        ...current,
-                        start: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>结束日期</span>
-                  <input
-                    type="date"
-                    value={request.end}
-                    onChange={(event) =>
-                      setRequest((current) => ({
-                        ...current,
-                        end: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-              <label>
-                <span>复权方式</span>
-                <select
-                  value={request.adjustment}
-                  disabled={request.instrument_id.endsWith(".SHFE")}
-                  onChange={(event) =>
-                    setRequest((current) => ({
-                      ...current,
-                      adjustment: event.target
-                        .value as DataImportRequest["adjustment"],
-                    }))
-                  }
-                >
-                  <option value="none">不复权</option>
-                  <option value="qfq">前复权</option>
-                  <option value="hfq">后复权</option>
-                </select>
-              </label>
-              <button
-                className="button button--primary"
-                type="submit"
-                disabled={importing || stale || request.end < request.start}
-              >
-                {importing ? "正在导入…" : "导入示例数据"}
-              </button>
-            </form>
-            {importTask !== null ? (
-              <div className="data-import-status" role="status">
-                <div>
-                  <span>后台导入任务</span>
-                  <strong>{formatTaskStep(importTask.current_step)}</strong>
-                  <small>可在任务中心查看完整记录</small>
-                </div>
-                <span>{importTask.progress}%</span>
-              </div>
-            ) : null}
-            {importError !== null ? (
-              <p className="form-error">{importError}</p>
-            ) : null}
-          </Panel>
-
-          <Panel title="本地数据集" eyebrow={`CATALOG / ${datasets.length}`}>
+          <Panel title="本地行情仓库" eyebrow={`REAL CATALOG / ${realDatasets.length}`}>
             {loading ? (
               <p className="data-muted">正在读取本地目录…</p>
-            ) : datasets.length === 0 ? (
+            ) : realDatasets.length === 0 ? (
               <EmptyState
-                title="还没有本地快照"
-                description="先导入一个合成样例，验证行情、质量检查和本地存储闭环。"
+                title="尚无真实历史数据"
+                description="实时行情当前用于市场观察；正式历史同步接入后，将在这里形成可追溯的本地快照。"
               />
             ) : (
               <div className="dataset-list">
-                {datasets.map((dataset) => (
+                {realDatasets.map((dataset) => (
                   <button
                     key={dataset.dataset_id}
                     type="button"
@@ -192,7 +77,7 @@ export function DataPage({
                     </span>
                     <strong>{dataset.name}</strong>
                     <small>
-                      {dataset.frequency} · {dataset.snapshot_count} 个快照
+                      {dataset.frequency} · {dataset.snapshot_count} 个快照 · {sourceLabel(dataset.latest_provider_id)}
                     </small>
                   </button>
                 ))}
@@ -315,21 +200,6 @@ function formatTime(value: string): string {
   }).format(new Date(value));
 }
 
-function formatTaskStep(step: string): string {
-  const labels: Record<string, string> = {
-    queued: "等待 Worker",
-    fetch: "读取行情",
-    normalize: "标准化",
-    validate: "质量校验",
-    stage_files: "暂存快照",
-    stage_catalog: "登记目录",
-    publish_files: "发布文件",
-    publish_catalog: "发布目录",
-    completed: "导入完成",
-  };
-  return labels[step] ?? step;
-}
-
 function formatIssueSamples(samples: string[]): string {
   if (samples.length === 0) {
     return "无样例";
@@ -337,4 +207,14 @@ function formatIssueSamples(samples: string[]): string {
   const visible = samples.slice(0, 2).join(" / ");
   const remaining = samples.length - 2;
   return remaining > 0 ? `${visible} / 另 ${remaining} 项` : visible;
+}
+
+function sourceLabel(providerId: string | null): string {
+  if (providerId === "eastmoney") {
+    return "东方财富";
+  }
+  if (providerId === "akshare") {
+    return "AKShare";
+  }
+  return providerId ?? "未知来源";
 }

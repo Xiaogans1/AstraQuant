@@ -1,5 +1,4 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 import type {
   BarPreview,
@@ -15,6 +14,10 @@ const dataset: DatasetSummary = {
   frequency: "1d",
   snapshot_count: 1,
   latest_snapshot_id: "snapshot-1",
+  latest_provider_id: "eastmoney",
+  latest_row_count: 5,
+  latest_min_event_time: "2026-07-20T07:00:00Z",
+  latest_max_event_time: "2026-07-24T07:00:00Z",
 };
 
 const snapshot: SnapshotSummary = {
@@ -22,7 +25,7 @@ const snapshot: SnapshotSummary = {
   dataset_id: dataset.dataset_id,
   status: "PUBLISHED",
   row_count: 5,
-  provider_id: "fixture",
+  provider_id: "eastmoney",
   created_at: "2026-07-28T08:00:00Z",
   min_event_time: "2026-07-20T07:00:00Z",
   max_event_time: "2026-07-24T07:00:00Z",
@@ -42,32 +45,23 @@ const bars: BarPreview[] = [
   },
 ];
 
-test("imports a sample and explains the local-only boundary", async () => {
-  const user = userEvent.setup();
-  const onImport = vi.fn();
+test("removes the sample importer and honestly reports an empty real catalog", () => {
   render(
     <DataPage
-      datasets={[]}
+      datasets={[{ ...dataset, latest_provider_id: "fixture" }]}
       snapshots={[]}
       bars={[]}
       selectedDatasetId={null}
-      importing={false}
       loading={false}
       stale={false}
-      onImport={onImport}
       onSelectDataset={vi.fn()}
     />,
   );
 
-  await user.click(screen.getByRole("button", { name: "导入示例数据" }));
-
-  expect(onImport).toHaveBeenCalledWith(
-    expect.objectContaining({
-      instrument_id: "600000.SSE",
-      provider: "fixture",
-      adjustment: "none",
-    }),
-  );
+  expect(screen.queryByText("导入本地样例")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "导入示例数据" })).not.toBeInTheDocument();
+  expect(screen.queryByText("600000.SSE 日线")).not.toBeInTheDocument();
+  expect(screen.getByText("尚无真实历史数据")).toBeVisible();
   expect(screen.getByText("数据只保存在本机")).toBeInTheDocument();
   expect(screen.getByText("不包含账户或下单连接")).toBeInTheDocument();
 });
@@ -79,10 +73,8 @@ test("shows snapshot quality and a compact bar preview", () => {
       snapshots={[snapshot]}
       bars={bars}
       selectedDatasetId={dataset.dataset_id}
-      importing={false}
       loading={false}
       stale={false}
-      onImport={vi.fn()}
       onSelectDataset={vi.fn()}
     />,
   );
@@ -119,10 +111,8 @@ test("conveys rejected quality by icon and text and blocks feature input", () =>
       snapshots={[rejected]}
       bars={[]}
       selectedDatasetId={dataset.dataset_id}
-      importing={false}
       loading={false}
       stale={false}
-      onImport={vi.fn()}
       onSelectDataset={vi.fn()}
     />,
   );

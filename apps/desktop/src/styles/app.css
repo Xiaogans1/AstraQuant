@@ -1331,69 +1331,6 @@ code {
   gap: 14px;
 }
 
-.data-import-form {
-  display: grid;
-  gap: 15px;
-}
-
-.data-import-form label {
-  display: grid;
-  gap: 7px;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.data-import-form select,
-.data-import-form input {
-  width: 100%;
-  min-height: 42px;
-  padding: 0 11px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  color: var(--text-primary);
-  background: var(--elevated);
-}
-
-.data-import-form__dates {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.data-import-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 11px 12px;
-  margin-top: 14px;
-  border-left: 2px solid var(--accent);
-  gap: 12px;
-  background: var(--accent-soft);
-}
-
-.data-import-status > div {
-  display: grid;
-  gap: 3px;
-}
-
-.data-import-status span,
-.data-import-status small {
-  color: var(--text-muted);
-  font-size: 9px;
-}
-
-.data-import-status strong {
-  font-family: var(--font-data);
-  font-size: 10px;
-}
-
-.data-import-status > span:last-child {
-  color: var(--accent);
-  font-family: var(--font-data);
-  font-size: 13px;
-  font-weight: 650;
-}
-
 .dataset-list {
   display: grid;
   gap: 7px;
@@ -1402,7 +1339,7 @@ code {
 .dataset-list button {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  padding: 13px;
+  padding: 15px 13px;
   border: 1px solid var(--border);
   border-radius: 8px;
   gap: 5px 10px;
@@ -1421,11 +1358,13 @@ code {
 .dataset-list__class {
   grid-row: 1 / span 2;
   align-self: center;
-  padding: 4px 6px;
+  min-width: 42px;
+  padding: 5px 6px;
   border: 1px solid var(--border);
   color: var(--accent);
   font-family: var(--font-data);
   font-size: 9px;
+  text-align: center;
 }
 
 .dataset-list strong,
@@ -2548,7 +2487,4 @@ code {
     border-bottom: 1px solid var(--border);
   }
 
-  .data-import-form__dates {
-    grid-template-columns: 1fr;
-  }
 }
