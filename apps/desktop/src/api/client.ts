@@ -189,10 +189,21 @@ export class ApiClient {
       headers["Content-Type"] = "application/json";
     }
 
-    const response = await this.fetchImplementation(`${this.baseUrl}${path}`, {
-      ...init,
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await this.fetchImplementation(`${this.baseUrl}${path}`, {
+        ...init,
+        headers,
+      });
+    } catch {
+      throw new ApiError(
+        {
+          code: "local_service_unreachable",
+          message: "本地行情服务暂时不可达，请重启 AstraQuant 后重试",
+        },
+        0,
+      );
+    }
     const contentType = response.headers.get("Content-Type") ?? "";
     if (!contentType.toLowerCase().includes("application/json")) {
       throw invalidResponse(response.status);

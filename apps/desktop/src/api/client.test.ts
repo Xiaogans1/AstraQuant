@@ -83,6 +83,22 @@ it("rejects malformed JSON responses as a protocol error", async () => {
   });
 });
 
+it("turns browser transport failures into actionable local service errors", async () => {
+  const fetchMock = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
+  const client = new ApiClient(connectionFixture, fetchMock);
+
+  await expect(
+    client.configureEastmoney({
+      sdk_python_path: "D:\\AstraQuantData\\Eastmoney\\PythonSDK\\Scripts\\python.exe",
+      token: "sensitive-eastmoney-token",
+    }),
+  ).rejects.toMatchObject({
+    code: "local_service_unreachable",
+    status: 0,
+    message: "本地行情服务暂时不可达，请重启 AstraQuant 后重试",
+  });
+});
+
 it("calls the default fetch with the browser global binding", async () => {
   const originalFetch = globalThis.fetch;
   const browserFetch = vi.fn(function (this: unknown) {
