@@ -47,16 +47,18 @@ it("renders the responsive workspace shell", async () => {
   expect(
     screen.getByRole("navigation", { name: "工作区导航" }),
   ).toBeVisible();
-  expect(screen.getByRole("button", { name: "总览" })).toHaveAttribute(
+  expect(screen.getByRole("button", { name: "市场首页" })).toHaveAttribute(
     "aria-current",
     "page",
   );
+  expect(screen.getByRole("button", { name: "智能选股" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Paper 模拟" })).toBeDisabled();
 });
 
 it("opens the enabled local data center", async () => {
   render(<App />);
 
-  const dataButton = await screen.findByRole("button", { name: "数据中心" });
+  const dataButton = await screen.findByRole("button", { name: "数据与连接" });
   expect(dataButton).toBeEnabled();
   await userEvent.click(dataButton);
 

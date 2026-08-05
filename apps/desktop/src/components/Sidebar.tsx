@@ -13,20 +13,30 @@ interface SidebarProps {
 }
 
 interface NavigationItem {
-  id: WorkspaceView | "research" | "trading";
+  id:
+    | WorkspaceView
+    | "watchlist"
+    | "scanner"
+    | "analysis"
+    | "paper"
+    | "strategy";
   label: string;
   glyph: string;
   disabled?: boolean;
+  groupStart?: boolean;
 }
 
 const navigation: NavigationItem[] = [
-  { id: "overview", label: "总览", glyph: "OV" },
-  { id: "data", label: "数据中心", glyph: "DT" },
+  { id: "overview", label: "市场首页", glyph: "MK" },
+  { id: "watchlist", label: "行情浏览", glyph: "QT", disabled: true },
+  { id: "scanner", label: "智能选股", glyph: "AI", disabled: true, groupStart: true },
+  { id: "analysis", label: "个股分析", glyph: "AN", disabled: true },
+  { id: "paper", label: "Paper 模拟", glyph: "PP", disabled: true, groupStart: true },
+  { id: "strategy", label: "策略实验室", glyph: "ST", disabled: true },
+  { id: "data", label: "数据与连接", glyph: "DT", groupStart: true },
   { id: "tasks", label: "任务", glyph: "TK" },
   { id: "activity", label: "本地活动", glyph: "AC" },
-  { id: "settings", label: "设置", glyph: "ST" },
-  { id: "research", label: "研究中心", glyph: "RS", disabled: true },
-  { id: "trading", label: "交易中心", glyph: "TR", disabled: true },
+  { id: "settings", label: "设置", glyph: "SE" },
 ];
 
 export function Sidebar({
@@ -38,11 +48,9 @@ export function Sidebar({
   return (
     <aside className="sidebar" data-collapsed={collapsed}>
       <nav className="sidebar__nav" aria-label="工作区导航">
-        {navigation.map((item, index) => (
+        {navigation.map((item) => (
           <div
-            className={
-              index === 5 ? "sidebar__item sidebar__item--future" : "sidebar__item"
-            }
+            className={item.groupStart ? "sidebar__item sidebar__item--future" : "sidebar__item"}
             key={item.id}
           >
             <button

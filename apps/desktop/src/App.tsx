@@ -19,7 +19,6 @@ import {
   useBarsQuery,
   useCancelTaskMutation,
   useCreateDataImportMutation,
-  useCreateDemoTaskMutation,
   useDatasetsQuery,
   useHealthQuery,
   useRuntimeQuery,
@@ -61,13 +60,13 @@ const viewCopy: Record<
   { index: string; title: string; summary: string }
 > = {
   overview: {
-    index: "WORKSPACE / 01",
-    title: "总览",
-    summary: "从本机服务、任务和活动记录开始，逐步搭建中国市场量化研究与执行闭环。",
+    index: "MARKET / 01",
+    title: "市场首页",
+    summary: "实时观察中国市场，并将量化候选、AI 情报与虚拟盘叠加在行情之上。",
   },
   data: {
-    index: "WORKSPACE / 02",
-    title: "数据中心",
+    index: "CONNECTIONS / 02",
+    title: "数据与连接",
     summary: "导入只读行情，检查数据质量，并将通过校验的不可变快照送入后续 AI 特征流程。",
   },
   tasks: {
@@ -180,7 +179,6 @@ function Workspace({
   const latestSnapshotId =
     snapshotsQuery.data?.[0]?.snapshot_id ?? null;
   const barsQuery = useBarsQuery(client, latestSnapshotId);
-  const createTask = useCreateDemoTaskMutation(client);
   const createDataImport = useCreateDataImportMutation(client);
   const cancelTask = useCancelTaskMutation(client);
   const updateSettings = useUpdateSettingsMutation(client);
@@ -247,15 +245,19 @@ function Workspace({
           onToggle={() => setSidebarCollapsed((value) => !value)}
         />
         <main className="workspace-main">
-          <header className="page-heading">
-            <div>
-              <p className="page-heading__index">{copy.index}</p>
-              <h1>{copy.title}</h1>
-            </div>
-            <p className="page-heading__summary">{copy.summary}</p>
-          </header>
+          {currentView === "overview" ? null : (
+            <header className="page-heading">
+              <div>
+                <p className="page-heading__index">{copy.index}</p>
+                <h1>{copy.title}</h1>
+              </div>
+              <p className="page-heading__summary">{copy.summary}</p>
+            </header>
+          )}
           <div className="workspace-content">
-            {runtime === undefined ? (
+            {currentView === "overview" ? (
+              <OverviewPage />
+            ) : runtime === undefined ? (
               <Panel>
                 <EmptyState
                   title="正在同步本地状态"
@@ -270,7 +272,6 @@ function Workspace({
                 activity,
                 settings,
                 isStale,
-                createTask,
                 cancelTask,
                 updateSettings,
                 datasets: datasetsQuery.data ?? [],
@@ -301,7 +302,6 @@ function renderView({
   activity,
   settings,
   isStale,
-  createTask,
   cancelTask,
   updateSettings,
   datasets,
@@ -320,7 +320,6 @@ function renderView({
   activity: NonNullable<ReturnType<typeof useActivityQuery>["data"]>;
   settings: Settings;
   isStale: boolean;
-  createTask: ReturnType<typeof useCreateDemoTaskMutation>;
   cancelTask: ReturnType<typeof useCancelTaskMutation>;
   updateSettings: ReturnType<typeof useUpdateSettingsMutation>;
   datasets: NonNullable<ReturnType<typeof useDatasetsQuery>["data"]>;
@@ -334,20 +333,7 @@ function renderView({
   onSelectDataset: (datasetId: string) => void;
 }) {
   if (currentView === "overview") {
-    return (
-      <OverviewPage
-        runtime={runtime}
-        tasks={tasks}
-        activity={activity}
-        isStale={isStale}
-        creating={createTask.isPending}
-        cancelingTaskId={
-          cancelTask.isPending ? (cancelTask.variables ?? null) : null
-        }
-        onCreateDemoTask={(key) => createTask.mutate(key)}
-        onCancelTask={(taskId) => cancelTask.mutate(taskId)}
-      />
-    );
+    return <OverviewPage />;
   }
   if (currentView === "data") {
     return (
