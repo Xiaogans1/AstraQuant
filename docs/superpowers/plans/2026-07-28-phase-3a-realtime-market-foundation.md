@@ -1,5 +1,10 @@
 # Phase 3A Realtime Market Foundation Implementation Plan
 
+> **已停止执行（2026-08-05）：** 本计划基于 QMT/XtQuant 和开发模拟行情的旧假设，已被
+> `docs/superpowers/specs/2026-08-05-eastmoney-realtime-and-global-radar-design.md`
+> 取代。不要继续执行下列任务。新的 Phase 3A 实施计划将以用户已验证的东财掘金 `gm`
+> SDK、真实行情优先和正式首页禁止假数据为基础重新编写。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a read-only, replaceable A-share realtime market-data vertical slice with deterministic simulation, QMT/XtQuant integration, provider health, local API visibility, and a desktop connection panel.
