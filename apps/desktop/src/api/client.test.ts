@@ -167,3 +167,48 @@ it("calls the local data catalog and creates an idempotent import", async () => 
     }),
   );
 });
+
+it("calls authenticated realtime market endpoints", async () => {
+  const marketHome = {
+    connection: { state: "UNAVAILABLE" },
+    core_indices: [],
+    watchlist: [],
+    selected_instrument: null,
+    breadth: { status: "UNAVAILABLE", reason: "not available" },
+    intelligence: { status: "UNAVAILABLE", reason: "not available" },
+    candidates: [],
+    as_of: null,
+  };
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify(marketHome), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify(marketHome), {
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  const client = new ApiClient(connectionFixture, fetchMock);
+
+  await client.getMarketHome();
+  await client.addWatchlistInstrument("600000.SSE");
+
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    1,
+    "http://127.0.0.1:43127/v1/market/home",
+    expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: "Bearer session-token" }),
+    }),
+  );
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    2,
+    "http://127.0.0.1:43127/v1/market/watchlist",
+    expect.objectContaining({
+      method: "POST",
+      body: JSON.stringify({ instrument_id: "600000.SSE" }),
+    }),
+  );
+});

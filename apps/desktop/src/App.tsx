@@ -28,6 +28,7 @@ import {
   useUpdateSettingsMutation,
 } from "./api/queries";
 import { EmptyState } from "./components/EmptyState";
+import { MarketConnectionPanel } from "./components/MarketConnectionPanel";
 import { Panel } from "./components/Panel";
 import { ServiceError } from "./components/ServiceError";
 import { Sidebar } from "./components/Sidebar";
@@ -256,7 +257,7 @@ function Workspace({
           )}
           <div className="workspace-content">
             {currentView === "overview" ? (
-              <OverviewPage />
+              <OverviewPage client={client} />
             ) : runtime === undefined ? (
               <Panel>
                 <EmptyState
@@ -266,6 +267,7 @@ function Workspace({
               </Panel>
             ) : (
               renderView({
+                client,
                 currentView,
                 runtime,
                 tasks,
@@ -296,6 +298,7 @@ function Workspace({
 }
 
 function renderView({
+  client,
   currentView,
   runtime,
   tasks,
@@ -314,6 +317,7 @@ function renderView({
   importTask,
   onSelectDataset,
 }: {
+  client: ApiClient;
   currentView: WorkspaceView;
   runtime: NonNullable<ReturnType<typeof useRuntimeQuery>["data"]>;
   tasks: NonNullable<ReturnType<typeof useTasksQuery>["data"]>;
@@ -333,35 +337,38 @@ function renderView({
   onSelectDataset: (datasetId: string) => void;
 }) {
   if (currentView === "overview") {
-    return <OverviewPage />;
+    return <OverviewPage client={client} />;
   }
   if (currentView === "data") {
     return (
-      <DataPage
-        datasets={datasets}
-        snapshots={snapshots}
-        bars={bars}
-        selectedDatasetId={selectedDatasetId}
-        importTask={importTask}
-        importError={
-          createDataImport.error instanceof Error
-            ? createDataImport.error.message
-            : null
-        }
-        importing={
-          createDataImport.isPending ||
-          (importTask !== null && isTaskActive(importTask))
-        }
-        loading={dataLoading}
-        stale={dataStale}
-        onImport={(request) =>
-          createDataImport.mutate({
-            request,
-            idempotencyKey: crypto.randomUUID(),
-          })
-        }
-        onSelectDataset={onSelectDataset}
-      />
+      <>
+        <MarketConnectionPanel client={client} />
+        <DataPage
+          datasets={datasets}
+          snapshots={snapshots}
+          bars={bars}
+          selectedDatasetId={selectedDatasetId}
+          importTask={importTask}
+          importError={
+            createDataImport.error instanceof Error
+              ? createDataImport.error.message
+              : null
+          }
+          importing={
+            createDataImport.isPending ||
+            (importTask !== null && isTaskActive(importTask))
+          }
+          loading={dataLoading}
+          stale={dataStale}
+          onImport={(request) =>
+            createDataImport.mutate({
+              request,
+              idempotencyKey: crypto.randomUUID(),
+            })
+          }
+          onSelectDataset={onSelectDataset}
+        />
+      </>
     );
   }
   if (currentView === "tasks") {

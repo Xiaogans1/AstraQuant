@@ -8,6 +8,7 @@ import { ApiClient } from "./client";
 import { isTaskActive } from "./contracts";
 import type { Settings, Task } from "./contracts";
 import type { DataImportRequest } from "./data-contracts";
+import type { ConnectionState } from "./market-contracts";
 
 export const queryKeys = {
   health: ["health"] as const,
@@ -21,7 +22,99 @@ export const queryKeys = {
     ["data", "datasets", datasetId, "snapshots"] as const,
   bars: (snapshotId: string) =>
     ["data", "snapshots", snapshotId, "bars"] as const,
+  marketConnection: ["market", "connection"] as const,
+  marketHome: ["market", "home"] as const,
+  marketIntraday: (instrumentId: string) =>
+    ["market", "intraday", instrumentId] as const,
+  marketSearch: (search: string) => ["market", "search", search] as const,
 };
+
+function marketRefetchInterval(state: ConnectionState | undefined) {
+  if (state === "LIVE" || state === "CONNECTING" || state === "STALE") {
+    return 3_000;
+  }
+  return state === "CLOSED" ? 30_000 : false;
+}
+
+export function useMarketConnectionQuery(client: ApiClient) {
+  return useQuery({
+    queryKey: queryKeys.marketConnection,
+    queryFn: () => client.getMarketConnection(),
+    refetchInterval: (query) => marketRefetchInterval(query.state.data?.state),
+  });
+}
+
+export function useMarketHomeQuery(
+  client: ApiClient,
+  state?: ConnectionState,
+) {
+  return useQuery({
+    queryKey: queryKeys.marketHome,
+    queryFn: () => client.getMarketHome(),
+    refetchInterval: marketRefetchInterval(state),
+  });
+}
+
+export function useMarketIntradayQuery(
+  client: ApiClient,
+  instrumentId: string | null,
+  state?: ConnectionState,
+) {
+  return useQuery({
+    queryKey: queryKeys.marketIntraday(instrumentId ?? "none"),
+    queryFn: () => client.getMarketIntraday(requireId(instrumentId, "Instrument")),
+    enabled: instrumentId !== null && (state === "LIVE" || state === "STALE"),
+    refetchInterval: marketRefetchInterval(state),
+  });
+}
+
+export function useMarketSearchQuery(client: ApiClient, search: string) {
+  const normalized = search.trim();
+  return useQuery({
+    queryKey: queryKeys.marketSearch(normalized),
+    queryFn: () => client.searchMarketInstruments(normalized),
+    enabled: normalized.length >= 2,
+    staleTime: 30_000,
+  });
+}
+
+export function useStartMarketMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => client.startMarketConnection(),
+    onSuccess: async (connection) => {
+      queryClient.setQueryData(queryKeys.marketConnection, connection);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.marketHome });
+    },
+  });
+}
+
+export function useStopMarketMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => client.stopMarketConnection(),
+    onSuccess: async (connection) => {
+      queryClient.setQueryData(queryKeys.marketConnection, connection);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.marketHome });
+    },
+  });
+}
+
+export function useAddWatchlistMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (instrumentId: string) => client.addWatchlistInstrument(instrumentId),
+    onSuccess: (home) => queryClient.setQueryData(queryKeys.marketHome, home),
+  });
+}
+
+export function useRemoveWatchlistMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (instrumentId: string) => client.removeWatchlistInstrument(instrumentId),
+    onSuccess: (home) => queryClient.setQueryData(queryKeys.marketHome, home),
+  });
+}
 
 export function useHealthQuery(client: ApiClient) {
   return useQuery({

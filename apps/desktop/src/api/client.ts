@@ -13,6 +13,14 @@ import type {
   DatasetSummary,
   SnapshotSummary,
 } from "./data-contracts";
+import type {
+  EastmoneyConfigRequest,
+  EastmoneyConfigStatus,
+  InstrumentSearchResult,
+  IntradayBar,
+  MarketConnection,
+  MarketHome,
+} from "./market-contracts";
 
 type Fetch = typeof fetch;
 
@@ -104,6 +112,57 @@ export class ApiClient {
       headers: { "Idempotency-Key": idempotencyKey },
       body: JSON.stringify(request),
     });
+  }
+
+  getMarketConnection(): Promise<MarketConnection> {
+    return this.request("/v1/market/connection");
+  }
+
+  configureEastmoney(
+    config: EastmoneyConfigRequest,
+  ): Promise<EastmoneyConfigStatus> {
+    return this.request("/v1/market/eastmoney/config", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    });
+  }
+
+  startMarketConnection(): Promise<MarketConnection> {
+    return this.request("/v1/market/connection/start", { method: "POST" });
+  }
+
+  stopMarketConnection(): Promise<MarketConnection> {
+    return this.request("/v1/market/connection/stop", { method: "POST" });
+  }
+
+  getMarketHome(): Promise<MarketHome> {
+    return this.request("/v1/market/home");
+  }
+
+  searchMarketInstruments(query: string): Promise<InstrumentSearchResult[]> {
+    return this.request(
+      `/v1/market/instruments/search?q=${encodeURIComponent(query)}`,
+    );
+  }
+
+  getMarketIntraday(instrumentId: string, count = 240): Promise<IntradayBar[]> {
+    return this.request(
+      `/v1/market/instruments/${encodeURIComponent(instrumentId)}/intraday?count=${encodeURIComponent(count)}`,
+    );
+  }
+
+  addWatchlistInstrument(instrumentId: string): Promise<MarketHome> {
+    return this.request("/v1/market/watchlist", {
+      method: "POST",
+      body: JSON.stringify({ instrument_id: instrumentId }),
+    });
+  }
+
+  removeWatchlistInstrument(instrumentId: string): Promise<MarketHome> {
+    return this.request(
+      `/v1/market/watchlist/${encodeURIComponent(instrumentId)}`,
+      { method: "DELETE" },
+    );
   }
 
   getSettings(): Promise<Settings> {

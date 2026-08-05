@@ -2,6 +2,180 @@
   box-sizing: border-box;
 }
 
+/* Eastmoney realtime connection and honest-data states */
+.market-connection {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+  box-shadow: var(--shadow-soft);
+}
+
+.market-connection__summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.market-connection__summary h2,
+.market-connection__summary p {
+  margin: 0;
+}
+
+.market-connection__summary h2 {
+  margin-block: 3px 5px;
+  font-size: 18px;
+}
+
+.market-connection__summary p:last-child,
+.market-connection__form small {
+  color: var(--text-muted);
+}
+
+.market-connection__pulse {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--warning) 14%, transparent);
+}
+
+.market-connection[data-state="LIVE"] .market-connection__pulse {
+  background: var(--success);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.market-connection[data-state="ERROR"] .market-connection__pulse {
+  background: var(--danger);
+}
+
+.market-connection--compact {
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.market-connection__form {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.market-connection__form label {
+  display: grid;
+  gap: 6px;
+}
+
+.market-connection__form input {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background: var(--surface-raised);
+}
+
+.market-connection__form small {
+  grid-column: 1 / -1;
+}
+
+.market-search-results {
+  display: grid;
+  gap: 4px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.market-search-results button {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(120px, auto) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  text-align: left;
+  background: transparent;
+}
+
+.market-search-results button:hover {
+  background: var(--surface-hover);
+}
+
+.market-search-results em {
+  color: var(--accent-strong);
+  font-style: normal;
+}
+
+.market-empty,
+.market-unavailable,
+.market-loading {
+  display: grid;
+  place-content: center;
+  min-height: 130px;
+  padding: 22px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.market-empty strong,
+.market-unavailable strong {
+  color: var(--text);
+}
+
+.market-empty p,
+.market-unavailable p {
+  margin: 6px 0 0;
+}
+
+.intraday-price {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 20px;
+}
+
+.intraday-price > strong {
+  font: 700 28px/1 var(--font-numeric);
+}
+
+.intraday-real-summary {
+  display: grid;
+  place-content: center;
+  min-height: 150px;
+  text-align: center;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent);
+}
+
+.intraday-real-summary strong {
+  color: var(--accent-strong);
+  font: 700 32px/1 var(--font-numeric);
+}
+
+.intraday-panel > .data-muted {
+  padding-inline: 20px;
+}
+
+@media (max-width: 900px) {
+  .market-connection__form {
+    grid-template-columns: 1fr;
+  }
+
+  .market-connection__form small {
+    grid-column: auto;
+  }
+}
+
 html {
   min-width: 320px;
   min-height: 100%;
