@@ -1,0 +1,187 @@
+import asyncio
+from collections.abc import Sequence
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
+from typing import Any
+
+from astraquant_api.market_service import MarketDataService
+from astraquant_api.secret_store import MemorySecretStore
+from astraquant_data.live_providers import ConnectionState, ProviderHealth
+from astraquant_data.subscriptions import CORE_INDICES, SubscriptionBudget
+from astraquant_domain import InstrumentId, LiveQuote, MarketEventQuality
+
+
+class MutableClock:
+    def __init__(self, value: datetime) -> None:
+        self.value = value
+
+    def now(self) -> datetime:
+        return self.value
+
+
+class FakeProvider:
+    def __init__(self, clock: MutableClock) -> None:
+        self.clock = clock
+        self.connect_count = 0
+        self.disconnect_count = 0
+        self.polls: list[tuple[str, ...]] = []
+        self.return_quotes = True
+        self.fail_polls = 0
+        self._health = ProviderHealth(provider_id="eastmoney")
+
+    def connect(self, token: str) -> None:
+        assert token == "token-value"
+        self.connect_count += 1
+
+    def disconnect(self) -> None:
+        self.disconnect_count += 1
+
+    def poll(self, instruments: Sequence[InstrumentId]) -> list[LiveQuote]:
+        self.polls.append(tuple(str(item) for item in instruments))
+        if self.fail_polls:
+            self.fail_polls -= 1
+            raise RuntimeError("temporary child failure")
+        if not self.return_quotes:
+            return []
+        return [
+            LiveQuote.minimum(
+                instrument,
+                event_time=self.clock.now(),
+                received_time=self.clock.now(),
+                last_price=Decimal("10"),
+                previous_close=Decimal("9"),
+                quality=frozenset({MarketEventQuality.NORMAL}),
+            )
+            for instrument in instruments
+        ]
+
+    def health(self) -> ProviderHealth:
+        return self._health
+
+    def history_n(self, instrument_id: InstrumentId, *, count: int) -> list[dict[str, Any]]:
+        return [{"instrument_id": str(instrument_id), "index": index} for index in range(count)]
+
+    def search(self, query: str) -> list[dict[str, Any]]:
+        return [{"symbol": query}]
+
+    def trading_dates(self, start: date, end: date) -> list[date]:
+        return [start] if start == end else []
+
+
+def build_service(
+    *,
+    token: str | None = "token-value",
+    provider_available: bool = True,
+) -> tuple[MarketDataService, FakeProvider, MutableClock]:
+    clock = MutableClock(datetime(2026, 8, 5, 2, 30, tzinfo=UTC))
+    provider = FakeProvider(clock)
+    service = MarketDataService(
+        provider=provider if provider_available else None,
+        budget=SubscriptionBudget(),
+        secret_store=MemorySecretStore(token),
+        clock=clock,
+        poll_interval_seconds=0.01,
+        stale_after_seconds=0.05,
+    )
+    return service, provider, clock
+
+
+def test_service_builds_six_core_index_snapshots() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+        await service.start()
+        await service.wait_for_quotes(6, timeout_seconds=1)
+        home = service.home_snapshot()
+        assert [item.instrument_id for item in home.core_indices] == [
+            item.instrument_id for item in CORE_INDICES
+        ]
+        assert all(item.quote is not None for item in home.core_indices)
+        await service.stop()
+        assert provider.disconnect_count == 1
+
+    asyncio.run(scenario())
+
+
+def test_start_and_stop_are_idempotent() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+        await service.start()
+        await service.start()
+        await service.stop()
+        await service.stop()
+        assert provider.connect_count == 1
+        assert provider.disconnect_count == 1
+
+    asyncio.run(scenario())
+
+
+def test_missing_token_or_sdk_is_explicitly_unavailable() -> None:
+    async def scenario() -> None:
+        missing_token, _, _ = build_service(token=None)
+        await missing_token.start()
+        assert missing_token.connection().state is ConnectionState.UNAVAILABLE
+        assert missing_token.connection().error_code == "missing_token"
+
+        missing_sdk, _, _ = build_service(provider_available=False)
+        await missing_sdk.start()
+        assert missing_sdk.connection().state is ConnectionState.UNAVAILABLE
+        assert missing_sdk.connection().error_code == "missing_sdk"
+
+    asyncio.run(scenario())
+
+
+def test_watchlist_changes_apply_to_the_next_poll() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+        await service.start()
+        await service.wait_for_quotes(6, timeout_seconds=1)
+        service.add_watchlist("600000.SSE")
+        await service.wait_for_quotes(7, timeout_seconds=1)
+        assert "600000.SSE" in provider.polls[-1]
+        assert service.home_snapshot().watchlist[0].instrument_id == "600000.SSE"
+        await service.stop()
+
+    asyncio.run(scenario())
+
+
+def test_stale_and_closed_states_never_claim_realtime() -> None:
+    service, _, clock = build_service()
+    service.record_quotes(
+        [
+            LiveQuote.minimum(
+                InstrumentId.parse("000001.SSE"),
+                event_time=clock.now(),
+                last_price=Decimal("10"),
+                previous_close=Decimal("9"),
+            )
+        ]
+    )
+    clock.value += timedelta(seconds=1)
+    service.refresh_connection_state(is_trading_date=True, is_session_open=True)
+    assert service.connection().state is ConnectionState.STALE
+    service.refresh_connection_state(is_trading_date=True, is_session_open=False)
+    assert service.connection().state is ConnectionState.CLOSED
+
+
+def test_history_cache_is_bounded_and_backoff_caps_at_thirty_seconds() -> None:
+    async def scenario() -> None:
+        service, _, _ = build_service()
+        bars = await service.intraday("000001.SSE", count=1000)
+        assert len(bars) == 240
+        assert service.reconnect_delay_seconds(99) == 30
+
+    asyncio.run(scenario())
+
+
+def test_poll_failure_reconnects_before_resuming_quotes() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+        provider.fail_polls = 1
+        await service.start()
+        await service.wait_for_quotes(6, timeout_seconds=2)
+        assert provider.connect_count == 2
+        assert provider.disconnect_count >= 1
+        assert service.connection().state is ConnectionState.LIVE
+        await service.stop()
+
+    asyncio.run(scenario())
