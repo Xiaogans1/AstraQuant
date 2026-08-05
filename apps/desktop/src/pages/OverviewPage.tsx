@@ -12,6 +12,26 @@ import {
   useRemoveWatchlistMutation,
 } from "../api/queries";
 
+const coreIndexSlots: QuoteCard[] = [
+  ["000001.SSE", "上证指数"],
+  ["399001.SZSE", "深证成指"],
+  ["399006.SZSE", "创业板指"],
+  ["000688.SSE", "科创50"],
+  ["000300.SSE", "沪深300"],
+  ["399852.SZSE", "中证1000"],
+].map(([instrument_id, name]) => ({
+  instrument_id,
+  name,
+  kind: "index",
+  state: "UNAVAILABLE",
+  event_time: null,
+  last_price: null,
+  change: null,
+  change_percent: null,
+  turnover: null,
+  source_id: null,
+}));
+
 export function OverviewPage({ client }: { client: ApiClient }) {
   const connectionQuery = useMarketConnectionQuery(client);
   const connection = connectionQuery.data;
@@ -40,15 +60,27 @@ export function OverviewPage({ client }: { client: ApiClient }) {
   const intradayQuery = useMarketIntradayQuery(client, selected?.instrument_id ?? null, state);
 
   if (homeQuery.isLoading) {
-    return <section className="market-terminal market-loading" aria-label="市场首页">正在读取东财真实行情…</section>;
+    return (
+      <section className="market-terminal" aria-label="市场首页">
+        <p className="market-loading">正在读取东财真实行情…</p>
+        <div className="index-strip" aria-label="核心指数">
+          {coreIndexSlots.map((index) => <QuoteTile key={index.instrument_id} quote={index} testId="core-index-loading" />)}
+        </div>
+      </section>
+    );
   }
 
   if (homeQuery.isError || home === undefined) {
     return (
-      <section className="market-terminal market-unavailable" aria-labelledby="market-home-title">
-        <h1 id="market-home-title">市场首页</h1>
-        <strong>尚未连接东财行情</strong>
-        <p>当前没有可展示的真实行情，程序不会用演示数字代替。</p>
+      <section className="market-terminal" aria-labelledby="market-home-title">
+        <div className="market-unavailable">
+          <h1 id="market-home-title">市场首页</h1>
+          <strong>尚未连接东财行情</strong>
+          <p>当前没有可展示的真实行情，程序不会用演示数字代替。</p>
+        </div>
+        <div className="index-strip" aria-label="核心指数">
+          {coreIndexSlots.map((index) => <QuoteTile key={index.instrument_id} quote={index} testId="core-index" />)}
+        </div>
       </section>
     );
   }
@@ -174,7 +206,7 @@ function QuoteTile({ quote, testId }: { quote: QuoteCard; testId: string }) {
     <article className="index-quote" data-testid={testId}>
       <span>{quote.name}</span>
       <strong>{formatNumber(quote.last_price)}</strong>
-      {quote.last_price === null ? <small>暂无真实数据</small> : <MarketChange value={quote.change_percent} />}
+      {quote.last_price === null ? null : <MarketChange value={quote.change_percent} />}
     </article>
   );
 }

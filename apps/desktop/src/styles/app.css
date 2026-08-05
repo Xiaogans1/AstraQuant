@@ -1707,7 +1707,7 @@ code {
 
 .index-strip {
   display: grid;
-  grid-template-columns: repeat(5, minmax(135px, 1fr));
+  grid-template-columns: repeat(6, minmax(125px, 1fr));
   overflow-x: auto;
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--panel) 92%, transparent);
@@ -2463,7 +2463,7 @@ code {
   }
 
   .index-strip {
-    grid-template-columns: repeat(5, minmax(145px, 1fr));
+    grid-template-columns: repeat(6, minmax(125px, 1fr));
   }
 
   .market-secondary-grid {

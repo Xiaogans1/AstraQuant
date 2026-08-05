@@ -92,6 +92,22 @@ function renderMarketHome(home: MarketHome, connection = home.connection) {
   return client;
 }
 
+function renderMarketError() {
+  const connection = { ...baseConnection, state: "UNAVAILABLE" as const };
+  const client = {
+    getMarketConnection: vi.fn().mockResolvedValue(connection),
+    getMarketHome: vi.fn().mockRejectedValue(new Error("market unavailable")),
+  } as unknown as ApiClient;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <OverviewPage client={client} />
+    </QueryClientProvider>,
+  );
+}
+
 it("renders six real core indices from the local API", async () => {
   renderMarketHome(homeFixture());
 
@@ -148,4 +164,13 @@ it("explains closed markets and empty quant candidates honestly", async () => {
 
   expect(await screen.findByText("市场已收盘")).toBeVisible();
   expect(screen.getByText("量化候选将在实时策略链路接入后生成")).toBeVisible();
+});
+
+it("keeps six named index slots without inventing values when the API fails", async () => {
+  renderMarketError();
+
+  expect(await screen.findAllByTestId("core-index")).toHaveLength(6);
+  expect(screen.getByText("上证指数")).toBeVisible();
+  expect(screen.getAllByText("暂无真实数据")).toHaveLength(6);
+  expect(screen.queryByText("3,421.68")).not.toBeInTheDocument();
 });
