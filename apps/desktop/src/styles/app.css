@@ -1774,7 +1774,7 @@ code {
 
 .watchlist-table {
   width: 100%;
-  min-width: 700px;
+  min-width: 640px;
   border-collapse: collapse;
   white-space: nowrap;
 }
