@@ -1,75 +1,41 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import type {
-  Runtime,
-  Task,
-} from "../api/contracts";
 import { OverviewPage } from "./OverviewPage";
 
-const runtimeFixture: Runtime = {
-  active_workers: 0,
-  database_size_bytes: 4096,
-  shutting_down: false,
-};
+function renderMarketHome() {
+  render(<OverviewPage />);
+}
 
-const runningTask: Task = {
-  task_id: "running-1",
-  task_type: "demo.self_check",
-  status: "RUNNING",
-  progress: 40,
-  current_step: "checking_storage",
-  correlation_id: "correlation-1",
-  worker_pid: 4242,
-  created_at: "2026-07-27T00:00:00Z",
-  started_at: "2026-07-27T00:00:01Z",
-  finished_at: null,
-  result: null,
-  error_code: null,
-  error_message: null,
-  revision: 2,
-};
+it("presents the homepage as a simulated read-only market terminal", () => {
+  renderMarketHome();
 
-it("creates a demo task and exposes progress", async () => {
-  const createDemoTask = vi.fn();
-  render(
-    <OverviewPage
-      runtime={runtimeFixture}
-      tasks={[runningTask]}
-      activity={[]}
-      isStale={false}
-      creating={false}
-      cancelingTaskId={null}
-      onCreateDemoTask={createDemoTask}
-      onCancelTask={vi.fn()}
-    />,
-  );
-
-  await userEvent.click(
-    screen.getByRole("button", { name: "运行示例任务" }),
-  );
-
-  expect(createDemoTask).toHaveBeenCalledTimes(1);
-  expect(screen.getByText("40%")).toBeVisible();
-  expect(screen.getByText("checking_storage")).toBeVisible();
+  expect(screen.getByRole("heading", { name: "市场首页" })).toBeVisible();
+  expect(screen.getByText("开发模拟行情")).toBeVisible();
+  expect(screen.getByText("只读观察 · 不连接实盘账户")).toBeVisible();
+  expect(screen.getByText("上证指数")).toBeVisible();
+  expect(screen.getByRole("table", { name: "我的自选" })).toBeVisible();
 });
 
-it("disables mutations while service data is stale", () => {
-  render(
-    <OverviewPage
-      runtime={runtimeFixture}
-      tasks={[]}
-      activity={[]}
-      isStale
-      creating={false}
-      cancelingTaskId={null}
-      onCreateDemoTask={vi.fn()}
-      onCancelTask={vi.fn()}
-    />,
-  );
+it("switches the intraday workspace when a watchlist instrument is selected", async () => {
+  const user = userEvent.setup();
+  renderMarketHome();
+
+  await user.click(screen.getByRole("button", { name: /查看科创50ETF/ }));
 
   expect(
-    screen.getByRole("button", { name: "运行示例任务" }),
-  ).toBeDisabled();
-  expect(screen.getByText("本地服务连接已过期")).toBeVisible();
+    screen.getByRole("heading", { name: "科创50ETF · 588000.SSE" }),
+  ).toBeVisible();
+  expect(screen.getAllByText("等待确认")).not.toHaveLength(0);
+});
+
+it("adds a catalog instrument to the session watchlist", async () => {
+  const user = userEvent.setup();
+  renderMarketHome();
+
+  await user.type(screen.getByRole("searchbox", { name: "添加自选" }), "黄金");
+  await user.click(screen.getByRole("button", { name: "添加黄金ETF" }));
+
+  expect(screen.getByRole("button", { name: /查看黄金ETF/ })).toBeVisible();
+  expect(screen.getByText("已加入本次会话的自选列表")).toBeVisible();
 });
