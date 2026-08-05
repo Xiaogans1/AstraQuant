@@ -334,7 +334,37 @@ fn stop_child(child: &mut Child) {
 
 #[cfg(test)]
 mod tests {
-    use super::{generate_session_token, project_root, runtime_launch_spec};
+    use std::fs;
+
+    use tempfile::TempDir;
+
+    use super::{generate_session_token, runtime_launch_spec};
+
+    fn managed_project_root() -> TempDir {
+        let project_root = tempfile::tempdir().expect("temporary project root must be created");
+        let virtual_environment = project_root.path().join(".venv");
+
+        if cfg!(windows) {
+            let python_home = project_root.path().join("python-home");
+            fs::create_dir_all(&python_home).expect("fake Python home must be created");
+            fs::write(python_home.join("python.exe"), b"")
+                .expect("fake Windows Python executable must be created");
+            fs::create_dir_all(&virtual_environment)
+                .expect("fake virtual environment must be created");
+            fs::write(
+                virtual_environment.join("pyvenv.cfg"),
+                format!("home = {}\n", python_home.display()),
+            )
+            .expect("fake pyvenv.cfg must be created");
+        } else {
+            let executable = virtual_environment.join("bin").join("python");
+            fs::create_dir_all(executable.parent().expect("executable must have a parent"))
+                .expect("fake virtual environment must be created");
+            fs::write(executable, b"").expect("fake Python executable must be created");
+        }
+
+        project_root
+    }
 
     #[test]
     fn generates_a_url_safe_256_bit_session_token() {
@@ -351,7 +381,8 @@ mod tests {
 
     #[test]
     fn launches_the_managed_python_process_directly() {
-        let spec = runtime_launch_spec(&project_root());
+        let project_root = managed_project_root();
+        let spec = runtime_launch_spec(project_root.path());
         assert!(spec.program.ends_with(if cfg!(windows) {
             "python.exe"
         } else {
@@ -365,7 +396,8 @@ mod tests {
         if !cfg!(windows) {
             return;
         }
-        let spec = runtime_launch_spec(&project_root());
+        let project_root = managed_project_root();
+        let spec = runtime_launch_spec(project_root.path());
         let python_path = spec
             .environment
             .iter()
