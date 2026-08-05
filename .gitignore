@@ -21,6 +21,10 @@
 *.p12
 credentials*.json
 secrets*.json
+eastmoney-token.txt
+eastmoney-quotes.json
+eastmoney-ticks.jsonl
+gm-current-dump.json
 
 # Local databases and market data
 *.db

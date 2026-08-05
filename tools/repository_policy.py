@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from collections.abc import Iterable, Mapping
 from pathlib import Path, PurePosixPath
@@ -13,6 +14,10 @@ FORBIDDEN_NAMES = {
     ".env",
     "credentials.json",
     "secrets.json",
+    "eastmoney-token.txt",
+    "eastmoney-quotes.json",
+    "eastmoney-ticks.jsonl",
+    "gm-current-dump.json",
 }
 FORBIDDEN_PREFIXES = (
     "credentials-",
@@ -52,6 +57,16 @@ SOURCE_DATA_PREFIXES = (
     PurePosixPath("tests/data"),
 )
 
+_TOKEN_ASSIGNMENT = re.compile(
+    r"^\s*ASTRAQUANT_EASTMONEY_TOKEN\s*=\s*[^\s#]+\s*$|"
+    r"[\"\'](?:access_token|api_token|eastmoney_token)[\"\']\s*:\s*[\"\'](?!\[REDACTED\])[^\"\']+[\"\']",
+    re.IGNORECASE | re.MULTILINE,
+)
+_CONTENT_SCAN_EXCEPTIONS = {
+    ".env.example",
+    "tests/repository/test_repository_policy.py",
+}
+
 
 def _is_data_source_path(path: PurePosixPath) -> bool:
     return any(path == prefix or path.is_relative_to(prefix) for prefix in SOURCE_DATA_PREFIXES)
@@ -88,6 +103,16 @@ def find_forbidden_paths(
     return forbidden
 
 
+def find_forbidden_content(contents: Mapping[str, str]) -> list[str]:
+    """Return tracked text files containing a concrete Eastmoney secret assignment."""
+    return [
+        path
+        for path, content in contents.items()
+        if PurePosixPath(path).as_posix() not in _CONTENT_SCAN_EXCEPTIONS
+        and _TOKEN_ASSIGNMENT.search(content) is not None
+    ]
+
+
 def tracked_files() -> list[str]:
     completed = subprocess.run(
         ["git", "ls-files"],
@@ -103,6 +128,17 @@ def main() -> int:
     paths = tracked_files()
     file_sizes = {path: Path(path).stat().st_size for path in paths if Path(path).is_file()}
     forbidden = find_forbidden_paths(paths, file_sizes=file_sizes)
+    text_contents: dict[str, str] = {}
+    for path in paths:
+        candidate = Path(path)
+        if not candidate.is_file() or candidate.stat().st_size > 1_000_000:
+            continue
+        try:
+            text_contents[path] = candidate.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+    forbidden.extend(find_forbidden_content(text_contents))
+    forbidden = list(dict.fromkeys(forbidden))
     if not forbidden:
         print("Repository policy passed.")
         return 0
