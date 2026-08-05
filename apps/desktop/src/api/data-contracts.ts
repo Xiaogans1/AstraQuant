@@ -14,6 +14,10 @@ export interface DatasetSummary {
   frequency: string;
   snapshot_count: number;
   latest_snapshot_id: string | null;
+  latest_provider_id: string | null;
+  latest_row_count: number | null;
+  latest_min_event_time: string | null;
+  latest_max_event_time: string | null;
 }
 
 export interface QualityIssue {

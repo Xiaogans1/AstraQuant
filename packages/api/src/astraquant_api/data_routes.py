@@ -90,7 +90,10 @@ def build_data_router(state: DataRouteState, authenticated: Depends) -> APIRoute
 
     @router.get("/datasets", response_model=list[DatasetSummary])
     def list_datasets() -> list[DatasetSummary]:
-        return [_dataset_summary(item) for item in state.data_catalog.list_datasets()]
+        return [
+            _dataset_summary(state.data_catalog, item)
+            for item in state.data_catalog.list_datasets()
+        ]
 
     @router.get(
         "/datasets/{dataset_id}/snapshots",
@@ -170,8 +173,31 @@ def _task_json(task: TaskRecord, status_code: int) -> JSONResponse:
     )
 
 
-def _dataset_summary(record: DataDatasetRecord) -> DatasetSummary:
-    return DatasetSummary.model_validate(record, from_attributes=True)
+def _dataset_summary(
+    catalog: DataCatalogRepository,
+    record: DataDatasetRecord,
+) -> DatasetSummary:
+    latest = (
+        catalog.get_visible_snapshot(record.latest_snapshot_id)
+        if record.latest_snapshot_id is not None
+        else None
+    )
+    return DatasetSummary(
+        dataset_id=record.dataset_id,
+        name=record.name,
+        asset_class=record.asset_class,
+        frequency=record.frequency,
+        snapshot_count=record.snapshot_count,
+        latest_snapshot_id=record.latest_snapshot_id,
+        latest_provider_id=latest.provider_id if latest is not None else None,
+        latest_row_count=latest.row_count if latest is not None else None,
+        latest_min_event_time=(
+            latest.min_event_time.isoformat() if latest is not None else None
+        ),
+        latest_max_event_time=(
+            latest.max_event_time.isoformat() if latest is not None else None
+        ),
+    )
 
 
 def _snapshot_summary(

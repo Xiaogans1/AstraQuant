@@ -171,6 +171,10 @@ def test_catalog_and_bar_preview_only_expose_published_snapshots(tmp_path: Path)
 
     assert datasets.status_code == 200
     assert datasets.json()[0]["latest_snapshot_id"] == snapshot_id
+    assert datasets.json()[0]["latest_provider_id"] == "fixture"
+    assert datasets.json()[0]["latest_row_count"] == 1
+    assert datasets.json()[0]["latest_min_event_time"] == "2026-07-24T07:00:00+00:00"
+    assert datasets.json()[0]["latest_max_event_time"] == "2026-07-24T07:00:00+00:00"
     assert snapshots.json()[0]["status"] == "PUBLISHED"
     assert detail.json()["snapshot_id"] == snapshot_id
     assert bars.json()[0]["instrument_id"] == "600000.SSE"

@@ -30,6 +30,10 @@ class DatasetSummary(StrictModel):
     frequency: str
     snapshot_count: int = Field(ge=0)
     latest_snapshot_id: str | None
+    latest_provider_id: str | None
+    latest_row_count: int | None = Field(default=None, ge=0)
+    latest_min_event_time: str | None
+    latest_max_event_time: str | None
 
 
 class SnapshotSummary(StrictModel):
