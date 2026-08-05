@@ -71,4 +71,3 @@ export interface MarketSnapshot {
   intelligence: IntelligenceBrief;
   candidates: QuantCandidate[];
 }
-
