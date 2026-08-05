@@ -1139,7 +1139,7 @@ git add docs/superpowers/plans/2026-08-05-phase-3a-eastmoney-realtime-market.md 
 git commit -m "docs(market): 记录东财实时行情实施结果"
 ```
 
-- [ ] **Step 6: Push the existing branch and keep the PR draft**
+- [x] **Step 6: Push the existing branch and keep the PR draft**
 
 ```powershell
 git push origin feature/phase-1-desktop-platform
