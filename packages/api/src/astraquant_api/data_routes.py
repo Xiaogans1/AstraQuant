@@ -177,6 +177,13 @@ def _dataset_summary(
     catalog: DataCatalogRepository,
     record: DataDatasetRecord,
 ) -> DatasetSummary:
+    asset_class: Literal["equity", "futures"]
+    if record.asset_class == "equity":
+        asset_class = "equity"
+    elif record.asset_class == "futures":
+        asset_class = "futures"
+    else:
+        raise ValueError(f"unsupported asset class: {record.asset_class}")
     latest = (
         catalog.get_visible_snapshot(record.latest_snapshot_id)
         if record.latest_snapshot_id is not None
@@ -185,18 +192,14 @@ def _dataset_summary(
     return DatasetSummary(
         dataset_id=record.dataset_id,
         name=record.name,
-        asset_class=record.asset_class,
+        asset_class=asset_class,
         frequency=record.frequency,
         snapshot_count=record.snapshot_count,
         latest_snapshot_id=record.latest_snapshot_id,
         latest_provider_id=latest.provider_id if latest is not None else None,
         latest_row_count=latest.row_count if latest is not None else None,
-        latest_min_event_time=(
-            latest.min_event_time.isoformat() if latest is not None else None
-        ),
-        latest_max_event_time=(
-            latest.max_event_time.isoformat() if latest is not None else None
-        ),
+        latest_min_event_time=(latest.min_event_time.isoformat() if latest is not None else None),
+        latest_max_event_time=(latest.max_event_time.isoformat() if latest is not None else None),
     )
 
 
