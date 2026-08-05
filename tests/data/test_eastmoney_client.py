@@ -1,0 +1,72 @@
+import sys
+from pathlib import Path
+
+import pytest
+
+from astraquant_data.eastmoney_client import (
+    EastmoneyBridgeClient,
+    EastmoneyBridgeExited,
+    EastmoneyBridgeProtocolError,
+    EastmoneyBridgeTimeout,
+)
+
+FAKE_BRIDGE = Path("tests/fixtures/eastmoney/fake_bridge.py")
+
+
+def make_client(*, timeout_seconds: float = 1) -> EastmoneyBridgeClient:
+    return EastmoneyBridgeClient(
+        python_executable=Path(sys.executable),
+        bridge_script=FAKE_BRIDGE,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def test_bridge_client_never_places_token_on_the_command_line() -> None:
+    client = make_client()
+    client.start()
+    try:
+        client.configure(token="secret-token")
+        quotes = client.current(["SHSE.000001"])
+        assert quotes[0]["symbol"] == "SHSE.000001"
+        assert "secret-token" not in " ".join(str(part) for part in client.command)
+        assert client.command[1:3] == ("-I", "-u")
+    finally:
+        client.stop()
+
+
+def test_bridge_client_correlates_monotonic_request_ids() -> None:
+    client = make_client()
+    with client:
+        client.configure("valid-token")
+        client.current(["SHSE.000001"])
+        assert client.last_request_id == 2
+
+
+@pytest.mark.parametrize(
+    ("symbol", "error_type"),
+    [
+        ("TEST.TIMEOUT", EastmoneyBridgeTimeout),
+        ("TEST.MALFORMED", EastmoneyBridgeProtocolError),
+        ("TEST.WRONG_ID", EastmoneyBridgeProtocolError),
+        ("TEST.EXIT", EastmoneyBridgeExited),
+    ],
+)
+def test_bridge_client_fails_closed_on_bad_child_behavior(
+    symbol: str,
+    error_type: type[Exception],
+) -> None:
+    client = make_client(timeout_seconds=0.1)
+    with client, pytest.raises(error_type):
+        client.current([symbol])
+
+
+def test_bridge_client_requires_start_and_rejects_blank_tokens() -> None:
+    client = make_client()
+    with pytest.raises(RuntimeError, match="not running"):
+        client.current(["SHSE.000001"])
+    client.start()
+    try:
+        with pytest.raises(ValueError, match="token"):
+            client.configure("  ")
+    finally:
+        client.stop()
