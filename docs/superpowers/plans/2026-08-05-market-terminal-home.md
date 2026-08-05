@@ -209,4 +209,3 @@ git push origin feature/phase-1-desktop-platform
   - Watchlist additions live only for the current React session.
   - Paper, Evidence Room, K-line, capital-flow and signal actions remain visibly disabled.
   - Responsive CSS is implemented at 1180px, 980px and 680px; only the desktop window received screenshot QA in this execution.
-
