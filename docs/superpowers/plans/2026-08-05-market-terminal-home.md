@@ -195,12 +195,15 @@ git push origin feature/phase-1-desktop-platform
   - `91a73b9 feat(desktop): 将工作区导航调整为行情优先`
   - `33c8fc8 style(desktop): 完成行情终端首页视觉`
   - `e8204d0 fix(desktop): 优化行情表格首屏宽度`
+  - `6aa86df chore: 清理行情首页文档格式`
+  - `4d035ee fix(desktop): 收紧模拟行情与情报边界`
 - Verification on 2026-08-05:
   - `pnpm --dir apps/desktop check`: PASS
-  - `pnpm --dir apps/desktop test`: PASS, 8 files / 21 tests
+  - `pnpm --dir apps/desktop test`: PASS, 8 files / 22 tests
   - `pnpm --dir apps/desktop build`: PASS, Vite production bundle generated
   - `scripts/dev.ps1 -SkipSync`: PASS, Tauri opened the `AstraQuant` window
   - Desktop visual QA at 1440px: PASS after reducing watchlist minimum width from 700px to 640px
+  - Independent code review: all three Important findings fixed before push (searchable future, explicit AI/order-book simulation boundaries, 720px single-column breakpoint)
 - Known limitations:
   - Quotes, index values, breadth, AI brief and quant candidates are deterministic development fixtures.
   - Watchlist additions live only for the current React session.
