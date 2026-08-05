@@ -63,7 +63,9 @@ export function useMarketIntradayQuery(
   return useQuery({
     queryKey: queryKeys.marketIntraday(instrumentId ?? "none"),
     queryFn: () => client.getMarketIntraday(requireId(instrumentId, "Instrument")),
-    enabled: instrumentId !== null && (state === "LIVE" || state === "STALE"),
+    enabled:
+      instrumentId !== null
+      && (state === "LIVE" || state === "STALE" || state === "CLOSED"),
     refetchInterval: marketRefetchInterval(state),
   });
 }

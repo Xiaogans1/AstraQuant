@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { ApiClient } from "../api/client";
-import type { QuoteCard } from "../api/market-contracts";
+import type { IntradayBar, QuoteCard } from "../api/market-contracts";
 import { MarketConnectionPanel } from "../components/MarketConnectionPanel";
 import {
   useAddWatchlistMutation,
@@ -179,10 +179,14 @@ export function OverviewPage({ client }: { client: ApiClient }) {
           ) : (
             <>
               <div className="intraday-price"><strong>{formatNumber(selected.last_price)}</strong><MarketChange value={selected.change_percent} /></div>
-              {intradayQuery.data && intradayQuery.data.length > 0 ? (
-                <div className="intraday-real-summary"><strong>{intradayQuery.data.length}</strong><span>条真实分时记录</span></div>
+              {intradayQuery.isLoading ? (
+                <div className="market-empty"><strong>正在读取真实分时</strong><p>从东财加载当日分钟线…</p></div>
+              ) : intradayQuery.isError ? (
+                <div className="market-empty"><strong>分时数据读取失败</strong><p>请确认东财连接后重试。</p></div>
+              ) : intradayQuery.data && intradayQuery.data.length > 0 ? (
+                <IntradayChart bars={intradayQuery.data} name={selected.name} />
               ) : (
-                <div className="market-empty"><strong>暂无真实分时数据</strong><p>连接成功并收到行情后自动显示。</p></div>
+                <div className="market-empty"><strong>暂无真实分时数据</strong><p>当前交易日没有可用分钟线。</p></div>
               )}
               <p className="data-muted">当前快照无盘口数据</p>
             </>
@@ -212,6 +216,55 @@ function QuoteTile({ quote, testId }: { quote: QuoteCard; testId: string }) {
   );
 }
 
+function IntradayChart({ bars, name }: { bars: IntradayBar[]; name: string }) {
+  const samples = bars.flatMap((bar) => {
+    const close = Number(bar.close);
+    const timestamp = typeof bar.bob === "string" ? bar.bob : typeof bar.eob === "string" ? bar.eob : null;
+    return Number.isFinite(close) && timestamp !== null ? [{ close, timestamp }] : [];
+  });
+  if (samples.length === 0) {
+    return <div className="market-empty"><strong>分时记录缺少价格</strong><p>东财返回了记录，但没有可绘制的收盘价。</p></div>;
+  }
+
+  const width = 640;
+  const height = 176;
+  const insetX = 8;
+  const insetY = 12;
+  const closes = samples.map((sample) => sample.close);
+  const minimum = Math.min(...closes);
+  const maximum = Math.max(...closes);
+  const spread = Math.max(maximum - minimum, Math.abs(maximum) * 0.002, 0.001);
+  const floor = minimum - spread * 0.12;
+  const ceiling = maximum + spread * 0.12;
+  const plotWidth = width - insetX * 2;
+  const plotHeight = height - insetY * 2;
+  const points = samples.map((sample, index) => ({
+    x: insetX + (samples.length === 1 ? plotWidth / 2 : (index / (samples.length - 1)) * plotWidth),
+    y: insetY + ((ceiling - sample.close) / (ceiling - floor)) * plotHeight,
+  }));
+  const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join(" ");
+  const areaPath = `${linePath} L${points.at(-1)?.x.toFixed(2)},${height} L${points[0]?.x.toFixed(2)},${height} Z`;
+  const rising = samples.at(-1)!.close >= samples[0]!.close;
+
+  return (
+    <figure className="intraday-chart" data-trend={rising ? "up" : "down"}>
+      <figcaption>
+        <strong>{samples.length} 条真实分钟线</strong>
+        <span>{minimum.toFixed(3)} — {maximum.toFixed(3)}</span>
+      </figcaption>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${name}当日分时价格走势`} preserveAspectRatio="none">
+        <g className="chart-grid" aria-hidden="true">
+          {[0.25, 0.5, 0.75].map((ratio) => <line key={ratio} x1={insetX} x2={width - insetX} y1={height * ratio} y2={height * ratio} />)}
+        </g>
+        <path className="chart-area" d={areaPath} />
+        <path className="chart-line" d={linePath} vectorEffect="non-scaling-stroke" />
+        <circle className="chart-last-point" cx={points.at(-1)!.x} cy={points.at(-1)!.y} r="3.5" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="chart-axis"><span>{formatBarTime(samples[0]!.timestamp)}</span><span>11:30 / 13:00</span><span>{formatBarTime(samples.at(-1)!.timestamp)}</span></div>
+    </figure>
+  );
+}
+
 function UnavailablePanel({ title, eyebrow, reason }: { title: string; eyebrow: string; reason: string }) {
   return <section className="terminal-panel"><div className="terminal-panel__heading"><div><p className="terminal-kicker">{eyebrow}</p><h2>{title}</h2></div></div><div className="market-empty"><strong>当前不可用</strong><p>{reason}</p></div></section>;
 }
@@ -230,4 +283,13 @@ function formatNumber(value: string | null): string {
 
 function formatTime(value: string): string {
   return new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date(value));
+}
+
+function formatBarTime(value: string): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Shanghai",
+  }).format(new Date(value));
 }

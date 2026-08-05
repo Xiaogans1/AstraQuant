@@ -262,7 +262,7 @@ function Workspace({
               <p className="page-heading__summary">{copy.summary}</p>
             </header>
           )}
-          <div className="workspace-content">
+          <div className="workspace-content" data-view={currentView}>
             {currentView === "overview" ? (
               <OverviewPage client={client} />
             ) : runtime === undefined ? (

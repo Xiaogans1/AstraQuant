@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import type { ApiClient } from "../api/client";
 import type {
+  IntradayBar,
   MarketConnection,
   MarketHome,
   QuoteCard,
@@ -73,11 +74,15 @@ function homeFixture(
   };
 }
 
-function renderMarketHome(home: MarketHome, connection = home.connection) {
+function renderMarketHome(
+  home: MarketHome,
+  connection = home.connection,
+  intraday: IntradayBar[] = [],
+) {
   const client = {
     getMarketConnection: vi.fn().mockResolvedValue(connection),
     getMarketHome: vi.fn().mockResolvedValue(home),
-    getMarketIntraday: vi.fn().mockResolvedValue([]),
+    getMarketIntraday: vi.fn().mockResolvedValue(intraday),
     searchMarketInstruments: vi.fn().mockResolvedValue([]),
     addWatchlistInstrument: vi.fn().mockResolvedValue(home),
     removeWatchlistInstrument: vi.fn().mockResolvedValue(home),
@@ -165,6 +170,25 @@ it("explains closed markets and empty quant candidates honestly", async () => {
 
   expect(await screen.findByText("市场已收盘")).toBeVisible();
   expect(screen.getByText("量化候选将在实时策略链路接入后生成")).toBeVisible();
+});
+
+it("loads and plots real intraday history after the market closes", async () => {
+  const connection = { ...baseConnection, state: "CLOSED" as const };
+  const selected = quote("600000.SSE", "浦发银行", "9.26");
+  const bars: IntradayBar[] = [
+    { bob: "2026-08-05T09:30:00+08:00", close: 9.35, volume: 1000 },
+    { bob: "2026-08-05T11:30:00+08:00", close: 9.2, volume: 1600 },
+    { bob: "2026-08-05T15:00:00+08:00", close: 9.26, volume: 2200 },
+  ];
+  const client = renderMarketHome(
+    homeFixture({ connection, watchlist: [selected], selected_instrument: selected }),
+    connection,
+    bars,
+  );
+
+  expect(await screen.findByRole("img", { name: "浦发银行当日分时价格走势" })).toBeVisible();
+  expect(screen.getByText("3 条真实分钟线")).toBeVisible();
+  expect(client.getMarketIntraday).toHaveBeenCalledWith("600000.SSE");
 });
 
 it("keeps six named index slots without inventing values when the API fails", async () => {

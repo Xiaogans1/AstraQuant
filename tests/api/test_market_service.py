@@ -27,6 +27,7 @@ class FakeProvider:
         self.polls: list[tuple[str, ...]] = []
         self.return_quotes = True
         self.fail_polls = 0
+        self.history_rows: list[dict[str, Any]] | None = None
         self._health = ProviderHealth(provider_id="eastmoney")
 
     def connect(self, token: str) -> None:
@@ -59,6 +60,8 @@ class FakeProvider:
         return self._health
 
     def history_n(self, instrument_id: InstrumentId, *, count: int) -> list[dict[str, Any]]:
+        if self.history_rows is not None:
+            return self.history_rows
         return [{"instrument_id": str(instrument_id), "index": index} for index in range(count)]
 
     def search(self, query: str) -> list[dict[str, Any]]:
@@ -180,6 +183,25 @@ def test_history_cache_is_bounded_and_backoff_caps_at_thirty_seconds() -> None:
         bars = await service.intraday("000001.SSE", count=1000)
         assert len(bars) == 240
         assert service.reconnect_delay_seconds(99) == 30
+
+    asyncio.run(scenario())
+
+
+def test_intraday_keeps_only_the_latest_trading_day() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+        provider.history_rows = [
+            {"bob": "2026-08-04T14:59:00+08:00", "close": 9.30},
+            {"bob": "2026-08-05T09:30:00+08:00", "close": 9.35},
+            {"bob": "2026-08-05T15:00:00+08:00", "close": 9.26},
+        ]
+
+        bars = await service.intraday("600000.SSE")
+
+        assert [row["bob"] for row in bars] == [
+            "2026-08-05T09:30:00+08:00",
+            "2026-08-05T15:00:00+08:00",
+        ]
 
     asyncio.run(scenario())
 

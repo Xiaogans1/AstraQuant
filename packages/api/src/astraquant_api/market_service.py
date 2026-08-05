@@ -195,7 +195,7 @@ class MarketDataService:
             InstrumentId.parse(canonical),
             count=bounded_count,
         )
-        self._history[canonical] = list(rows[-240:])
+        self._history[canonical] = _latest_intraday_session(list(rows[-240:]))
         return self._history[canonical]
 
     async def search(self, query: str) -> list[dict[str, Any]]:
@@ -270,3 +270,22 @@ class MarketDataService:
     @staticmethod
     def _is_session_open(local_time: time) -> bool:
         return time(9, 15) <= local_time <= time(11, 30) or time(13) <= local_time <= time(15, 5)
+
+
+def _latest_intraday_session(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    dated_rows: list[tuple[datetime, dict[str, Any]]] = []
+    for row in rows:
+        raw_time = row.get("bob") or row.get("eob")
+        try:
+            event_time = (
+                raw_time
+                if isinstance(raw_time, datetime)
+                else datetime.fromisoformat(str(raw_time))
+            )
+        except (TypeError, ValueError):
+            continue
+        dated_rows.append((event_time, row))
+    if not dated_rows:
+        return rows
+    latest_date = max(event_time.date() for event_time, _ in dated_rows)
+    return [row for event_time, row in dated_rows if event_time.date() == latest_date]

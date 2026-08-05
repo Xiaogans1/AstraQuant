@@ -589,6 +589,11 @@ select:focus-visible {
   margin: 0 auto;
 }
 
+.workspace-content[data-view="overview"] {
+  width: 100%;
+  max-width: 1920px;
+}
+
 .metric-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1574,7 +1579,8 @@ code {
 
 .market-terminal {
   display: grid;
-  max-width: 1500px;
+  width: 100%;
+  max-width: 1920px;
   margin: 0 auto;
   gap: 12px;
   font-family: var(--font-ui);
@@ -1991,8 +1997,24 @@ code {
 }
 
 .intraday-chart {
-  padding: 4px 15px 8px;
+  margin: 0;
+  padding: 4px 15px 12px;
   color: var(--accent);
+}
+
+.intraday-chart figcaption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+}
+
+.intraday-chart figcaption strong {
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .intraday-chart svg {
@@ -2009,7 +2031,7 @@ code {
 }
 
 .chart-area {
-  color: var(--accent);
+  fill: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .chart-line {
@@ -2019,6 +2041,24 @@ code {
   stroke-linejoin: round;
   stroke-width: 2.2;
   filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 46%, transparent));
+}
+
+.intraday-chart[data-trend="down"] .chart-line {
+  stroke: var(--safety-sell);
+}
+
+.intraday-chart[data-trend="down"] .chart-area {
+  fill: color-mix(in srgb, var(--safety-sell) 13%, transparent);
+}
+
+.chart-last-point {
+  fill: var(--panel);
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.intraday-chart[data-trend="down"] .chart-last-point {
+  color: var(--safety-sell);
 }
 
 .chart-axis {

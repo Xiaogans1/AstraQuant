@@ -21,3 +21,12 @@ describe("market typography", () => {
     expect(tokens).toContain('--font-numeric: "Cascadia Mono"');
   });
 });
+
+describe("market wide-screen layout", () => {
+  it("lets the overview use the available desktop width", () => {
+    expect(css).toMatch(
+      /\.workspace-content\[data-view="overview"\][^{]*\{[^}]*max-width:\s*1920px/s,
+    );
+    expect(marketCss).toMatch(/\.market-terminal\s*\{[^}]*width:\s*100%/s);
+  });
+});
