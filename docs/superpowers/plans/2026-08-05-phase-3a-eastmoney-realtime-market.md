@@ -103,7 +103,7 @@ performance phase may replace polling with `subscribe` after the real-session sl
 - Modify: `apps/desktop/src/styles/app.css`
 - Test: `apps/desktop/src/styles/marketTypography.test.ts`
 
-- [ ] **Step 1: Write the failing typography guard**
+- [x] **Step 1: Write the failing typography guard**
 
 Create a Node-environment Vitest test that isolates the market section and fails on the current
 `8px`–`10px` rules:
@@ -134,7 +134,7 @@ describe("market typography", () => {
 });
 ```
 
-- [ ] **Step 2: Run the guard and verify the root cause**
+- [x] **Step 2: Run the guard and verify the root cause**
 
 Run:
 
@@ -144,7 +144,7 @@ npm --prefix apps/desktop test -- marketTypography.test.ts
 
 Expected: FAIL for `geometricPrecision` and market `8px`–`11px` declarations.
 
-- [ ] **Step 3: Define explicit UI and numeric font tokens**
+- [x] **Step 3: Define explicit UI and numeric font tokens**
 
 Replace the root font section with:
 
@@ -168,7 +168,7 @@ Replace the root font section with:
 
 Do not add `-webkit-font-smoothing` or another forced rasterization mode.
 
-- [ ] **Step 4: Raise every readable market selector**
+- [x] **Step 4: Raise every readable market selector**
 
 Within the section beginning at `.market-terminal`, replace every literal `8px`–`11px` font size:
 
@@ -197,7 +197,7 @@ Add:
 }
 ```
 
-- [ ] **Step 5: Verify typography and responsive layout**
+- [x] **Step 5: Verify typography and responsive layout**
 
 Run:
 
@@ -210,7 +210,7 @@ npm --prefix apps/desktop run build
 Expected: all commands pass. Manually inspect at 1440×900 and 2048×1152; no readable text is
 smaller than 12px, and the market grids do not overflow.
 
-- [ ] **Step 6: Commit the typography baseline**
+- [x] **Step 6: Commit the typography baseline**
 
 ```powershell
 git add apps/desktop/src/theme/tokens.css apps/desktop/src/styles/app.css apps/desktop/src/styles/marketTypography.test.ts
@@ -225,7 +225,7 @@ git commit -m "fix(desktop): 提升高分屏行情字体清晰度"
 - Modify: `packages/domain/src/astraquant_domain/__init__.py`
 - Create: `tests/domain/test_live_market.py`
 
-- [ ] **Step 1: Write failing contract tests**
+- [x] **Step 1: Write failing contract tests**
 
 Create tests covering timezone awareness, source metadata, previous close, depth and quality:
 
@@ -280,7 +280,7 @@ def test_depth_rejects_invalid_price_and_volume() -> None:
         QuoteLevel(price=Decimal("1"), volume=Decimal("-1"))
 ```
 
-- [ ] **Step 2: Verify the missing contracts**
+- [x] **Step 2: Verify the missing contracts**
 
 Run:
 
@@ -290,7 +290,7 @@ uv run pytest tests/domain/test_live_market.py -v
 
 Expected: collection fails because `LiveQuote`, `MarketEventQuality` and `QuoteLevel` do not exist.
 
-- [ ] **Step 3: Implement immutable contracts**
+- [x] **Step 3: Implement immutable contracts**
 
 Create:
 
@@ -342,7 +342,7 @@ Add complete `__post_init__` validation for aware times, positive prices, non-ne
 non-empty source and at most ten bid/ask levels. Add a `minimum` classmethod used by tests. Export
 the contracts through `astraquant_domain.__init__`.
 
-- [ ] **Step 4: Verify domain compatibility**
+- [x] **Step 4: Verify domain compatibility**
 
 Run:
 
@@ -354,7 +354,7 @@ uv run ruff check packages/domain tests/domain
 
 Expected: all commands pass.
 
-- [ ] **Step 5: Commit the domain contracts**
+- [x] **Step 5: Commit the domain contracts**
 
 ```powershell
 git add packages/domain/src/astraquant_domain tests/domain/test_live_market.py
@@ -372,7 +372,7 @@ git commit -m "feat(domain): 定义真实行情快照契约"
 - Create: `tests/data/test_eastmoney_protocol.py`
 - Create: `tests/data/test_eastmoney_client.py`
 
-- [ ] **Step 1: Write failing symbol and payload mapping tests**
+- [x] **Step 1: Write failing symbol and payload mapping tests**
 
 Test exact venue conversion and a representative Eastmoney Tick:
 
@@ -411,7 +411,7 @@ def test_maps_current_snapshot_to_a_real_source_quote() -> None:
     assert quote.source_id == "eastmoney"
 ```
 
-- [ ] **Step 2: Write the failing subprocess lifecycle test**
+- [x] **Step 2: Write the failing subprocess lifecycle test**
 
 The fake bridge reads NDJSON commands and returns deterministic responses without importing `gm`:
 
@@ -436,7 +436,7 @@ def test_bridge_client_never_places_token_on_the_command_line(
 
 Also test timeout, child exit, malformed JSON and id mismatch.
 
-- [ ] **Step 3: Verify both test modules fail**
+- [x] **Step 3: Verify both test modules fail**
 
 Run:
 
@@ -446,7 +446,7 @@ uv run pytest tests/data/test_eastmoney_protocol.py tests/data/test_eastmoney_cl
 
 Expected: collection fails for the missing protocol/client modules.
 
-- [ ] **Step 4: Implement the self-contained bridge protocol**
+- [x] **Step 4: Implement the self-contained bridge protocol**
 
 `tools/eastmoney_bridge.py` must import only the standard library and `gm.api`. It accepts these
 commands:
@@ -471,7 +471,7 @@ and return:
 
 Never include the token, account data, local environment or traceback in a response.
 
-- [ ] **Step 5: Implement the supervised client**
+- [x] **Step 5: Implement the supervised client**
 
 `EastmoneyBridgeClient` launches:
 
@@ -488,7 +488,7 @@ It sends the token only in the first stdin request, assigns monotonically increa
 uses a dedicated stderr log with token redaction, enforces one in-flight request with a lock, and
 terminates the child after a graceful `shutdown` timeout.
 
-- [ ] **Step 6: Verify bridge tests and import isolation**
+- [x] **Step 6: Verify bridge tests and import isolation**
 
 Run:
 
@@ -501,7 +501,7 @@ uv run python -c "import sys; assert 'gm' not in sys.modules; import astraquant_
 
 Expected: all commands pass; importing AstraQuant data code does not import `gm`.
 
-- [ ] **Step 7: Commit the bridge**
+- [x] **Step 7: Commit the bridge**
 
 ```powershell
 git add packages/data/src/astraquant_data tools/eastmoney_bridge.py tests/data tests/fixtures/eastmoney
@@ -519,7 +519,7 @@ git commit -m "feat(data): 建立东财 SDK 隔离桥接"
 - Create: `tests/api/test_secret_store.py`
 - Create: `tests/api/test_market_config.py`
 
-- [ ] **Step 1: Add the credential-store dependency**
+- [x] **Step 1: Add the credential-store dependency**
 
 Add:
 
@@ -536,7 +536,7 @@ uv sync --locked --all-packages
 
 Expected: `uv.lock` records `keyring` and its Windows support dependencies.
 
-- [ ] **Step 2: Write failing secret-store tests**
+- [x] **Step 2: Write failing secret-store tests**
 
 Define a protocol with exact Eastmoney methods:
 
@@ -550,14 +550,14 @@ class SecretStore(Protocol):
 Tests must prove blank/short values are rejected, reads do not expose service metadata, and a fake
 backend can round-trip a token.
 
-- [ ] **Step 3: Implement Windows Credential Manager storage**
+- [x] **Step 3: Implement Windows Credential Manager storage**
 
 Use service `com.xiaogans1.astraquant/eastmoney` and account `market-data-token` through `keyring`.
 Import `keyring` lazily inside the concrete class so tests and unsupported platforms can use
 `MemorySecretStore`. Convert backend failures to `SecretStoreUnavailable` without including the
 secret value.
 
-- [ ] **Step 4: Write and implement market configuration tests**
+- [x] **Step 4: Write and implement market configuration tests**
 
 `EastmoneyRuntimeConfig` contains:
 
@@ -580,7 +580,7 @@ Resolution order for `sdk_python` is:
 Reject poll intervals below 1 second, stale thresholds not greater than the poll interval, and any
 maximum other than 50 for the current free provider.
 
-- [ ] **Step 5: Verify and commit secure configuration**
+- [x] **Step 5: Verify and commit secure configuration**
 
 Run:
 
@@ -610,7 +610,7 @@ git commit -m "feat(api): 安全保存东财行情配置"
 - Create: `tests/data/test_eastmoney_provider.py`
 - Create: `tests/api/test_market_service.py`
 
-- [ ] **Step 1: Write the fixed-core and budget tests**
+- [x] **Step 1: Write the fixed-core and budget tests**
 
 Define the six immutable core indices:
 
@@ -634,7 +634,7 @@ Tests must assert:
 - core entries cannot be removed;
 - a full persistent budget raises `SubscriptionLimitReached` instead of silently dropping data.
 
-- [ ] **Step 2: Write provider polling tests with a fake client**
+- [x] **Step 2: Write provider polling tests with a fake client**
 
 Use a fake bridge client and a fixed clock to prove:
 
@@ -645,7 +645,7 @@ Use a fake bridge client and a fixed clock to prove:
 - a child failure moves health to `ERROR`;
 - no provider method imports or exposes trade/account functions.
 
-- [ ] **Step 3: Implement provider health and capabilities**
+- [x] **Step 3: Implement provider health and capabilities**
 
 Use exact public states:
 
@@ -664,7 +664,7 @@ class ConnectionState(StrEnum):
 instrument count, parse error count and reconnect count. It contains no credentials or local
 account fields.
 
-- [ ] **Step 4: Write the market-service lifecycle tests**
+- [x] **Step 4: Write the market-service lifecycle tests**
 
 Test this scenario:
 
@@ -695,7 +695,7 @@ Also test idempotent start/stop, missing token, missing SDK, stale transition, c
 classification using `get_trading_dates`, reconnection backoff capped at 30 seconds, watchlist
 updates taking effect on the next poll, and no unbounded quote/history cache.
 
-- [ ] **Step 5: Implement MarketDataService**
+- [x] **Step 5: Implement MarketDataService**
 
 The service owns one polling task and:
 
@@ -709,7 +709,7 @@ The service owns one polling task and:
 - pauses new quant/AI outputs whenever state is not `LIVE`;
 - records sanitized activity without price payloads or tokens.
 
-- [ ] **Step 6: Verify provider/service behavior**
+- [x] **Step 6: Verify provider/service behavior**
 
 Run:
 
@@ -721,7 +721,7 @@ uv run mypy packages/data/src packages/api/src tests/data tests/api
 
 Expected: all commands pass and no test starts the real Eastmoney SDK.
 
-- [ ] **Step 7: Commit provider and service**
+- [x] **Step 7: Commit provider and service**
 
 ```powershell
 git add packages/data/src/astraquant_data packages/api/src/astraquant_api/market_service.py tests/data tests/api/test_market_service.py
@@ -740,7 +740,7 @@ git commit -m "feat(market): 管理东财实时行情与订阅配额"
 - Modify: `tests/api/test_app.py`
 - Modify: `tests/api/test_cli.py`
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 Test authenticated access to:
 
@@ -776,7 +776,7 @@ Test all routes return `401` without the local bearer token. Test the config res
 `token_configured: true` but never the token. Test invalid instrument IDs, continuous futures,
 count above 240 and the 51st subscription return stable 4xx problems.
 
-- [ ] **Step 2: Define strict response schemas**
+- [x] **Step 2: Define strict response schemas**
 
 `MarketHomeResponse` contains:
 
@@ -797,7 +797,7 @@ class MarketHomeResponse(BaseModel):
 `change`, `change_percent`, `turnover` and `source_id`. Missing real values are JSON `null`,
 never zero.
 
-- [ ] **Step 3: Implement configuration without secret leakage**
+- [x] **Step 3: Implement configuration without secret leakage**
 
 `PUT /v1/market/eastmoney/config` accepts:
 
@@ -812,7 +812,7 @@ Validate the path by running `python -I -c "import gm"` with an eight-second tim
 the non-secret path. Save the token through `SecretStore`. Redact the request body from structured
 activity and error logs.
 
-- [ ] **Step 4: Wire service lifecycle into the local runtime**
+- [x] **Step 4: Wire service lifecycle into the local runtime**
 
 Add `market_service: MarketDataService` to `AppState`. Build the service in `cli.py` and stop it
 before database disposal. The API starts in `UNAVAILABLE` when configuration is absent; runtime
@@ -820,7 +820,7 @@ startup must still succeed so the user can open Settings and configure Eastmoney
 
 Do not auto-start the provider until a valid SDK path and stored token both exist.
 
-- [ ] **Step 5: Verify route and runtime regressions**
+- [x] **Step 5: Verify route and runtime regressions**
 
 Run:
 
@@ -833,7 +833,7 @@ uv run mypy packages/api/src tests/api
 
 Expected: all commands pass; runtime starts even when Eastmoney is not configured.
 
-- [ ] **Step 6: Commit local market APIs**
+- [x] **Step 6: Commit local market APIs**
 
 ```powershell
 git add packages/api/src/astraquant_api tests/api
@@ -859,7 +859,7 @@ git commit -m "feat(api): 发布真实行情本地接口"
 - Modify: `apps/desktop/src/features/market/types.ts`
 - Modify: `apps/desktop/src/styles/app.css`
 
-- [ ] **Step 1: Write API-client and connection-panel tests**
+- [x] **Step 1: Write API-client and connection-panel tests**
 
 Add exact client methods:
 
@@ -878,7 +878,7 @@ removeWatchlistInstrument(instrumentId: string): Promise<MarketHome>
 The panel tests must cover SDK missing, token missing, connecting, live, stale, closed and error
 states. Assert that token inputs use `type="password"` and returned status never renders a token.
 
-- [ ] **Step 2: Write the new OverviewPage tests before changing implementation**
+- [x] **Step 2: Write the new OverviewPage tests before changing implementation**
 
 Render explicit fixtures rather than module-level fake data:
 
@@ -907,7 +907,7 @@ it("marks cached real data as stale instead of realtime", () => {
 Also test closed-market copy, loading skeletons without numeric text, API errors, real intraday bars,
 backend search, watchlist add/remove and continuous-future rejection.
 
-- [ ] **Step 3: Verify the current homepage fails the new contract**
+- [x] **Step 3: Verify the current homepage fails the new contract**
 
 Run:
 
@@ -918,7 +918,7 @@ npm --prefix apps/desktop test -- OverviewPage.test.tsx MarketConnectionPanel.te
 Expected: tests fail because market API contracts and connection panel do not exist and the page
 still renders hard-coded simulation.
 
-- [ ] **Step 4: Implement React Query market state**
+- [x] **Step 4: Implement React Query market state**
 
 Add query keys:
 
@@ -933,7 +933,7 @@ Poll connection/home every three seconds only while state is `LIVE`, `CONNECTING
 poll every 30 seconds while `CLOSED`; do not poll while `UNAVAILABLE` or `ERROR` until the user
 retries. Debounce search by 300ms and require at least two characters.
 
-- [ ] **Step 5: Rebuild OverviewPage from API state**
+- [x] **Step 5: Rebuild OverviewPage from API state**
 
 Change `OverviewPage` to accept `client: ApiClient` and use the market queries. Render:
 
@@ -951,14 +951,14 @@ Change `OverviewPage` to accept `client: ApiClient` and use the market queries. 
 Delete `developmentMarket.ts` and its test. Retain only presentation types that match the API
 contract; do not keep hidden fake values for visual fallback.
 
-- [ ] **Step 6: Add Eastmoney configuration UI**
+- [x] **Step 6: Add Eastmoney configuration UI**
 
 Place `MarketConnectionPanel` at the top of “数据与连接” and in a compact homepage state banner.
 The form collects SDK Python path and token, explains that the token is saved to Windows Credential
 Manager, submits once, clears the token field after success and never stores it in React Query
 cache.
 
-- [ ] **Step 7: Verify frontend behavior**
+- [x] **Step 7: Verify frontend behavior**
 
 Run:
 
@@ -971,7 +971,7 @@ rg -n "developmentMarket|开发模拟行情|模拟盘口|全市场扫描 · 模�
 
 Expected: tests/check/build pass; `rg` returns no matches.
 
-- [ ] **Step 8: Commit the real homepage**
+- [x] **Step 8: Commit the real homepage**
 
 ```powershell
 git add apps/desktop/src
@@ -991,7 +991,7 @@ git commit -m "feat(desktop): 用东财真实行情重建首页"
 - Modify: `README.md`
 - Modify: `docs/roadmap/product-roadmap.md`
 
-- [ ] **Step 1: Add failing repository-policy tests**
+- [x] **Step 1: Add failing repository-policy tests**
 
 Reject:
 
@@ -1007,7 +1007,7 @@ data/eastmoney/
 Allow source code, aggregate acceptance Markdown and tiny sanitized fixtures. Add content scanning
 for `ASTRAQUANT_EASTMONEY_TOKEN=` and common token JSON keys outside `.env.example`.
 
-- [ ] **Step 2: Implement an aggregate-only probe**
+- [x] **Step 2: Implement an aggregate-only probe**
 
 The probe reads SDK path from non-secret config and token from `SecretStore`. It accepts
 `--seconds` from 15 to 300 and requests only the six core indices. It prints and optionally writes:
@@ -1035,7 +1035,7 @@ It must not write symbols, prices, raw quote payloads, token values or local acc
 Exit codes: `0` valid real events, `2` configuration unavailable, `3` completed without current
 events, `4` provider/protocol failure.
 
-- [ ] **Step 3: Write operations documentation**
+- [x] **Step 3: Write operations documentation**
 
 Document:
 
@@ -1050,13 +1050,13 @@ Document:
 
 Do not include the user's actual token, test account, password or screenshots containing them.
 
-- [ ] **Step 4: Create the acceptance record**
+- [x] **Step 4: Create the acceptance record**
 
 Use `NOT_RUN` as the initial result and fixed rows for test date/session, terminal version, SDK
 version, six-index coverage, update cadence, median/maximum event age, 30-minute stability,
 disconnect detection, reconnect recovery, parse errors and repository secret scan.
 
-- [ ] **Step 5: Verify safety and docs**
+- [x] **Step 5: Verify safety and docs**
 
 Run:
 
@@ -1068,7 +1068,7 @@ git diff --check
 
 Expected: all commands pass and the acceptance record remains `NOT_RUN` until a real session.
 
-- [ ] **Step 6: Commit safety and operations**
+- [x] **Step 6: Commit safety and operations**
 
 ```powershell
 git add tools tests/repository docs/operations docs/research README.md docs/roadmap/product-roadmap.md
@@ -1082,7 +1082,7 @@ git commit -m "docs(market): 建立东财实时行情验收流程"
 - Modify: `docs/superpowers/plans/2026-08-05-phase-3a-eastmoney-realtime-market.md`
 - Modify after real session: `docs/research/eastmoney-realtime-acceptance.md`
 
-- [ ] **Step 1: Run the full automated quality gate**
+- [x] **Step 1: Run the full automated quality gate**
 
 ```powershell
 uv run ruff format --check packages tools tests
@@ -1101,7 +1101,7 @@ cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
 
 Expected: every command passes.
 
-- [ ] **Step 2: Run the after-hours truthfulness check**
+- [x] **Step 2: Run the after-hours truthfulness check**
 
 Start Eastmoney and AstraQuant after market close:
 
@@ -1126,13 +1126,13 @@ the Eastmoney terminal, disconnect the terminal once, reconnect it, and record a
 Expected: six-index coverage, approximately three-second quote cadence, timely `STALE` transition,
 successful recovery, zero secret leakage and no fake fallback.
 
-- [ ] **Step 4: Record exact evidence**
+- [x] **Step 4: Record exact evidence**
 
 Mark completed plan checkboxes, append command outcomes and commit SHAs, and update the acceptance
 record from `NOT_RUN` to `PASSED` only when the real-session criteria pass. If the market is closed
 or the terminal returns no events, keep `NOT_RUN` or record `FAILED` with a sanitized reason.
 
-- [ ] **Step 5: Commit the execution record**
+- [x] **Step 5: Commit the execution record**
 
 ```powershell
 git add docs/superpowers/plans/2026-08-05-phase-3a-eastmoney-realtime-market.md docs/research/eastmoney-realtime-acceptance.md
@@ -1147,6 +1147,40 @@ gh pr view 4 --json url,headRefOid,statusCheckRollup
 ```
 
 Expected: PR #4 head matches local `HEAD`. Do not merge automatically.
+
+## 2026-08-05 execution record
+
+Implementation commits:
+
+- `7921f9b` readable high-DPI typography;
+- `c5a45bc` canonical realtime quote contracts;
+- `f1b88e4` isolated Eastmoney SDK bridge;
+- `913e3f7` secure local configuration and credential storage;
+- `16f2919` subscription budget, provider and market service;
+- `366b0a8` authenticated local market APIs;
+- `341b8f8` real-data desktop homepage;
+- `11ec9aa` repository safety, aggregate probe and operations docs;
+- `a13f3a0` six-index truthful fallback discovered during desktop QA.
+
+Automated evidence:
+
+- Ruff format/check: passed (`102` Python files formatted, no lint findings);
+- mypy: passed (`99` source files);
+- pytest: passed (`212` tests);
+- repository policy: passed;
+- Vitest: passed (`32` tests after desktop-QA regression coverage);
+- TypeScript check and Vite production build: passed;
+- Cargo fmt/clippy/check: passed;
+- Cargo tests: passed (`6` tests).
+
+After-hours desktop evidence: with no usable Eastmoney configuration, the production Tauri window
+showed “尚未连接东财行情”, all six fixed index slots showed “暂无真实数据”, and no old hard-coded
+price or simulation label appeared. This satisfies the truthful after-hours fallback but does not
+count as a real-session pass.
+
+Real-session evidence remains `NOT_RUN`: the six-index event comparison, 30-minute stability run,
+disconnect/reconnect exercise and live probe must be performed during an A-share trading session.
+Phase 3A therefore remains `IN_PROGRESS`.
 
 ## Execution checkpoints
 
