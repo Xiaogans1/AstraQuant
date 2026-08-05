@@ -130,6 +130,27 @@ const instruments: MarketInstrument[] = [
       { side: "bid", level: 2, price: 11.75, volume: 1870 },
     ],
   },
+  {
+    symbol: "IF0.CFFEX",
+    name: "沪深300股指",
+    kind: "future",
+    exchange: "中金所",
+    price: 4018.6,
+    change: 22.4,
+    changePercent: 0.56,
+    turnover: "—",
+    quantStatus: "基差观察",
+    aiBias: "未接入",
+    volumeRatio: 1.09,
+    turnoverRate: null,
+    intraday: [3998.2, 4001.8, 3999.6, 4006.4, 4009.2, 4007.8, 4012.6, 4010.4, 4015.2, 4017.1, 4018.6],
+    orderBook: [
+      { side: "ask", level: 2, price: 4019.4, volume: 32 },
+      { side: "ask", level: 1, price: 4019.0, volume: 48 },
+      { side: "bid", level: 1, price: 4018.6, volume: 57 },
+      { side: "bid", level: 2, price: 4018.2, volume: 41 },
+    ],
+  },
 ];
 
 export const marketCatalog = instruments;
@@ -155,12 +176,12 @@ export const developmentMarketSnapshot: MarketSnapshot = {
     { name: "医药", changePercent: -0.74 },
   ],
   intelligence: {
-    stage: "反证审查",
-    progress: 68,
-    title: "震荡偏强，金融权重占优",
-    summary: "量化核心仍将根据实时价格确认买卖点；AI 结论只用于当日策略解释。",
-    evidenceCount: 37,
-    challengeCount: 8,
+    stage: "开发演示",
+    progress: 0,
+    title: "AI 情报未接入",
+    summary: "这里将展示联网情报、结构化证据和当日策略修订；当前开发快照不包含在线消息、情绪判断或 AI 结论。",
+    evidenceCount: 0,
+    challengeCount: 0,
   },
   candidates: [
     { symbol: "510300.SSE", name: "沪深300ETF", reason: "动量 + 资金共振", score: 82 },

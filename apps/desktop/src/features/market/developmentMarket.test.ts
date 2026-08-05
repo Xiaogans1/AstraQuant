@@ -19,6 +19,12 @@ describe("development market snapshot", () => {
     expect(searchMarketCatalog("黄金").map((item) => item.symbol)).toContain(
       "518880.SSE",
     );
+    expect(searchMarketCatalog("IF").map((item) => item.symbol)).toContain(
+      "IF0.CFFEX",
+    );
+    expect(
+      developmentMarketSnapshot.watchlist.map((item) => item.symbol),
+    ).not.toContain("IF0.CFFEX");
     expect(searchMarketCatalog("  ")).toEqual([]);
   });
 });

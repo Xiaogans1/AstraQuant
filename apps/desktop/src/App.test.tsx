@@ -67,3 +67,17 @@ it("opens the enabled local data center", async () => {
   ).toBeVisible();
   expect(screen.getByText("不包含账户或下单连接")).toBeVisible();
 });
+
+it("keeps local operations pages reachable after the market-first navigation change", async () => {
+  const user = userEvent.setup();
+  render(<App />);
+
+  await user.click(await screen.findByRole("button", { name: "任务" }));
+  expect(screen.getByRole("heading", { name: "任务中心" })).toBeVisible();
+
+  await user.click(screen.getByRole("button", { name: "本地活动" }));
+  expect(screen.getByRole("heading", { name: "本地活动" })).toBeVisible();
+
+  await user.click(screen.getByRole("button", { name: "设置" }));
+  expect(screen.getByRole("heading", { name: "设置" })).toBeVisible();
+});

@@ -2162,6 +2162,16 @@ code {
   }
 }
 
+@media (max-width: 720px) {
+  .market-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quant-candidates {
+    grid-column: auto;
+  }
+}
+
 @media (max-width: 980px) {
   .stellar-scale {
     display: none;

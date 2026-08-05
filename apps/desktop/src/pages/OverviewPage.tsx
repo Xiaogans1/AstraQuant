@@ -54,7 +54,7 @@ export function OverviewPage() {
     <section className="market-terminal" aria-labelledby="market-home-title">
       <header className="market-toolbar">
         <div>
-          <p className="market-toolbar__eyebrow">MARKET / LIVE WORKSPACE</p>
+          <p className="market-toolbar__eyebrow">MARKET / OBSERVATION WORKSPACE</p>
           <h1 id="market-home-title">市场首页</h1>
         </div>
         <div className="market-toolbar__controls">
@@ -168,6 +168,7 @@ export function OverviewPage() {
                         type="button"
                         className="instrument-identity"
                         aria-label={`查看${instrument.name}`}
+                        aria-pressed={instrument.symbol === selectedInstrument?.symbol}
                         onClick={() => setSelectedSymbol(instrument.symbol)}
                       >
                         <strong>{instrument.name}</strong>
@@ -227,16 +228,10 @@ export function OverviewPage() {
               <p className="terminal-kicker">REG / INTELLIGENCE</p>
               <h2>AI 盘中情报</h2>
             </div>
-            <span>{snapshot.intelligence.stage} · {snapshot.intelligence.progress}%</span>
-          </div>
-          <div className="intelligence-progress" aria-label={`情报处理进度 ${snapshot.intelligence.progress}%`}>
-            <i style={{ width: `${snapshot.intelligence.progress}%` }} />
+            <span>{snapshot.intelligence.stage} · 未接入</span>
           </div>
           <h3>{snapshot.intelligence.title}</h3>
-          <p>
-            {snapshot.intelligence.evidenceCount} 条有效证据，正在审查 {snapshot.intelligence.challengeCount} 个反向判断。
-            {snapshot.intelligence.summary}
-          </p>
+          <p>{snapshot.intelligence.summary}</p>
           <button type="button" disabled>证据室将在 AI 接入后开放</button>
         </section>
 
@@ -289,8 +284,8 @@ function InstrumentWorkspace({ instrument }: { instrument: MarketInstrument }) {
         <strong>{formatPrice(instrument.price)}</strong>
         <MarketChange value={instrument.changePercent} prefix={formatSigned(instrument.change)} />
       </div>
-      <div className="intraday-chart" aria-label={`${instrument.name}分时图`}>
-        <svg role="img" viewBox="0 0 620 210" preserveAspectRatio="none">
+      <div className="intraday-chart">
+        <svg role="img" aria-label={`${instrument.name}分时图`} viewBox="0 0 620 210" preserveAspectRatio="none">
           <defs>
             <linearGradient id={`chart-fill-${instrument.symbol.replaceAll(".", "-")}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor="currentColor" stopOpacity="0.26" />
@@ -309,7 +304,7 @@ function InstrumentWorkspace({ instrument }: { instrument: MarketInstrument }) {
       </div>
       <div className="instrument-depth">
         <div>
-          <h3>盘口预览</h3>
+          <h3>模拟盘口</h3>
           {instrument.orderBook.map((level) => (
             <p key={`${level.side}-${level.level}`}>
               <span>{level.side === "ask" ? "卖" : "买"}{chineseLevel(level.level)}</span>
