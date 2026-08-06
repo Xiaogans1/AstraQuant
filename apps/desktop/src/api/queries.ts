@@ -38,6 +38,16 @@ function marketRefetchInterval(state: ConnectionState | undefined) {
   return state === "CLOSED" ? 30_000 : false;
 }
 
+function marketBarsRefetchInterval(
+  period: MarketPeriod,
+  state: ConnectionState | undefined,
+) {
+  if (state !== "LIVE" && state !== "CONNECTING" && state !== "STALE") {
+    return false;
+  }
+  return period === "intraday" || period === "1m" ? 10_000 : 60_000;
+}
+
 export function useMarketConnectionQuery(client: ApiClient) {
   return useQuery({
     queryKey: queryKeys.marketConnection,
@@ -89,7 +99,10 @@ export function useMarketBarsQuery(
     enabled:
       instrumentId !== null
       && (state === "LIVE" || state === "STALE" || state === "CLOSED"),
-    refetchInterval: marketRefetchInterval(state),
+    staleTime: period === "intraday" || period === "1m" ? 8_000 : 55_000,
+    refetchInterval: marketBarsRefetchInterval(period, state),
+    retry: 2,
+    retryDelay: (attempt) => Math.min(250 * 2 ** attempt, 1_000),
   });
 }
 

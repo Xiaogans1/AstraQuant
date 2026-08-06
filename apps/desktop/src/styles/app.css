@@ -2190,6 +2190,21 @@ code {
   margin: 7px 0 0;
 }
 
+.market-chart-warning {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  z-index: 3;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--warning) 55%, var(--border));
+  border-radius: 6px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  backdrop-filter: blur(8px);
+}
+
 .market-session-axis {
   display: flex;
   justify-content: space-between;

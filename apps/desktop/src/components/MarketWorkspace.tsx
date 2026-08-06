@@ -24,6 +24,7 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
   const [indicator, setIndicator] = useState<MarketIndicator>("MA");
   const [fullscreen, setFullscreen] = useState(false);
   const barsQuery = useMarketBarsQuery(client, quote.instrument_id, period, state);
+  const hasBars = barsQuery.data !== undefined && barsQuery.data.length > 0;
 
   useEffect(() => {
     const exitFullscreen = (event: KeyboardEvent) => {
@@ -72,20 +73,25 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
       />
 
       <div className="market-workspace__canvas">
-        {barsQuery.isLoading ? (
-          <div className="market-chart-state"><strong>正在读取真实行情</strong><p>从东财加载{periodLabel(period)}数据…</p></div>
-        ) : barsQuery.isError ? (
-          <div className="market-chart-state" role="alert"><strong>行情图加载失败</strong><p>请确认东财终端已登录并保持运行。</p></div>
-        ) : barsQuery.data && barsQuery.data.length > 0 ? (
+        {hasBars ? (
           <ProfessionalMarketChart
             instrumentId={quote.instrument_id}
             period={period}
             indicator={indicator}
             bars={barsQuery.data}
           />
+        ) : barsQuery.isLoading ? (
+          <div className="market-chart-state"><strong>正在读取真实行情</strong><p>从东财加载{periodLabel(period)}数据…</p></div>
+        ) : barsQuery.isError ? (
+          <div className="market-chart-state" role="alert"><strong>行情图加载失败</strong><p>请确认东财终端已登录并保持运行。</p></div>
         ) : (
           <div className="market-chart-state"><strong>暂无真实{periodLabel(period)}数据</strong><p>软件不会用演示行情填充空白。</p></div>
         )}
+        {hasBars && barsQuery.isError ? (
+          <div className="market-chart-warning" role="status">
+            行情更新暂时失败，继续显示上次成功数据
+          </div>
+        ) : null}
       </div>
 
       {period === "intraday" ? (

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { ApiClient } from "../api/client";
@@ -82,4 +82,46 @@ it("loads real daily bars and supports chart fullscreen", async () => {
   expect(screen.getByTestId("market-workspace")).toHaveAttribute("data-fullscreen", "true");
   await user.keyboard("{Escape}");
   expect(screen.getByTestId("market-workspace")).toHaveAttribute("data-fullscreen", "false");
+});
+
+it("keeps the last successful chart visible when a background refresh fails", async () => {
+  const getMarketBars = vi.fn()
+    .mockResolvedValueOnce(bars)
+    .mockRejectedValue(new Error("temporary Eastmoney failure"));
+  const client = { getMarketBars } as unknown as ApiClient;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MarketWorkspace client={client} quote={quote} state="LIVE" />
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByTestId("professional-chart")).toBeVisible();
+  await act(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["market", "bars", "159516.SZSE", "intraday"],
+    });
+  });
+
+  expect(await screen.findByText("行情更新暂时失败，继续显示上次成功数据")).toBeVisible();
+  expect(screen.getByTestId("professional-chart")).toBeVisible();
+});
+
+it("shows a full error only when no chart data has ever loaded", async () => {
+  const client = {
+    getMarketBars: vi.fn().mockRejectedValue(new Error("Eastmoney unavailable")),
+  } as unknown as ApiClient;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MarketWorkspace client={client} quote={quote} state="LIVE" />
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText("行情图加载失败")).toBeVisible();
+  expect(screen.queryByTestId("professional-chart")).not.toBeInTheDocument();
 });
