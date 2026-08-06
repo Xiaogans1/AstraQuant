@@ -38,6 +38,13 @@ function marketRefetchInterval(state: ConnectionState | undefined) {
   return state === "CLOSED" ? 30_000 : false;
 }
 
+function marketQuoteRefetchInterval(state: ConnectionState | undefined) {
+  if (state === "LIVE" || state === "CONNECTING" || state === "STALE") {
+    return 1_000;
+  }
+  return state === "CLOSED" ? 30_000 : false;
+}
+
 function marketBarsRefetchInterval(
   period: MarketPeriod,
   state: ConnectionState | undefined,
@@ -63,7 +70,7 @@ export function useMarketHomeQuery(
   return useQuery({
     queryKey: queryKeys.marketHome,
     queryFn: () => client.getMarketHome(),
-    refetchInterval: marketRefetchInterval(state),
+    refetchInterval: marketQuoteRefetchInterval(state),
   });
 }
 
