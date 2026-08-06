@@ -355,9 +355,7 @@ def test_period_bars_use_ttl_cache_and_fallback_after_transient_failure() -> Non
         )
 
         assert second == first
-        assert provider.bar_requests == [
-            ("600000.SSE", MarketPeriod.INTRADAY, 20)
-        ]
+        assert provider.bar_requests == [("600000.SSE", MarketPeriod.INTRADAY, 20)]
 
         clock.value += timedelta(seconds=9)
         provider.fail_bar_requests = 1
@@ -381,9 +379,7 @@ def test_daily_bars_use_sixty_second_ttl() -> None:
         clock.value += timedelta(seconds=59)
         await service.bars("600000.SSE", period=MarketPeriod.DAY, count=20)
 
-        assert provider.bar_requests == [
-            ("600000.SSE", MarketPeriod.DAY, 20)
-        ]
+        assert provider.bar_requests == [("600000.SSE", MarketPeriod.DAY, 20)]
 
     asyncio.run(scenario())
 
