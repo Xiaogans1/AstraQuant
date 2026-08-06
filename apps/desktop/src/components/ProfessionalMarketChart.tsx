@@ -82,9 +82,11 @@ export function ProfessionalMarketChart({
     const chart = chartRef.current;
     if (chart === null) return;
     chart.removeIndicator();
+    if (period !== "intraday") {
+      chart.createIndicator(indicator, indicator === "MA" || indicator === "BOLL");
+    }
     chart.createIndicator("VOL", false);
-    chart.createIndicator(indicator, indicator === "MA" || indicator === "BOLL");
-  }, [indicator]);
+  }, [indicator, period]);
 
   return (
     <div

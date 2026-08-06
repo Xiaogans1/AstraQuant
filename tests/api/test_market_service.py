@@ -41,6 +41,7 @@ class FakeProvider:
         self.fail_polls = 0
         self.fail_connects = 0
         self.history_rows: list[dict[str, Any]] | None = None
+        self.bar_rows: list[MarketBar] | None = None
         self.bar_requests: list[tuple[str, MarketPeriod, int]] = []
         self._health = ProviderHealth(provider_id="eastmoney")
 
@@ -89,6 +90,8 @@ class FakeProvider:
         count: int,
     ) -> list[MarketBar]:
         self.bar_requests.append((str(instrument_id), period, count))
+        if self.bar_rows is not None:
+            return self.bar_rows
         return [
             MarketBar(
                 timestamp=datetime(2026, 8, 5, 9, 30, tzinfo=UTC) + timedelta(minutes=index),
@@ -293,6 +296,41 @@ def test_period_bars_are_bounded_and_forward_the_requested_period() -> None:
 
         assert len(bars) == 5000
         assert provider.bar_requests == [("600000.SSE", MarketPeriod.MINUTE_5, 5000)]
+
+    asyncio.run(scenario())
+
+
+def test_period_intraday_bars_keep_only_the_latest_trading_day() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+        provider.bar_rows = [
+            MarketBar(
+                timestamp=datetime(2026, 8, 4, 14, 59, tzinfo=UTC),
+                open=Decimal("10"),
+                high=Decimal("10"),
+                low=Decimal("10"),
+                close=Decimal("10"),
+                volume=Decimal("1"),
+                turnover=Decimal("10"),
+            ),
+            MarketBar(
+                timestamp=datetime(2026, 8, 5, 9, 30, tzinfo=UTC),
+                open=Decimal("11"),
+                high=Decimal("11"),
+                low=Decimal("11"),
+                close=Decimal("11"),
+                volume=Decimal("2"),
+                turnover=Decimal("22"),
+            ),
+        ]
+
+        bars = await service.bars(
+            "600000.SSE",
+            period=MarketPeriod.INTRADAY,
+            count=240,
+        )
+
+        assert [item.timestamp.date() for item in bars] == [date(2026, 8, 5)]
 
     asyncio.run(scenario())
 

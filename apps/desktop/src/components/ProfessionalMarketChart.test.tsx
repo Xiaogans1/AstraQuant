@@ -69,6 +69,8 @@ it("loads real bars into a Shanghai-time intraday area chart", () => {
     expect.objectContaining({ candle: expect.objectContaining({ type: "area" }) }),
   );
   expect(chart.setRightMinVisibleBarCount).toHaveBeenCalledWith(239);
+  expect(chart.createIndicator).toHaveBeenCalledWith("VOL", false);
+  expect(chart.createIndicator).not.toHaveBeenCalledWith("MA", true);
 
   const loader = chart.setDataLoader.mock.calls.at(-1)?.[0];
   const callback = vi.fn();

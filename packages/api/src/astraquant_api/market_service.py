@@ -241,8 +241,13 @@ class MarketDataService:
             period=period,
             count=bounded_count,
         )
+        normalized_rows = (
+            _latest_market_bar_session(list(rows))
+            if period is MarketPeriod.INTRADAY
+            else list(rows)
+        )
         key = (canonical, period)
-        self._bar_history[key] = list(rows[-bounded_count:])
+        self._bar_history[key] = normalized_rows[-bounded_count:]
         self._bar_history.move_to_end(key)
         while len(self._bar_history) > 5:
             self._bar_history.popitem(last=False)
@@ -358,3 +363,10 @@ def _latest_intraday_session(rows: list[dict[str, Any]]) -> list[dict[str, Any]]
         return rows
     latest_date = max(event_time.date() for event_time, _ in dated_rows)
     return [row for event_time, row in dated_rows if event_time.date() == latest_date]
+
+
+def _latest_market_bar_session(rows: list[MarketBar]) -> list[MarketBar]:
+    if not rows:
+        return []
+    latest_date = max(item.timestamp.date() for item in rows)
+    return [item for item in rows if item.timestamp.date() == latest_date]
