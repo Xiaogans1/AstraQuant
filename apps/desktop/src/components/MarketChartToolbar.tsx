@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 
 import type { MarketPeriod } from "../api/market-contracts";
 
-export type MarketIndicator = "MA" | "BOLL" | "MACD" | "KDJ" | "RSI";
+export type MainChartIndicator = "AVG" | "MA" | "BOLL" | "NONE";
+export type SecondaryChartIndicator = "VOL" | "MACD" | "KDJ" | "RSI";
 
 const primaryPeriods: { period: MarketPeriod; label: string }[] = [
   { period: "intraday", label: "分时" },
@@ -20,27 +21,46 @@ const minutePeriods: { period: MarketPeriod; label: string }[] = [
   { period: "60m", label: "60分" },
 ];
 
-const indicators: MarketIndicator[] = ["MA", "BOLL", "MACD", "KDJ", "RSI"];
+const intradayMainIndicators: MainChartIndicator[] = ["AVG", "NONE"];
+const candleMainIndicators: MainChartIndicator[] = ["MA", "BOLL", "NONE"];
+const secondaryIndicators: SecondaryChartIndicator[] = ["VOL", "MACD", "KDJ", "RSI"];
+const mainIndicatorLabels: Record<MainChartIndicator, string> = {
+  AVG: "均价",
+  MA: "MA",
+  BOLL: "BOLL",
+  NONE: "无",
+};
 
 interface MarketChartToolbarProps {
   period: MarketPeriod;
-  indicator: MarketIndicator;
+  mainIndicator: MainChartIndicator;
+  secondaryIndicator: SecondaryChartIndicator;
+  showQuantSignals: boolean;
   fullscreen: boolean;
   onPeriodChange: (period: MarketPeriod) => void;
-  onIndicatorChange: (indicator: MarketIndicator) => void;
+  onMainIndicatorChange: (indicator: MainChartIndicator) => void;
+  onSecondaryIndicatorChange: (indicator: SecondaryChartIndicator) => void;
+  onToggleQuantSignals: () => void;
   onToggleFullscreen: () => void;
 }
 
 export function MarketChartToolbar({
   period,
-  indicator,
+  mainIndicator,
+  secondaryIndicator,
+  showQuantSignals,
   fullscreen,
   onPeriodChange,
-  onIndicatorChange,
+  onMainIndicatorChange,
+  onSecondaryIndicatorChange,
+  onToggleQuantSignals,
   onToggleFullscreen,
 }: MarketChartToolbarProps) {
-  const [openMenu, setOpenMenu] = useState<"period" | "indicator" | null>(null);
+  const [openMenu, setOpenMenu] =
+    useState<"period" | "main-indicator" | "secondary-indicator" | null>(null);
   const selectedMinute = minutePeriods.find((item) => item.period === period);
+  const mainIndicators =
+    period === "intraday" ? intradayMainIndicators : candleMainIndicators;
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -98,22 +118,54 @@ export function MarketChartToolbar({
         <div className="market-chart-menu">
           <button
             type="button"
-            aria-expanded={openMenu === "indicator"}
+            aria-expanded={openMenu === "main-indicator"}
             onClick={() =>
-              setOpenMenu((value) => value === "indicator" ? null : "indicator")
+              setOpenMenu((value) =>
+                value === "main-indicator" ? null : "main-indicator"
+              )
             }
           >
-            指标：{indicator}
+            主图：{mainIndicatorLabels[mainIndicator]}
           </button>
-          {openMenu === "indicator" ? (
-            <div className="market-chart-menu__popover" role="menu" aria-label="技术指标">
-              {indicators.map((item) => (
+          {openMenu === "main-indicator" ? (
+            <div className="market-chart-menu__popover" role="menu" aria-label="主图指标">
+              {mainIndicators.map((item) => (
                 <button
                   key={item}
                   type="button"
                   role="menuitem"
                   onClick={() => {
-                    onIndicatorChange(item);
+                    onMainIndicatorChange(item);
+                    setOpenMenu(null);
+                  }}
+                >
+                  {mainIndicatorLabels[item]}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <div className="market-chart-menu">
+          <button
+            type="button"
+            aria-expanded={openMenu === "secondary-indicator"}
+            onClick={() =>
+              setOpenMenu((value) =>
+                value === "secondary-indicator" ? null : "secondary-indicator"
+              )
+            }
+          >
+            副图：{secondaryIndicator}
+          </button>
+          {openMenu === "secondary-indicator" ? (
+            <div className="market-chart-menu__popover" role="menu" aria-label="副图指标">
+              {secondaryIndicators.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onSecondaryIndicatorChange(item);
                     setOpenMenu(null);
                   }}
                 >
@@ -123,6 +175,13 @@ export function MarketChartToolbar({
             </div>
           ) : null}
         </div>
+        <button
+          type="button"
+          aria-pressed={showQuantSignals}
+          onClick={onToggleQuantSignals}
+        >
+          量化图层
+        </button>
         <button
           type="button"
           aria-label={fullscreen ? "退出图表全屏" : "进入图表全屏"}
