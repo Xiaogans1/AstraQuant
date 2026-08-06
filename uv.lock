@@ -12,6 +12,7 @@ members = [
     "astraquant-api",
     "astraquant-data",
     "astraquant-domain",
+    "astraquant-quant",
     "astraquant-workspace",
 ]
 
@@ -104,6 +105,7 @@ dependencies = [
     { name = "alembic" },
     { name = "astraquant-data" },
     { name = "astraquant-domain" },
+    { name = "astraquant-quant" },
     { name = "fastapi" },
     { name = "keyring" },
     { name = "pydantic" },
@@ -117,6 +119,7 @@ requires-dist = [
     { name = "alembic", specifier = ">=1.18,<2" },
     { name = "astraquant-data", editable = "packages/data" },
     { name = "astraquant-domain", editable = "packages/domain" },
+    { name = "astraquant-quant", editable = "packages/quant" },
     { name = "fastapi", specifier = ">=0.140,<1" },
     { name = "keyring", specifier = ">=25.7,<26" },
     { name = "pydantic", specifier = ">=2.13,<3" },
@@ -155,6 +158,21 @@ version = "0.1.0"
 source = { editable = "packages/domain" }
 
 [[package]]
+name = "astraquant-quant"
+version = "0.1.0"
+source = { editable = "packages/quant" }
+dependencies = [
+    { name = "astraquant-data" },
+    { name = "astraquant-domain" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "astraquant-data", editable = "packages/data" },
+    { name = "astraquant-domain", editable = "packages/domain" },
+]
+
+[[package]]
 name = "astraquant-workspace"
 version = "0.0.0"
 source = { virtual = "." }
@@ -162,6 +180,7 @@ dependencies = [
     { name = "astraquant-api" },
     { name = "astraquant-data", extra = ["akshare"] },
     { name = "astraquant-domain" },
+    { name = "astraquant-quant" },
 ]
 
 [package.dev-dependencies]
@@ -178,6 +197,7 @@ requires-dist = [
     { name = "astraquant-api", editable = "packages/api" },
     { name = "astraquant-data", extras = ["akshare"], editable = "packages/data" },
     { name = "astraquant-domain", editable = "packages/domain" },
+    { name = "astraquant-quant", editable = "packages/quant" },
 ]
 
 [package.metadata.requires-dev]

@@ -4,7 +4,7 @@ import type { DataLoaderGetBarsParams } from "klinecharts";
 import type { MarketBar } from "../api/market-contracts";
 import { ProfessionalMarketChart } from "./ProfessionalMarketChart";
 
-const { chart, dispose, init } = vi.hoisted(() => {
+const { chart, dispose, init, registerOverlay } = vi.hoisted(() => {
   const chart = {
     setTimezone: vi.fn(),
     setSymbol: vi.fn(),
@@ -18,14 +18,21 @@ const { chart, dispose, init } = vi.hoisted(() => {
     setOffsetRightDistance: vi.fn(),
     setBarSpace: vi.fn(),
     convertFromPixel: vi.fn(),
+    createOverlay: vi.fn(),
+    removeOverlay: vi.fn(),
     subscribeAction: vi.fn(),
     unsubscribeAction: vi.fn(),
     resize: vi.fn(),
   };
-  return { chart, dispose: vi.fn(), init: vi.fn(() => chart) };
+  return {
+    chart,
+    dispose: vi.fn(),
+    init: vi.fn(() => chart),
+    registerOverlay: vi.fn(),
+  };
 });
 
-vi.mock("klinecharts", () => ({ init, dispose }));
+vi.mock("klinecharts", () => ({ init, dispose, registerOverlay }));
 
 class ResizeObserverMock {
   observe = vi.fn();
@@ -150,5 +157,41 @@ it("shows hovered price and change together beside the crosshair", () => {
   expect(chart.convertFromPixel).toHaveBeenCalledWith(
     [{ y: 160 }],
     { paneId: "candle_pane" },
+  );
+});
+
+it("renders only explicit quant buy and sell decisions as chart overlays", () => {
+  render(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="intraday"
+      indicator="MA"
+      bars={bars}
+      signals={[
+        {
+          id: "signal-buy",
+          timestamp: Date.parse("2026-08-06T09:30:00+08:00"),
+          side: "BUY",
+          price: 0.705,
+          label: "量价动量买入观察",
+          source: "QUANT",
+        },
+      ]}
+    />,
+  );
+
+  expect(registerOverlay).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "astraquantSignal" }),
+  );
+  expect(chart.removeOverlay).toHaveBeenCalledWith({
+    groupId: "astraquant-quant-signals",
+  });
+  expect(chart.createOverlay).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: "astraquantSignal",
+      groupId: "astraquant-quant-signals",
+      points: [{ timestamp: Date.parse("2026-08-06T09:30:00+08:00"), value: 0.705 }],
+      extendData: expect.objectContaining({ tag: "B", side: "BUY" }),
+    }),
   );
 });

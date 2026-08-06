@@ -2154,6 +2154,48 @@ code {
   text-align: left;
 }
 
+.market-quant-status {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  min-height: 34px;
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+  gap: 10px;
+  font-size: var(--text-xs);
+}
+
+.market-quant-status > span {
+  color: var(--accent);
+  font-family: var(--font-data);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.market-quant-status > strong {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+.market-quant-status > small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-quant-status[data-action="BUY"] > strong {
+  color: var(--danger);
+}
+
+.market-quant-status[data-action="SELL"] > strong {
+  color: var(--success);
+}
+
 .market-workspace__canvas {
   position: relative;
   min-height: 470px;

@@ -129,6 +129,9 @@ class MarketDataService:
     def connection(self) -> ProviderHealth:
         return self._connection
 
+    def now(self) -> datetime:
+        return self._clock.now()
+
     def configure_provider(self, provider: LiveMarketProvider) -> None:
         if self._task is not None and not self._task.done():
             raise RuntimeError("market service must be stopped before reconfiguration")

@@ -120,10 +120,17 @@ GitHub 只保存源代码、文档、数据结构定义、迁移脚本、示例�
 Tauri 桌面 → 随机会话令牌 → 127.0.0.1 FastAPI
 → 独立导入 Worker → 质量校验 → 不可变 Parquet + SQLite 目录
 → DuckDB as-of 查询 → 版本化 FeatureFrame → React 数据中心
+
+东财真实只读行情 → 已完成分钟线 → 在线特征快照
+→ baseline 实时策略 → SignalFrame + DecisionRecord
+→ 桌面量化状态与 BUY/SELL 图层（不连接交易账户）
 ```
 
 - Tauri 管理控制服务进程、随机端口、握手和安全关闭。
 - FastAPI 仅监听 IPv4 loopback，业务端点统一使用 Bearer 会话认证。
+- 实时量化核心在行情非实时、数据过期或分钟样本不足时自动抑制提示。
+- 当前 baseline 用于验证数据、决策、审计和界面闭环；AI/ML 模型将在离线评估
+  通过后复用同一信号契约进入影子模式。
 - SQLite 保存任务历史和界面设置；异常重启后活动任务标记为 `INTERRUPTED`。
 - React 工作区提供总览、数据中心、任务、本地活动、设置和两套基础主题。
 - 数据中心可导入 `600000.SSE` 与 `RB0.SHFE` 离线样例，查看质量报告和最近十条行情。

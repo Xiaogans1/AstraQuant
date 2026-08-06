@@ -16,6 +16,7 @@ from astraquant_api.market_config import (
     save_eastmoney_runtime_config,
 )
 from astraquant_api.market_schemas import (
+    DecisionRecordResponse,
     EastmoneyConfigRequest,
     EastmoneyConfigStatus,
     InstrumentSearchResponse,
@@ -23,6 +24,9 @@ from astraquant_api.market_schemas import (
     MarketConnectionResponse,
     MarketHomeResponse,
     QuoteCardResponse,
+    RealtimeFeatureResponse,
+    RealtimeQuantResponse,
+    SignalFrameResponse,
     UnavailableFeatureResponse,
     WatchlistRequest,
 )
@@ -30,10 +34,11 @@ from astraquant_api.market_service import MarketDataService, MarketItemSnapshot
 from astraquant_api.repository import TaskRepository
 from astraquant_api.secret_store import SecretStore
 from astraquant_data.eastmoney_protocol import from_eastmoney_symbol
-from astraquant_data.live_providers import LiveMarketProvider
+from astraquant_data.live_providers import ConnectionState, LiveMarketProvider
 from astraquant_data.market_bars import MarketBar, MarketPeriod
 from astraquant_data.subscriptions import SubscriptionLimitReached
 from astraquant_domain import InstrumentId, Venue
+from astraquant_quant import QuantDecision, evaluate_intraday_signal
 
 ProviderFactory = Callable[[Path, float], LiveMarketProvider]
 _FUTURE_VENUES = {
@@ -177,6 +182,25 @@ def build_market_router(
         rows = await service.bars(str(canonical), period=period, count=count)
         return [_bar_response(item) for item in rows]
 
+    @router.get(
+        "/instruments/{instrument_id}/signal",
+        response_model=RealtimeQuantResponse,
+    )
+    async def signal(instrument_id: str) -> RealtimeQuantResponse:
+        canonical = _observable_instrument(instrument_id)
+        rows = await service.bars(
+            str(canonical),
+            period=MarketPeriod.MINUTE_1,
+            count=60,
+        )
+        decision = evaluate_intraday_signal(
+            canonical,
+            rows,
+            service.now(),
+            market_live=service.connection().state is ConnectionState.LIVE,
+        )
+        return _quant_response(decision)
+
     @router.post("/watchlist", response_model=MarketHomeResponse)
     def add_watchlist(request: WatchlistRequest) -> MarketHomeResponse:
         canonical = _observable_instrument(request.instrument_id)
@@ -252,4 +276,45 @@ def _bar_response(item: MarketBar) -> MarketBarResponse:
         volume=float(item.volume),
         turnover=float(item.turnover),
         previous_close=None if item.previous_close is None else float(item.previous_close),
+    )
+
+
+def _quant_response(decision: QuantDecision) -> RealtimeQuantResponse:
+    features = decision.features
+    signal = decision.signal
+    record = decision.decision_record
+    return RealtimeQuantResponse(
+        features=RealtimeFeatureResponse(
+            feature_snapshot_id=features.feature_snapshot_id,
+            status=features.status.value,
+            completed_bar_count=features.completed_bar_count,
+            reason_codes=list(features.reason_codes),
+        ),
+        signal=SignalFrameResponse(
+            signal_id=signal.signal_id,
+            instrument_id=str(signal.instrument_id),
+            event_time=signal.event_time,
+            decision_time=signal.decision_time,
+            expires_at=signal.expires_at,
+            action=signal.action.value,
+            state=signal.state.value,
+            reference_price=(
+                None if signal.reference_price is None else str(signal.reference_price)
+            ),
+            confidence=str(signal.confidence),
+            strategy_id=signal.strategy_id,
+            strategy_version=signal.strategy_version,
+            feature_version=signal.feature_version,
+            reason_codes=list(signal.reason_codes),
+        ),
+        decision_record=DecisionRecordResponse(
+            decision_id=record.decision_id,
+            feature_snapshot_id=record.feature_snapshot_id,
+            signal_id=record.signal_id,
+            strategy_id=record.strategy_id,
+            strategy_version=record.strategy_version,
+            market_event_time=record.market_event_time,
+            decision_time=record.decision_time,
+            advisory_checks=list(record.advisory_checks),
+        ),
     )

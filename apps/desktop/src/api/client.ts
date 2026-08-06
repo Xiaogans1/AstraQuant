@@ -22,6 +22,7 @@ import type {
   MarketBar,
   MarketHome,
   MarketPeriod,
+  RealtimeQuantDecision,
 } from "./market-contracts";
 
 type Fetch = typeof fetch;
@@ -160,6 +161,12 @@ export class ApiClient {
   ): Promise<MarketBar[]> {
     return this.request(
       `/v1/market/instruments/${encodeURIComponent(instrumentId)}/bars?period=${encodeURIComponent(period)}&count=${encodeURIComponent(count)}`,
+    );
+  }
+
+  getMarketSignal(instrumentId: string): Promise<RealtimeQuantDecision> {
+    return this.request(
+      `/v1/market/instruments/${encodeURIComponent(instrumentId)}/signal`,
     );
   }
 

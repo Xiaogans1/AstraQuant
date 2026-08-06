@@ -28,6 +28,8 @@ export const queryKeys = {
     ["market", "intraday", instrumentId] as const,
   marketBars: (instrumentId: string, period: MarketPeriod) =>
     ["market", "bars", instrumentId, period] as const,
+  marketSignal: (instrumentId: string) =>
+    ["market", "signal", instrumentId] as const,
   marketSearch: (search: string) => ["market", "search", search] as const,
 };
 
@@ -110,6 +112,27 @@ export function useMarketBarsQuery(
     refetchInterval: marketBarsRefetchInterval(period, state),
     retry: 2,
     retryDelay: (attempt) => Math.min(250 * 2 ** attempt, 1_000),
+  });
+}
+
+export function useMarketSignalQuery(
+  client: ApiClient,
+  instrumentId: string | null,
+  state?: ConnectionState,
+) {
+  const usable = state === "LIVE" || state === "STALE" || state === "CLOSED";
+  return useQuery({
+    queryKey: queryKeys.marketSignal(instrumentId ?? "none"),
+    queryFn: () => client.getMarketSignal(requireId(instrumentId, "Instrument")),
+    enabled: instrumentId !== null && usable,
+    staleTime: state === "LIVE" || state === "STALE" ? 8_000 : 55_000,
+    refetchInterval:
+      state === "LIVE" || state === "STALE"
+        ? 10_000
+        : state === "CLOSED"
+          ? 60_000
+          : false,
+    retry: 1,
   });
 }
 

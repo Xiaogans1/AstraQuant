@@ -246,3 +246,53 @@ it("requests strict market bars for the selected period", async () => {
     }),
   );
 });
+
+it("requests the auditable realtime quant decision for an instrument", async () => {
+  const quantDecision = {
+    features: {
+      feature_snapshot_id: "feature-1",
+      status: "READY",
+      completed_bar_count: 30,
+      reason_codes: [],
+    },
+    signal: {
+      signal_id: "signal-1",
+      instrument_id: "159516.SZSE",
+      event_time: "2026-08-06T10:02:00+08:00",
+      decision_time: "2026-08-06T10:02:01+08:00",
+      expires_at: "2026-08-06T10:04:01+08:00",
+      action: "BUY",
+      state: "ACTIVE",
+      reference_price: "0.712",
+      confidence: "0.68",
+      strategy_id: "intraday-momentum-volume",
+      strategy_version: "baseline-v1",
+      feature_version: "realtime-v1",
+      reason_codes: ["MOMENTUM_UP", "VOLUME_EXPANSION"],
+    },
+    decision_record: {
+      decision_id: "decision-1",
+      feature_snapshot_id: "feature-1",
+      signal_id: "signal-1",
+      strategy_id: "intraday-momentum-volume",
+      strategy_version: "baseline-v1",
+      market_event_time: "2026-08-06T10:02:00+08:00",
+      decision_time: "2026-08-06T10:02:01+08:00",
+      advisory_checks: ["READ_ONLY_ADVISORY"],
+    },
+  };
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response(JSON.stringify(quantDecision), {
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+  const client = new ApiClient(connectionFixture, fetchMock);
+
+  await expect(client.getMarketSignal("159516.SZSE")).resolves.toEqual(quantDecision);
+  expect(fetchMock).toHaveBeenCalledWith(
+    "http://127.0.0.1:43127/v1/market/instruments/159516.SZSE/signal",
+    expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: "Bearer session-token" }),
+    }),
+  );
+});

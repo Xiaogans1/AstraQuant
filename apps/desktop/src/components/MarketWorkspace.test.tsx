@@ -10,13 +10,16 @@ vi.mock("./ProfessionalMarketChart", () => ({
   ProfessionalMarketChart: ({
     period,
     bars: chartBars,
+    signals,
   }: {
     period: string;
     bars: MarketBar[];
+    signals: Array<{ id: string; side: string }>;
   }) => (
     <div data-testid="professional-chart">
       <span>{period}</span>
       <span data-testid="chart-latest-close">{chartBars.at(-1)?.close}</span>
+      <span data-testid="chart-signals">{(signals ?? []).map((signal) => signal.id).join(",")}</span>
     </div>
   ),
 }));
@@ -55,6 +58,39 @@ const bars: MarketBar[] = [
 function renderWorkspace() {
   const client = {
     getMarketBars: vi.fn().mockResolvedValue(bars),
+    getMarketSignal: vi.fn().mockResolvedValue({
+      features: {
+        feature_snapshot_id: "feature-1",
+        status: "READY",
+        completed_bar_count: 30,
+        reason_codes: [],
+      },
+      signal: {
+        signal_id: "signal-1",
+        instrument_id: quote.instrument_id,
+        event_time: quote.event_time,
+        decision_time: quote.event_time,
+        expires_at: "2026-08-06T10:04:00+08:00",
+        action: "BUY",
+        state: "ACTIVE",
+        reference_price: quote.last_price,
+        confidence: "0.68",
+        strategy_id: "intraday-momentum-volume",
+        strategy_version: "baseline-v1",
+        feature_version: "realtime-v1",
+        reason_codes: ["MOMENTUM_UP", "VOLUME_EXPANSION"],
+      },
+      decision_record: {
+        decision_id: "decision-1",
+        feature_snapshot_id: "feature-1",
+        signal_id: "signal-1",
+        strategy_id: "intraday-momentum-volume",
+        strategy_version: "baseline-v1",
+        market_event_time: quote.event_time,
+        decision_time: quote.event_time,
+        advisory_checks: ["READ_ONLY_ADVISORY"],
+      },
+    }),
   } as unknown as ApiClient;
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -78,6 +114,9 @@ it("shows truthful broker-style quote stats and a full-width chart", async () =>
   expect(screen.getByText("15:00")).toBeVisible();
   expect(screen.getByTestId("chart-latest-close")).toHaveTextContent("0.712");
   expect(client.getMarketBars).toHaveBeenCalledWith("159516.SZSE", "intraday", 240);
+  expect(await screen.findByText("买入观察 · 68%")).toBeVisible();
+  expect(screen.getByTestId("chart-signals")).toHaveTextContent("signal-1");
+  expect(client.getMarketSignal).toHaveBeenCalledWith("159516.SZSE");
 });
 
 it("loads real daily bars and supports chart fullscreen", async () => {
@@ -123,6 +162,7 @@ it("keeps the last successful chart visible when a background refresh fails", as
 it("shows a full error only when no chart data has ever loaded", async () => {
   const client = {
     getMarketBars: vi.fn().mockRejectedValue(new Error("Eastmoney unavailable")),
+    getMarketSignal: vi.fn().mockRejectedValue(new Error("Eastmoney unavailable")),
   } as unknown as ApiClient;
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },

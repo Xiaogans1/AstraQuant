@@ -88,3 +88,43 @@ class MarketBarResponse(StrictModel):
     volume: float
     turnover: float
     previous_close: float | None
+
+
+class RealtimeFeatureResponse(StrictModel):
+    feature_snapshot_id: str
+    status: str
+    completed_bar_count: int
+    reason_codes: list[str]
+
+
+class SignalFrameResponse(StrictModel):
+    signal_id: str
+    instrument_id: str
+    event_time: datetime
+    decision_time: datetime
+    expires_at: datetime
+    action: str
+    state: str
+    reference_price: str | None
+    confidence: str
+    strategy_id: str
+    strategy_version: str
+    feature_version: str
+    reason_codes: list[str]
+
+
+class DecisionRecordResponse(StrictModel):
+    decision_id: str
+    feature_snapshot_id: str
+    signal_id: str
+    strategy_id: str
+    strategy_version: str
+    market_event_time: datetime
+    decision_time: datetime
+    advisory_checks: list[str]
+
+
+class RealtimeQuantResponse(StrictModel):
+    features: RealtimeFeatureResponse
+    signal: SignalFrameResponse
+    decision_record: DecisionRecordResponse

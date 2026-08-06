@@ -111,3 +111,46 @@ export interface MarketBar {
   turnover: number;
   previous_close: number | null;
 }
+
+export type SignalAction = "BUY" | "SELL" | "HOLD";
+export type SignalState = "ACTIVE" | "SUPPRESSED" | "WARMING_UP";
+
+export interface RealtimeFeatureStatus {
+  feature_snapshot_id: string;
+  status: "READY" | "WARMING_UP";
+  completed_bar_count: number;
+  reason_codes: string[];
+}
+
+export interface SignalFrame {
+  signal_id: string;
+  instrument_id: string;
+  event_time: string;
+  decision_time: string;
+  expires_at: string;
+  action: SignalAction;
+  state: SignalState;
+  reference_price: string | null;
+  confidence: string;
+  strategy_id: string;
+  strategy_version: string;
+  feature_version: string;
+  reason_codes: string[];
+}
+
+export interface DecisionRecord {
+  decision_id: string;
+  feature_snapshot_id: string;
+  signal_id: string;
+  strategy_id: string;
+  strategy_version: string;
+  market_event_time: string;
+  decision_time: string;
+  advisory_checks: string[];
+}
+
+export interface RealtimeQuantDecision {
+  features: RealtimeFeatureStatus;
+  signal: SignalFrame;
+  decision_record: DecisionRecord;
+}

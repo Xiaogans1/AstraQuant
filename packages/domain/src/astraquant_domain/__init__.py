@@ -15,12 +15,19 @@ from astraquant_domain.orders import (
     TimeInForce,
     transition_order,
 )
+from astraquant_domain.signals import (
+    DecisionRecord,
+    SignalAction,
+    SignalFrame,
+    SignalState,
+)
 
 __all__ = [
     "Adjustment",
     "Bar",
     "BarFrequency",
     "Clock",
+    "DecisionRecord",
     "Environment",
     "EventEnvelope",
     "FeatureFrame",
@@ -34,6 +41,9 @@ __all__ = [
     "OrderStatus",
     "OrderType",
     "QuoteLevel",
+    "SignalAction",
+    "SignalFrame",
+    "SignalState",
     "SystemClock",
     "Tick",
     "TimeInForce",

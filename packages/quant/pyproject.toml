@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astraquant-quant"
+version = "0.1.0"
+description = "Deterministic realtime features and advisory signals for AstraQuant."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "astraquant-data",
+  "astraquant-domain",
+]
+
+[tool.uv.sources]
+astraquant-data = { workspace = true }
+astraquant-domain = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astraquant_quant"]

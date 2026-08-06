@@ -139,6 +139,7 @@ def test_every_market_route_requires_local_authentication(client: TestClient) ->
         ("GET", "/v1/market/instruments/search?q=510300"),
         ("GET", "/v1/market/instruments/000001.SSE/intraday"),
         ("GET", "/v1/market/instruments/000001.SSE/bars?period=5m"),
+        ("GET", "/v1/market/instruments/000001.SSE/signal"),
         ("POST", "/v1/market/watchlist"),
         ("DELETE", "/v1/market/watchlist/600000.SSE"),
     ]
@@ -307,3 +308,26 @@ def test_period_bars_are_strict_and_validate_query_values(auth_client: TestClien
         auth_client.get("/v1/market/instruments/159516.SZSE/bars?period=1d&count=5001").status_code
         == 422
     )
+
+
+def test_realtime_signal_route_returns_auditable_suppressed_decision(
+    auth_client: TestClient,
+) -> None:
+    response = auth_client.get("/v1/market/instruments/159516.SZSE/signal")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["features"]["feature_snapshot_id"].startswith("feature-")
+    assert body["features"]["status"] in {"READY", "WARMING_UP"}
+    assert body["signal"]["signal_id"].startswith("signal-")
+    assert body["signal"]["state"] == "SUPPRESSED"
+    assert body["signal"]["action"] == "HOLD"
+    assert body["signal"]["strategy_id"] == "intraday-momentum-volume"
+    assert body["signal"]["strategy_version"] == "baseline-v1"
+    assert body["decision_record"]["decision_id"].startswith("decision-")
+    assert (
+        body["decision_record"]["feature_snapshot_id"]
+        == body["features"]["feature_snapshot_id"]
+    )
+    assert "MARKET_NOT_LIVE" in body["decision_record"]["advisory_checks"]
+    assert "token" not in json.dumps(body).lower()

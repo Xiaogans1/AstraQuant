@@ -5,9 +5,11 @@ import type {
   ConnectionState,
   MarketPeriod,
   QuoteCard,
+  RealtimeQuantDecision,
 } from "../api/market-contracts";
-import { useMarketBarsQuery } from "../api/queries";
+import { useMarketBarsQuery, useMarketSignalQuery } from "../api/queries";
 import { mergeLiveQuoteIntoIntradayBars } from "../features/market/liveIntraday";
+import type { MarketSignalMarker } from "../features/market/marketSignalOverlay";
 import {
   MarketChartToolbar,
   type MarketIndicator,
@@ -25,6 +27,11 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
   const [indicator, setIndicator] = useState<MarketIndicator>("MA");
   const [fullscreen, setFullscreen] = useState(false);
   const barsQuery = useMarketBarsQuery(client, quote.instrument_id, period, state);
+  const signalQuery = useMarketSignalQuery(
+    client,
+    quote.instrument_id,
+    state,
+  );
   const chartBars = useMemo(() => {
     const authoritativeBars = barsQuery.data ?? [];
     return period === "intraday"
@@ -32,6 +39,13 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
       : authoritativeBars;
   }, [barsQuery.data, period, quote]);
   const hasBars = chartBars.length > 0;
+  const signalMarkers = useMemo(
+    () =>
+      period === "intraday" || period === "1m"
+        ? toSignalMarkers(signalQuery.data)
+        : [],
+    [period, signalQuery.data],
+  );
 
   useEffect(() => {
     const exitFullscreen = (event: KeyboardEvent) => {
@@ -79,6 +93,8 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
         onToggleFullscreen={() => setFullscreen((value) => !value)}
       />
 
+      <QuantSignalStatus decision={signalQuery.data} loading={signalQuery.isLoading} />
+
       <div className="market-workspace__canvas">
         {hasBars ? (
           <ProfessionalMarketChart
@@ -86,6 +102,7 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
             period={period}
             indicator={indicator}
             bars={chartBars}
+            signals={signalMarkers}
           />
         ) : barsQuery.isLoading ? (
           <div className="market-chart-state"><strong>正在读取真实行情</strong><p>从东财加载{periodLabel(period)}数据…</p></div>
@@ -109,10 +126,94 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
       <footer className="market-workspace__footer">
         <span>数据源：东财掘金只读行情</span>
         <span>{quote.event_time ? `快照：${formatTime(quote.event_time)}` : "尚无真实快照"}</span>
-        <span>量化买卖点图层：等待策略引擎真实输出</span>
+        <span>{quantAuditText(signalQuery.data)}</span>
       </footer>
     </section>
   );
+}
+
+function QuantSignalStatus({
+  decision,
+  loading,
+}: {
+  decision: RealtimeQuantDecision | undefined;
+  loading: boolean;
+}) {
+  if (decision === undefined) {
+    return (
+      <div className="market-quant-status" data-state="IDLE">
+        <span>QUANT / REALTIME</span>
+        <strong>{loading ? "实时量化核心计算中" : "实时量化核心等待行情"}</strong>
+      </div>
+    );
+  }
+  const { signal, features } = decision;
+  const stateLabel =
+    signal.state === "WARMING_UP"
+      ? `预热中 · ${features.completed_bar_count}/20 根完成分钟`
+      : signal.state === "SUPPRESSED"
+        ? `信号已抑制 · ${reasonText(signal.reason_codes[0])}`
+        : signal.action === "BUY"
+          ? `买入观察 · ${formatConfidence(signal.confidence)}`
+          : signal.action === "SELL"
+            ? `卖出/回避观察 · ${formatConfidence(signal.confidence)}`
+            : "继续观察 · 暂无明确买卖点";
+  return (
+    <div className="market-quant-status" data-state={signal.state} data-action={signal.action}>
+      <span>QUANT / {signal.strategy_version}</span>
+      <strong>{stateLabel}</strong>
+      <small>{signal.reason_codes.map(reasonText).join(" · ")}</small>
+    </div>
+  );
+}
+
+function toSignalMarkers(
+  decision: RealtimeQuantDecision | undefined,
+): MarketSignalMarker[] {
+  const signal = decision?.signal;
+  if (
+    signal === undefined
+    || signal.state !== "ACTIVE"
+    || (signal.action !== "BUY" && signal.action !== "SELL")
+    || signal.reference_price === null
+  ) {
+    return [];
+  }
+  const timestamp = Date.parse(signal.event_time);
+  const price = Number(signal.reference_price);
+  if (!Number.isFinite(timestamp) || !Number.isFinite(price)) return [];
+  return [{
+    id: signal.signal_id,
+    timestamp,
+    side: signal.action,
+    price,
+    label: signal.reason_codes.map(reasonText).join(" · "),
+    source: "QUANT",
+  }];
+}
+
+function quantAuditText(decision: RealtimeQuantDecision | undefined): string {
+  if (decision === undefined) return "量化决策：等待真实特征快照";
+  return `决策留痕：${decision.decision_record.decision_id.slice(0, 12)} · ${decision.signal.strategy_version}`;
+}
+
+function formatConfidence(value: string): string {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${Math.round(numeric * 100)}%` : value;
+}
+
+function reasonText(code: string | undefined): string {
+  if (code === undefined) return "等待原因";
+  const labels: Record<string, string> = {
+    MOMENTUM_UP: "短线动量向上",
+    MOMENTUM_DOWN: "短线动量向下",
+    VOLUME_EXPANSION: "成交量放大",
+    MARKET_NOT_LIVE: "行情非实时",
+    STALE_MARKET_DATA: "行情数据过期",
+    INSUFFICIENT_COMPLETED_BARS: "完成分钟不足",
+    NO_ACTIONABLE_SETUP: "未形成有效组合",
+  };
+  return labels[code] ?? code;
 }
 
 function QuoteStat({ label, value }: { label: string; value: string }) {

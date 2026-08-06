@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   dispose,
   init,
+  registerOverlay,
   type Chart,
   type Crosshair,
+  type OverlayTemplate,
   type Period,
   type Point,
 } from "klinecharts";
@@ -16,12 +18,60 @@ import {
 } from "../features/market/crosshairQuote";
 import { normalizeMarketBars } from "../features/market/marketChartData";
 import { marketChartTheme } from "../features/market/marketChartTheme";
+import {
+  toSignalOverlays,
+  type MarketSignalMarker,
+  type MarketSignalOverlay,
+} from "../features/market/marketSignalOverlay";
+
+const QUANT_SIGNAL_GROUP_ID = "astraquant-quant-signals";
+
+const quantSignalOverlay: OverlayTemplate<MarketSignalOverlay> = {
+  name: "astraquantSignal",
+  totalStep: 2,
+  lock: true,
+  needDefaultPointFigure: false,
+  needDefaultXAxisFigure: false,
+  needDefaultYAxisFigure: false,
+  createPointFigures: ({ overlay, coordinates }) => {
+    const point = coordinates[0];
+    if (point === undefined) return [];
+    const signal = overlay.extendData;
+    const color = signal.side === "BUY" ? "#ef5b5b" : "#21ad76";
+    const y = point.y + (signal.side === "BUY" ? 22 : -22);
+    return [
+      {
+        type: "circle",
+        attrs: { x: point.x, y, r: 11 },
+        styles: { style: "fill", color },
+        ignoreEvent: true,
+      },
+      {
+        type: "text",
+        attrs: {
+          x: point.x,
+          y,
+          text: signal.tag,
+          align: "center",
+          baseline: "middle",
+        },
+        styles: {
+          color: "#ffffff",
+          size: 11,
+          weight: "bold",
+        },
+        ignoreEvent: true,
+      },
+    ];
+  },
+};
 
 interface ProfessionalMarketChartProps {
   instrumentId: string;
   period: MarketPeriod;
   indicator: MarketIndicator;
   bars: MarketBar[];
+  signals?: MarketSignalMarker[];
 }
 
 export function ProfessionalMarketChart({
@@ -29,6 +79,7 @@ export function ProfessionalMarketChart({
   period,
   indicator,
   bars,
+  signals = [],
 }: ProfessionalMarketChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart | null>(null);
@@ -53,6 +104,7 @@ export function ProfessionalMarketChart({
       styles: marketChartTheme,
     });
     if (chart === null) return;
+    registerOverlay(quantSignalOverlay);
     chartRef.current = chart;
     chart.setTimezone("Asia/Shanghai");
     const handleCrosshairChange = (value?: unknown) => {
@@ -144,6 +196,22 @@ export function ProfessionalMarketChart({
     }
     chart.createIndicator("VOL", false);
   }, [indicator, period]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (chart === null) return;
+    chart.removeOverlay({ groupId: QUANT_SIGNAL_GROUP_ID });
+    for (const signal of toSignalOverlays(signals)) {
+      chart.createOverlay({
+        name: quantSignalOverlay.name,
+        groupId: QUANT_SIGNAL_GROUP_ID,
+        paneId: "candle_pane",
+        lock: true,
+        points: [{ timestamp: signal.timestamp, value: signal.price }],
+        extendData: signal,
+      });
+    }
+  }, [signals]);
 
   return (
     <div
