@@ -4,12 +4,18 @@ import userEvent from "@testing-library/user-event";
 
 import type { ApiClient } from "../api/client";
 import type {
-  IntradayBar,
+  MarketBar,
   MarketConnection,
   MarketHome,
   QuoteCard,
 } from "../api/market-contracts";
 import { OverviewPage } from "./OverviewPage";
+
+vi.mock("../components/ProfessionalMarketChart", () => ({
+  ProfessionalMarketChart: ({ period }: { period: string }) => (
+    <div role="img" aria-label={`专业${period}行情图`} />
+  ),
+}));
 
 const baseConnection: MarketConnection = {
   provider_id: "eastmoney",
@@ -82,12 +88,12 @@ function homeFixture(
 function renderMarketHome(
   home: MarketHome,
   connection = home.connection,
-  intraday: IntradayBar[] = [],
+  bars: MarketBar[] = [],
 ) {
   const client = {
     getMarketConnection: vi.fn().mockResolvedValue(connection),
     getMarketHome: vi.fn().mockResolvedValue(home),
-    getMarketIntraday: vi.fn().mockResolvedValue(intraday),
+    getMarketBars: vi.fn().mockResolvedValue(bars),
     searchMarketInstruments: vi.fn().mockResolvedValue([]),
     addWatchlistInstrument: vi.fn().mockResolvedValue(home),
     removeWatchlistInstrument: vi.fn().mockResolvedValue(home),
@@ -177,13 +183,13 @@ it("explains closed markets and empty quant candidates honestly", async () => {
   expect(screen.getByText("量化候选将在实时策略链路接入后生成")).toBeVisible();
 });
 
-it("loads and plots real intraday history after the market closes", async () => {
+it("loads real intraday history into the professional chart after the market closes", async () => {
   const connection = { ...baseConnection, state: "CLOSED" as const };
   const selected = quote("600000.SSE", "浦发银行", "9.26");
-  const bars: IntradayBar[] = [
-    { bob: "2026-08-05T09:30:00+08:00", close: 9.35, volume: 1000 },
-    { bob: "2026-08-05T11:30:00+08:00", close: 9.2, volume: 1600 },
-    { bob: "2026-08-05T15:00:00+08:00", close: 9.26, volume: 2200 },
+  const bars: MarketBar[] = [
+    { timestamp: "2026-08-05T09:30:00+08:00", open: 9.3, high: 9.4, low: 9.2, close: 9.35, volume: 1000, turnover: 9350, previous_close: 9.2 },
+    { timestamp: "2026-08-05T11:30:00+08:00", open: 9.35, high: 9.4, low: 9.1, close: 9.2, volume: 1600, turnover: 14720, previous_close: 9.2 },
+    { timestamp: "2026-08-05T15:00:00+08:00", open: 9.2, high: 9.3, low: 9.1, close: 9.26, volume: 2200, turnover: 20372, previous_close: 9.2 },
   ];
   const client = renderMarketHome(
     homeFixture({ connection, watchlist: [selected], selected_instrument: selected }),
@@ -191,9 +197,9 @@ it("loads and plots real intraday history after the market closes", async () => 
     bars,
   );
 
-  expect(await screen.findByRole("img", { name: "浦发银行当日分时价格走势" })).toBeVisible();
-  expect(screen.getByText("3 条真实分钟线")).toBeVisible();
-  expect(client.getMarketIntraday).toHaveBeenCalledWith("600000.SSE");
+  expect(await screen.findByRole("img", { name: "专业intraday行情图" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "日K" })).toBeVisible();
+  expect(client.getMarketBars).toHaveBeenCalledWith("600000.SSE", "intraday", 240);
 });
 
 it("keeps six named index slots without inventing values when the API fails", async () => {
