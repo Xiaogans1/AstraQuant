@@ -133,6 +133,7 @@ export function useMarketSignalQuery(
           ? 60_000
           : false,
     retry: 1,
+    retryDelay: 250,
   });
 }
 
