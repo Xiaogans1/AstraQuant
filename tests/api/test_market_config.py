@@ -52,6 +52,33 @@ def test_missing_sdk_path_resolves_to_none(tmp_path: Path) -> None:
     assert load_eastmoney_runtime_config(settings, environ={}).sdk_python is None
 
 
+def test_fresh_runtime_config_uses_one_second_quote_polling() -> None:
+    config = load_eastmoney_runtime_config(MemorySettings(), environ={})
+
+    assert config.poll_interval_seconds == 1.0
+
+
+def test_legacy_runtime_config_migrates_the_old_default_poll_interval() -> None:
+    settings = MemorySettings({"poll_interval_seconds": 3.0})
+
+    config = load_eastmoney_runtime_config(settings, environ={})
+
+    assert config.poll_interval_seconds == 1.0
+
+
+def test_versioned_runtime_config_preserves_an_explicit_poll_interval() -> None:
+    settings = MemorySettings(
+        {
+            "schema_version": 2,
+            "poll_interval_seconds": 2.0,
+        }
+    )
+
+    config = load_eastmoney_runtime_config(settings, environ={})
+
+    assert config.poll_interval_seconds == 2.0
+
+
 def test_runtime_config_rejects_a_subsecond_poll_interval() -> None:
     with pytest.raises(ValueError):
         EastmoneyRuntimeConfig(sdk_python=None, poll_interval_seconds=0.9)
@@ -80,8 +107,9 @@ def test_save_persists_only_non_secret_configuration(tmp_path: Path) -> None:
     save_eastmoney_runtime_config(settings, config)
 
     assert settings.value == {
+        "schema_version": 2,
         "sdk_python_path": str(sdk_python.resolve()),
-        "poll_interval_seconds": 3.0,
+        "poll_interval_seconds": 1.0,
         "stale_after_seconds": 10.0,
         "request_timeout_seconds": 8.0,
         "maximum_instruments": 50,

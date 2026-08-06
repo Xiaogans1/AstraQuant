@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Protocol
 
 _SETTING_KEY = "market.eastmoney"
+_SCHEMA_VERSION = 2
 
 
 class SettingsStore(Protocol):
@@ -20,7 +21,7 @@ class SettingsStore(Protocol):
 @dataclass(frozen=True, slots=True)
 class EastmoneyRuntimeConfig:
     sdk_python: Path | None
-    poll_interval_seconds: float = 3.0
+    poll_interval_seconds: float = 1.0
     stale_after_seconds: float = 10.0
     request_timeout_seconds: float = 8.0
     maximum_instruments: int = 50
@@ -53,12 +54,17 @@ def load_eastmoney_runtime_config(
     environment = os.environ if environ is None else environ
     stored = settings.get_setting(_SETTING_KEY)
     stored_values = stored if isinstance(stored, dict) else {}
+    schema_version = int(stored_values.get("schema_version", 1))
     sdk_python = _existing_file(environment.get("ASTRAQUANT_EASTMONEY_PYTHON"))
     if sdk_python is None:
         sdk_python = _existing_file(stored_values.get("sdk_python_path"))
     return EastmoneyRuntimeConfig(
         sdk_python=sdk_python,
-        poll_interval_seconds=float(stored_values.get("poll_interval_seconds", 3.0)),
+        poll_interval_seconds=(
+            float(stored_values.get("poll_interval_seconds", 1.0))
+            if schema_version >= _SCHEMA_VERSION
+            else 1.0
+        ),
         stale_after_seconds=float(stored_values.get("stale_after_seconds", 10.0)),
         request_timeout_seconds=float(stored_values.get("request_timeout_seconds", 8.0)),
         maximum_instruments=int(stored_values.get("maximum_instruments", 50)),
@@ -72,6 +78,7 @@ def save_eastmoney_runtime_config(
     settings.set_setting(
         _SETTING_KEY,
         {
+            "schema_version": _SCHEMA_VERSION,
             "sdk_python_path": None if config.sdk_python is None else str(config.sdk_python),
             "poll_interval_seconds": config.poll_interval_seconds,
             "stale_after_seconds": config.stale_after_seconds,
