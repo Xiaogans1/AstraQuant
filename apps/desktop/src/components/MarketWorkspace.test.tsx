@@ -9,17 +9,26 @@ import { MarketWorkspace } from "./MarketWorkspace";
 vi.mock("./ProfessionalMarketChart", () => ({
   ProfessionalMarketChart: ({
     period,
+    mainIndicator,
+    secondaryIndicator,
+    showQuantSignals,
     bars: chartBars,
     signals,
     onCrosshairBarChange,
   }: {
     period: string;
+    mainIndicator: string;
+    secondaryIndicator: string;
+    showQuantSignals: boolean;
     bars: MarketBar[];
     signals: Array<{ id: string; side: string }>;
     onCrosshairBarChange?: (bar: MarketBar | null) => void;
   }) => (
     <div data-testid="professional-chart">
       <span>{period}</span>
+      <span data-testid="chart-main-indicator">{mainIndicator}</span>
+      <span data-testid="chart-secondary-indicator">{secondaryIndicator}</span>
+      <span data-testid="chart-quant-visible">{String(showQuantSignals)}</span>
       <span data-testid="chart-latest-close">{chartBars.at(-1)?.close}</span>
       <span data-testid="chart-signals">{(signals ?? []).map((signal) => signal.id).join(",")}</span>
       <button
@@ -100,7 +109,7 @@ function renderWorkspace() {
         strategy_id: "intraday-momentum-volume",
         strategy_version: "baseline-v1",
         feature_version: "realtime-v1",
-        reason_codes: ["MOMENTUM_UP", "VOLUME_EXPANSION"],
+        reason_codes: ["MOMENTUM_VOLUME_BREAKOUT"],
       },
       decision_record: {
         decision_id: "decision-1",
@@ -129,6 +138,8 @@ it("shows truthful broker-style quote stats and a full-width chart", async () =>
   const client = renderWorkspace();
 
   expect(await screen.findByTestId("professional-chart")).toHaveTextContent("intraday");
+  expect(screen.getByTestId("chart-main-indicator")).toHaveTextContent("AVG");
+  expect(screen.getByTestId("chart-secondary-indicator")).toHaveTextContent("VOL");
   expect(screen.getAllByText("0.712")[0]).toBeVisible();
   expect(screen.getByText("+1.57%")).toBeVisible();
   expect(screen.getByText("0.701")).toBeVisible();
@@ -147,13 +158,44 @@ it("loads real daily bars and supports chart fullscreen", async () => {
 
   await user.click(await screen.findByRole("button", { name: "日K" }));
   expect(await screen.findByTestId("professional-chart")).toHaveTextContent("1d");
+  expect(screen.getByTestId("chart-main-indicator")).toHaveTextContent("MA");
   expect(screen.getByTestId("chart-latest-close")).toHaveTextContent("0.685");
   expect(client.getMarketBars).toHaveBeenCalledWith("159516.SZSE", "1d", 500);
+
+  await user.click(screen.getByRole("button", { name: "主图：MA" }));
+  await user.click(screen.getByRole("menuitem", { name: "BOLL" }));
+  expect(screen.getByTestId("chart-main-indicator")).toHaveTextContent("BOLL");
+
+  await user.click(screen.getByRole("button", { name: "副图：VOL" }));
+  await user.click(screen.getByRole("menuitem", { name: "MACD" }));
+  expect(screen.getByTestId("chart-secondary-indicator")).toHaveTextContent("MACD");
+
+  await user.click(screen.getByRole("button", { name: "量化图层" }));
+  expect(screen.getByTestId("chart-quant-visible")).toHaveTextContent("false");
 
   await user.click(screen.getByRole("button", { name: "进入图表全屏" }));
   expect(screen.getByTestId("market-workspace")).toHaveAttribute("data-fullscreen", "true");
   await user.keyboard("{Escape}");
   expect(screen.getByTestId("market-workspace")).toHaveAttribute("data-fullscreen", "false");
+});
+
+it("shows an honest quant error while keeping successful market bars visible", async () => {
+  const client = {
+    getMarketBars: vi.fn().mockResolvedValue(bars),
+    getMarketSignal: vi.fn().mockRejectedValue(new Error("signal route failed")),
+  } as unknown as ApiClient;
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MarketWorkspace client={client} quote={quote} state="LIVE" />
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByTestId("professional-chart")).toBeVisible();
+  expect(await screen.findByText("量化服务暂不可用")).toBeVisible();
+  expect(screen.getByText("行情图仍可正常使用")).toBeVisible();
 });
 
 it("updates the main quote from the crosshair bar and restores realtime quote on leave", async () => {

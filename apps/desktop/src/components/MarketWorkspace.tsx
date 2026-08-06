@@ -13,7 +13,8 @@ import { mergeLiveQuoteIntoIntradayBars } from "../features/market/liveIntraday"
 import type { MarketSignalMarker } from "../features/market/marketSignalOverlay";
 import {
   MarketChartToolbar,
-  type MarketIndicator,
+  type MainChartIndicator,
+  type SecondaryChartIndicator,
 } from "./MarketChartToolbar";
 import { ProfessionalMarketChart } from "./ProfessionalMarketChart";
 
@@ -25,7 +26,13 @@ interface MarketWorkspaceProps {
 
 export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) {
   const [period, setPeriod] = useState<MarketPeriod>("intraday");
-  const [indicator, setIndicator] = useState<MarketIndicator>("MA");
+  const [intradayMainIndicator, setIntradayMainIndicator] =
+    useState<MainChartIndicator>("AVG");
+  const [candleMainIndicator, setCandleMainIndicator] =
+    useState<MainChartIndicator>("MA");
+  const [secondaryIndicator, setSecondaryIndicator] =
+    useState<SecondaryChartIndicator>("VOL");
+  const [showQuantSignals, setShowQuantSignals] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [crosshairBar, setCrosshairBar] = useState<MarketBar | null>(null);
   const barsQuery = useMarketBarsQuery(client, quote.instrument_id, period, state);
@@ -52,6 +59,10 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
     quote.change_percent,
     quote.previous_close,
   );
+  const mainIndicator =
+    period === "intraday" ? intradayMainIndicator : candleMainIndicator;
+  const setMainIndicator =
+    period === "intraday" ? setIntradayMainIndicator : setCandleMainIndicator;
   const signalMarkers = useMemo(
     () =>
       period === "intraday" || period === "1m"
@@ -103,21 +114,31 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
 
       <MarketChartToolbar
         period={period}
-        indicator={indicator}
+        mainIndicator={mainIndicator}
+        secondaryIndicator={secondaryIndicator}
+        showQuantSignals={showQuantSignals}
         fullscreen={fullscreen}
         onPeriodChange={setPeriod}
-        onIndicatorChange={setIndicator}
+        onMainIndicatorChange={setMainIndicator}
+        onSecondaryIndicatorChange={setSecondaryIndicator}
+        onToggleQuantSignals={() => setShowQuantSignals((value) => !value)}
         onToggleFullscreen={() => setFullscreen((value) => !value)}
       />
 
-      <QuantSignalStatus decision={signalQuery.data} loading={signalQuery.isLoading} />
+      <QuantSignalStatus
+        decision={signalQuery.data}
+        loading={signalQuery.isLoading}
+        error={signalQuery.isError}
+      />
 
       <div className="market-workspace__canvas">
         {hasBars ? (
           <ProfessionalMarketChart
             instrumentId={quote.instrument_id}
             period={period}
-            indicator={indicator}
+            mainIndicator={mainIndicator}
+            secondaryIndicator={secondaryIndicator}
+            showQuantSignals={showQuantSignals}
             bars={chartBars}
             signals={signalMarkers}
             onCrosshairBarChange={setCrosshairBar}
@@ -153,10 +174,21 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
 function QuantSignalStatus({
   decision,
   loading,
+  error,
 }: {
   decision: RealtimeQuantDecision | undefined;
   loading: boolean;
+  error: boolean;
 }) {
+  if (error && decision === undefined) {
+    return (
+      <div className="market-quant-status" data-state="ERROR">
+        <span>QUANT / REALTIME</span>
+        <strong>量化服务暂不可用</strong>
+        <small>行情图仍可正常使用</small>
+      </div>
+    );
+  }
   if (decision === undefined) {
     return (
       <div className="market-quant-status" data-state="IDLE">
@@ -223,13 +255,13 @@ function formatConfidence(value: string): string {
 function reasonText(code: string | undefined): string {
   if (code === undefined) return "等待原因";
   const labels: Record<string, string> = {
-    MOMENTUM_UP: "短线动量向上",
-    MOMENTUM_DOWN: "短线动量向下",
-    VOLUME_EXPANSION: "成交量放大",
+    FEATURES_READY: "实时特征已就绪",
+    MOMENTUM_VOLUME_BREAKOUT: "动量、均线与成交量条件成立",
+    DOWNTREND_EXIT: "短线趋势转弱",
+    NO_CONFIRMED_EDGE: "未形成可确认优势",
     MARKET_NOT_LIVE: "行情非实时",
-    STALE_MARKET_DATA: "行情数据过期",
+    MARKET_DATA_STALE: "行情数据过期",
     INSUFFICIENT_COMPLETED_BARS: "完成分钟不足",
-    NO_ACTIONABLE_SETUP: "未形成有效组合",
   };
   return labels[code] ?? code;
 }

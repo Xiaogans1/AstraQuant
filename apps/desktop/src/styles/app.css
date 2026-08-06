@@ -2113,6 +2113,7 @@ code {
 .market-chart-toolbar__secondary {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
@@ -2202,6 +2203,15 @@ code {
 
 .market-quant-status[data-action="SELL"] > strong {
   color: var(--success);
+}
+
+.market-quant-status[data-state="ERROR"] {
+  background: color-mix(in srgb, var(--warning) 8%, var(--panel));
+}
+
+.market-quant-status[data-state="ERROR"] > span,
+.market-quant-status[data-state="ERROR"] > strong {
+  color: var(--warning);
 }
 
 .market-workspace__canvas {
