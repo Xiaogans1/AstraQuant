@@ -115,11 +115,25 @@ class EastmoneyBridgeClient:
     def current(self, symbols: Sequence[str]) -> list[dict[str, Any]]:
         return self._list_result(self._request("current", {"symbols": list(symbols)}))
 
-    def history_n(self, *, symbol: str, frequency: str, count: int) -> list[dict[str, Any]]:
+    def history_n(
+        self,
+        *,
+        symbol: str,
+        frequency: str,
+        count: int,
+        adjust: int = 0,
+    ) -> list[dict[str, Any]]:
+        if adjust not in (0, 1, 2):
+            raise ValueError("adjust must be 0, 1 or 2")
         return self._list_result(
             self._request(
                 "history_n",
-                {"symbol": symbol, "frequency": frequency, "count": count},
+                {
+                    "symbol": symbol,
+                    "frequency": frequency,
+                    "count": count,
+                    "adjust": adjust,
+                },
             )
         )
 

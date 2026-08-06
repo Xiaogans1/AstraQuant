@@ -42,6 +42,26 @@ def test_bridge_client_correlates_monotonic_request_ids() -> None:
         assert client.last_request_id == 2
 
 
+def test_bridge_client_forwards_explicit_price_adjustment() -> None:
+    client = make_client()
+    with client:
+        rows = client.history_n(
+            symbol="SZSE.159516",
+            frequency="1d",
+            count=300,
+            adjust=1,
+        )
+
+    assert rows == [
+        {
+            "symbol": "SZSE.159516",
+            "frequency": "1d",
+            "count": 300,
+            "adjust": 1,
+        }
+    ]
+
+
 @pytest.mark.parametrize(
     ("symbol", "error_type"),
     [

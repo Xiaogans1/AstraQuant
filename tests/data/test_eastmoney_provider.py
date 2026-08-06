@@ -156,6 +156,7 @@ def test_bars_maps_direct_periods_to_eastmoney(
         "symbol": "SHSE.000001",
         "frequency": frequency,
         "count": 20,
+        "adjust": 1,
     }
 
 
@@ -180,6 +181,7 @@ def test_bars_aggregates_higher_periods_from_daily_data(
         "symbol": "SHSE.000001",
         "frequency": "1d",
         "count": daily_count,
+        "adjust": 1,
     }
 
 

@@ -43,4 +43,7 @@ for line in sys.stdin:
             }
         )
         continue
+    if method == "history_n":
+        respond({"id": request_id, "ok": True, "result": [params]})
+        continue
     respond({"id": request_id, "ok": True, "result": params})

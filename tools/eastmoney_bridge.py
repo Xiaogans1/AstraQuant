@@ -49,10 +49,14 @@ def invoke(method: str, params: dict[str, Any]) -> Any:
         if method == "current":
             return gm.current(symbols=params["symbols"])
         if method == "history_n":
+            adjust = int(params.get("adjust", gm.ADJUST_NONE))
+            if adjust not in (gm.ADJUST_NONE, gm.ADJUST_PREV, gm.ADJUST_POST):
+                raise ValueError("unsupported_adjustment")
             return gm.history_n(
                 symbol=params["symbol"],
                 frequency=params["frequency"],
                 count=params["count"],
+                adjust=adjust,
                 df=True,
             )
         if method == "search_symbols":

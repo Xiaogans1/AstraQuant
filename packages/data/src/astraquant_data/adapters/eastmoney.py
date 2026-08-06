@@ -49,6 +49,7 @@ class EastmoneyClient(Protocol):
         symbol: str,
         frequency: str,
         count: int,
+        adjust: int = 0,
     ) -> list[dict[str, Any]]: ...
 
     def search_symbols(self, query: str) -> list[dict[str, Any]]: ...
@@ -158,6 +159,7 @@ class EastmoneyProvider:
                 symbol=to_eastmoney_symbol(instrument_id),
                 frequency=frequency,
                 count=bounded_count,
+                adjust=1,
             )
             return normalize_market_bars(rows)
         multiplier = _DAILY_AGGREGATION_MULTIPLIERS.get(period)
@@ -167,6 +169,7 @@ class EastmoneyProvider:
             symbol=to_eastmoney_symbol(instrument_id),
             frequency="1d",
             count=min(bounded_count * multiplier, 33_000),
+            adjust=1,
         )
         return aggregate_daily_bars(normalize_market_bars(rows), period)[-bounded_count:]
 
