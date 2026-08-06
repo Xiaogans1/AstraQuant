@@ -1,0 +1,108 @@
+import { render } from "@testing-library/react";
+import type { DataLoaderGetBarsParams } from "klinecharts";
+
+import type { MarketBar } from "../api/market-contracts";
+import { ProfessionalMarketChart } from "./ProfessionalMarketChart";
+
+const { chart, dispose, init } = vi.hoisted(() => {
+  const chart = {
+    setTimezone: vi.fn(),
+    setSymbol: vi.fn(),
+    setPeriod: vi.fn(),
+    setStyles: vi.fn(),
+    setDataLoader: vi.fn(),
+    resetData: vi.fn(),
+    removeIndicator: vi.fn(),
+    createIndicator: vi.fn(),
+    setRightMinVisibleBarCount: vi.fn(),
+    setBarSpace: vi.fn(),
+    resize: vi.fn(),
+  };
+  return { chart, dispose: vi.fn(), init: vi.fn(() => chart) };
+});
+
+vi.mock("klinecharts", () => ({ init, dispose }));
+
+class ResizeObserverMock {
+  observe = vi.fn();
+  disconnect = vi.fn();
+  constructor(_callback: ResizeObserverCallback) {}
+}
+
+const bars: MarketBar[] = [
+  {
+    timestamp: "2026-08-06T09:30:00+08:00",
+    open: 0.7,
+    high: 0.71,
+    low: 0.69,
+    close: 0.705,
+    volume: 100,
+    turnover: 70.5,
+    previous_close: 0.698,
+  },
+];
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+it("loads real bars into a Shanghai-time intraday area chart", () => {
+  render(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="intraday"
+      indicator="MA"
+      bars={bars}
+    />,
+  );
+
+  expect(init).toHaveBeenCalledOnce();
+  expect(chart.setTimezone).toHaveBeenCalledWith("Asia/Shanghai");
+  expect(chart.setSymbol).toHaveBeenCalledWith(
+    expect.objectContaining({ ticker: "159516.SZSE" }),
+  );
+  expect(chart.setPeriod).toHaveBeenCalledWith({ type: "minute", span: 1 });
+  expect(chart.setStyles).toHaveBeenCalledWith(
+    expect.objectContaining({ candle: expect.objectContaining({ type: "area" }) }),
+  );
+  expect(chart.setRightMinVisibleBarCount).toHaveBeenCalledWith(239);
+
+  const loader = chart.setDataLoader.mock.calls.at(-1)?.[0];
+  const callback = vi.fn();
+  loader.getBars({ callback } as unknown as DataLoaderGetBarsParams);
+  expect(callback).toHaveBeenCalledWith([
+    expect.objectContaining({ timestamp: Date.parse(bars[0]!.timestamp), close: 0.705 }),
+  ], { backward: false, forward: false });
+});
+
+it("switches to candles and releases the chart on unmount", () => {
+  const { rerender, unmount } = render(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="intraday"
+      indicator="MA"
+      bars={bars}
+    />,
+  );
+
+  rerender(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="1d"
+      indicator="MACD"
+      bars={bars}
+    />,
+  );
+
+  expect(chart.setPeriod).toHaveBeenLastCalledWith({ type: "day", span: 1 });
+  expect(chart.setStyles).toHaveBeenLastCalledWith(
+    expect.objectContaining({ candle: expect.objectContaining({ type: "candle_solid" }) }),
+  );
+  expect(chart.createIndicator).toHaveBeenCalledWith("MACD", false);
+
+  unmount();
+  expect(dispose).toHaveBeenCalled();
+});
