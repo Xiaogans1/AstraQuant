@@ -207,8 +207,10 @@ def _quote_card(item: MarketItemSnapshot, state: str) -> QuoteCardResponse:
         state=state,
         event_time=None if quote is None else quote.event_time,
         last_price=None if quote is None else str(quote.last_price),
-        change=None if quote is None else str(quote.change),
-        change_percent=None if quote is None else str(quote.change_percent),
+        change=None if quote is None or quote.change is None else str(quote.change),
+        change_percent=(
+            None if quote is None or quote.change_percent is None else str(quote.change_percent)
+        ),
         turnover=(
             None
             if quote is None or quote.cumulative_turnover is None

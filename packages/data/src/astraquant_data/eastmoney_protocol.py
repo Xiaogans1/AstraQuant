@@ -48,6 +48,14 @@ def _decimal(payload: Mapping[str, Any], key: str, *, default: Decimal | None = 
     return Decimal(str(value))
 
 
+def _positive_decimal_or_none(payload: Mapping[str, Any], key: str) -> Decimal | None:
+    value = payload.get(key)
+    if value is None or value == "":
+        return None
+    parsed = Decimal(str(value))
+    return parsed if parsed > 0 else None
+
+
 def _aware_datetime(value: object) -> datetime:
     parsed = value if isinstance(value, datetime) else datetime.fromisoformat(str(value))
     if parsed.tzinfo is None or parsed.utcoffset() is None:
@@ -84,7 +92,7 @@ def map_current_quote(
     if received_time.tzinfo is None or received_time.utcoffset() is None:
         raise ValueError("received_at must be timezone-aware")
     last_price = _decimal(payload, "price")
-    previous_close = _decimal(payload, "pre_close", default=Decimal("0"))
+    previous_close = _positive_decimal_or_none(payload, "pre_close")
     open_price = _decimal(payload, "open", default=last_price)
     if open_price <= 0:
         open_price = last_price

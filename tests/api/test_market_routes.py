@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
-from datetime import date
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -140,6 +141,29 @@ def test_home_contains_six_core_slots_and_honest_unavailable_features(
     assert body["candidates"] == []
     assert "eastmoney-test-token" not in json.dumps(body, ensure_ascii=False)
     assert isinstance(body["connection"]["token_configured"], bool)
+
+
+def test_home_keeps_unknown_change_values_null(
+    auth_client: TestClient,
+    market_state: AppState,
+) -> None:
+    assert market_state.market_service is not None
+    market_state.market_service.record_quotes(
+        [
+            LiveQuote.minimum(
+                InstrumentId.parse("000001.SSE"),
+                event_time=datetime(2026, 8, 6, 2, 11, tzinfo=UTC),
+                last_price=Decimal("3884.55"),
+                previous_close=None,
+            )
+        ]
+    )
+
+    quote = auth_client.get("/v1/market/home").json()["core_indices"][0]
+
+    assert quote["last_price"] == "3884.55"
+    assert quote["change"] is None
+    assert quote["change_percent"] is None
 
 
 def test_configuration_stores_token_without_returning_it(

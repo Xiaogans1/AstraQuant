@@ -74,3 +74,24 @@ def test_rejects_missing_or_naive_event_times() -> None:
     }
     with pytest.raises(ValueError, match="timezone-aware"):
         map_current_quote(payload)
+
+
+@pytest.mark.parametrize("pre_close", [None, "", 0, "0"])
+def test_missing_previous_close_stays_unknown(pre_close: object) -> None:
+    quote = map_current_quote(
+        {
+            "symbol": "SZSE.159516",
+            "price": 0.712,
+            "pre_close": pre_close,
+            "open": 0.680,
+            "high": 0.716,
+            "low": 0.677,
+            "cum_volume": 481900,
+            "cum_amount": 34260000,
+            "created_at": "2026-08-06T10:11:00+08:00",
+        }
+    )
+
+    assert quote.previous_close is None
+    assert quote.change is None
+    assert quote.change_percent is None

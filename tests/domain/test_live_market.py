@@ -93,7 +93,8 @@ def test_quote_handles_a_missing_previous_close_without_inventing_a_move() -> No
         InstrumentId.parse("000001.SSE"),
         event_time=datetime(2026, 8, 5, 2, 30, tzinfo=UTC),
         last_price=Decimal("10"),
-        previous_close=Decimal("0"),
+        previous_close=None,
     )
 
-    assert quote.change_percent == 0
+    assert quote.change is None
+    assert quote.change_percent is None

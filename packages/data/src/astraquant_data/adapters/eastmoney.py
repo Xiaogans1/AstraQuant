@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import replace
 from datetime import date
+from decimal import Decimal
 from typing import Any, Protocol
 
 from astraquant_data.eastmoney_protocol import map_current_quote, to_eastmoney_symbol
@@ -48,6 +49,8 @@ class EastmoneyProvider:
         self._clock = clock
         self._connected = False
         self._health = ProviderHealth(provider_id=self.provider_id)
+        self._reference_closes: dict[tuple[str, date], Decimal] = {}
+        self._reference_trading_date: date | None = None
 
     def connect(self, token: str) -> None:
         if self._connected:
@@ -94,7 +97,8 @@ class EastmoneyProvider:
         received_at = self._clock.now()
         for row in rows:
             try:
-                quotes.append(map_current_quote(row, received_at=received_at))
+                quote = map_current_quote(row, received_at=received_at)
+                quotes.append(self._with_previous_close(quote))
             except (ArithmeticError, TypeError, ValueError):
                 parse_errors += 1
         last_event = max((quote.event_time for quote in quotes), default=None)
@@ -131,3 +135,27 @@ class EastmoneyProvider:
         return [
             value if isinstance(value, date) else date.fromisoformat(str(value)) for value in values
         ]
+
+    def _with_previous_close(self, quote: LiveQuote) -> LiveQuote:
+        if quote.previous_close is not None:
+            return quote
+        if self._reference_trading_date != quote.trading_date:
+            self._reference_closes.clear()
+            self._reference_trading_date = quote.trading_date
+        key = (str(quote.instrument_id), quote.trading_date)
+        previous_close = self._reference_closes.get(key)
+        if previous_close is None:
+            try:
+                rows = self._client.history_n(
+                    symbol=to_eastmoney_symbol(quote.instrument_id),
+                    frequency="1d",
+                    count=1,
+                )
+                value = Decimal(str(rows[-1].get("close"))) if rows else Decimal("0")
+            except (ArithmeticError, IndexError, KeyError, TypeError, ValueError):
+                return quote
+            if value <= 0:
+                return quote
+            previous_close = value
+            self._reference_closes[key] = previous_close
+        return replace(quote, previous_close=previous_close)

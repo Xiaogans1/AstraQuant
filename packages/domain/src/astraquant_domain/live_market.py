@@ -46,7 +46,7 @@ class LiveQuote:
     event_time: datetime
     received_time: datetime
     last_price: Decimal
-    previous_close: Decimal
+    previous_close: Decimal | None
     open: Decimal
     high: Decimal
     low: Decimal
@@ -63,7 +63,7 @@ class LiveQuote:
         _require_aware("received_time", self.received_time)
         if any(price <= 0 for price in (self.last_price, self.open, self.high, self.low)):
             raise ValueError("quote prices must be positive")
-        if self.previous_close < 0:
+        if self.previous_close is not None and self.previous_close < 0:
             raise ValueError("previous close must be non-negative")
         if self.low > self.high:
             raise ValueError("quote low must not exceed high")
@@ -87,14 +87,18 @@ class LiveQuote:
             raise ValueError("quality must contain at least one annotation")
 
     @property
-    def change(self) -> Decimal:
+    def change(self) -> Decimal | None:
+        if self.previous_close is None:
+            return None
         return self.last_price - self.previous_close
 
     @property
-    def change_percent(self) -> Decimal:
-        if self.previous_close == 0:
-            return Decimal("0")
-        return (self.change / self.previous_close * 100).quantize(Decimal("0.0001"))
+    def change_percent(self) -> Decimal | None:
+        previous_close = self.previous_close
+        change = self.change
+        if previous_close is None or previous_close == 0 or change is None:
+            return None
+        return (change / previous_close * 100).quantize(Decimal("0.0001"))
 
     @classmethod
     def minimum(
@@ -103,7 +107,7 @@ class LiveQuote:
         *,
         event_time: datetime,
         last_price: Decimal,
-        previous_close: Decimal,
+        previous_close: Decimal | None,
         received_time: datetime | None = None,
         bid: tuple[QuoteLevel, ...] = (),
         ask: tuple[QuoteLevel, ...] = (),

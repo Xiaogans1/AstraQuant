@@ -1,5 +1,6 @@
 import inspect
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -17,6 +18,7 @@ class FakeBridgeClient:
         self.history_requests: list[dict[str, Any]] = []
         self.search_queries: list[str] = []
         self.fail_current = False
+        self.omit_previous_close = False
 
     def start(self) -> None:
         self.started += 1
@@ -31,8 +33,7 @@ class FakeBridgeClient:
         self.current_symbols.append(symbols)
         if self.fail_current:
             raise RuntimeError("child failed with private details")
-        return [
-            {
+        valid = {
                 "symbol": "SHSE.000001",
                 "price": 3560.12,
                 "pre_close": 3540,
@@ -44,12 +45,27 @@ class FakeBridgeClient:
                 "cum_position": 0,
                 "created_at": "2026-08-05T10:30:03+08:00",
                 "quotes": [],
-            },
-            {"symbol": "invalid"},
-        ]
+            }
+        if self.omit_previous_close:
+            valid.pop("pre_close")
+        return [valid, {"symbol": "invalid"}]
 
     def history_n(self, **request: Any) -> list[dict[str, Any]]:
         self.history_requests.append(request)
+        if request["frequency"] == "1d":
+            return [
+                {
+                    "symbol": request["symbol"],
+                    "bob": "2026-08-04T00:00:00+08:00",
+                    "eob": "2026-08-04T23:59:59+08:00",
+                    "open": 3520,
+                    "high": 3550,
+                    "low": 3510,
+                    "close": 3540,
+                    "volume": 100,
+                    "amount": 354000,
+                }
+            ]
         return []
 
     def search_symbols(self, query: str) -> list[dict[str, Any]]:
@@ -82,6 +98,22 @@ def test_poll_batches_quotes_and_counts_invalid_rows() -> None:
     assert client.current_symbols == [["SHSE.000001"]]
     assert market.health().parse_error_count == 1
     assert market.health().state is ConnectionState.LIVE
+
+
+def test_poll_enriches_and_caches_missing_previous_close_from_daily_history() -> None:
+    market, client = provider()
+    client.omit_previous_close = True
+    market.connect("valid-token")
+
+    first = market.poll((InstrumentId.parse("000001.SSE"),))[0]
+    second = market.poll((InstrumentId.parse("000001.SSE"),))[0]
+
+    assert first.previous_close == 3540
+    assert first.change_percent == Decimal("0.5684")
+    assert second.previous_close == 3540
+    assert [request for request in client.history_requests if request["frequency"] == "1d"] == [
+        {"symbol": "SHSE.000001", "frequency": "1d", "count": 1}
+    ]
 
 
 def test_poll_rejects_more_than_fifty_instruments() -> None:
