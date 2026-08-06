@@ -44,6 +44,7 @@ class FakeProvider:
         self.bar_rows: list[MarketBar] | None = None
         self.bar_requests: list[tuple[str, MarketPeriod, int]] = []
         self.fail_bar_requests = 0
+        self.trading_date_requests = 0
         self._health = ProviderHealth(provider_id="eastmoney")
 
     def connect(self, token: str) -> None:
@@ -114,6 +115,7 @@ class FakeProvider:
         return [{"symbol": "SHSE.600000", "sec_name": "浦发银行"}]
 
     def trading_dates(self, start: date, end: date) -> list[date]:
+        self.trading_date_requests += 1
         return [start] if start == end else []
 
 
@@ -261,6 +263,21 @@ def test_stale_and_closed_states_never_claim_realtime() -> None:
     assert service.connection().state is ConnectionState.STALE
     service.refresh_connection_state(is_trading_date=True, is_session_open=False)
     assert service.connection().state is ConnectionState.CLOSED
+
+
+def test_poll_loop_caches_the_trading_calendar_for_the_local_date() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+        await service.start()
+        deadline = asyncio.get_running_loop().time() + 1
+        while len(provider.polls) < 3:
+            assert asyncio.get_running_loop().time() < deadline
+            await asyncio.sleep(0.01)
+
+        assert provider.trading_date_requests == 1
+        await service.stop()
+
+    asyncio.run(scenario())
 
 
 def test_history_cache_is_bounded_and_backoff_caps_at_thirty_seconds() -> None:

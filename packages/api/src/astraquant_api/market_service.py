@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 from collections import OrderedDict
 from dataclasses import dataclass, replace
-from datetime import datetime, time
+from datetime import date, datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -69,6 +69,8 @@ class MarketDataService:
         self._bar_fetch_lock = asyncio.Lock()
         self._instrument_names: dict[str, str] = {}
         self._selected: str | None = None
+        self._trading_calendar_date: date | None = None
+        self._trading_calendar_is_open = False
         self._connection = ProviderHealth(provider_id="eastmoney")
         self._restore_watchlist()
 
@@ -340,13 +342,8 @@ class MarketDataService:
                 quotes = await asyncio.to_thread(self._provider.poll, active)
                 self.record_quotes(quotes)
                 local_now = self._clock.now().astimezone(_CHINA_ZONE)
-                trading_dates = await asyncio.to_thread(
-                    self._provider.trading_dates,
-                    local_now.date(),
-                    local_now.date(),
-                )
                 self.refresh_connection_state(
-                    is_trading_date=local_now.date() in trading_dates,
+                    is_trading_date=await self._is_trading_date(local_now.date()),
                     is_session_open=self._is_session_open(local_now.time()),
                 )
                 reconnect_count = 0
@@ -379,6 +376,19 @@ class MarketDataService:
                     connected_at=self._clock.now(),
                     error_code=None,
                 )
+
+    async def _is_trading_date(self, local_date: date) -> bool:
+        if self._trading_calendar_date == local_date:
+            return self._trading_calendar_is_open
+        assert self._provider is not None
+        trading_dates = await asyncio.to_thread(
+            self._provider.trading_dates,
+            local_date,
+            local_date,
+        )
+        self._trading_calendar_date = local_date
+        self._trading_calendar_is_open = local_date in trading_dates
+        return self._trading_calendar_is_open
 
     @staticmethod
     def _is_session_open(local_time: time) -> bool:
