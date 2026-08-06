@@ -15,6 +15,7 @@ const { chart, dispose, init } = vi.hoisted(() => {
     removeIndicator: vi.fn(),
     createIndicator: vi.fn(),
     setRightMinVisibleBarCount: vi.fn(),
+    setOffsetRightDistance: vi.fn(),
     setBarSpace: vi.fn(),
     resize: vi.fn(),
   };
@@ -68,7 +69,10 @@ it("loads real bars into a Shanghai-time intraday area chart", () => {
   expect(chart.setStyles).toHaveBeenCalledWith(
     expect.objectContaining({ candle: expect.objectContaining({ type: "area" }) }),
   );
-  expect(chart.setRightMinVisibleBarCount).toHaveBeenCalledWith(239);
+  expect(chart.setOffsetRightDistance).toHaveBeenCalledWith(
+    expect.any(Number),
+  );
+  expect(chart.setOffsetRightDistance.mock.calls.at(-1)?.[0]).toBeGreaterThan(800);
   expect(chart.createIndicator).toHaveBeenCalledWith("VOL", false);
   expect(chart.createIndicator).not.toHaveBeenCalledWith("MA", true);
 

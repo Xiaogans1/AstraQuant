@@ -21,6 +21,10 @@ export function ProfessionalMarketChart({
 }: ProfessionalMarketChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart | null>(null);
+  const layoutRef = useRef<{ period: MarketPeriod; barCount: number }>({
+    period,
+    barCount: bars.length,
+  });
 
   useEffect(() => {
     const host = hostRef.current;
@@ -34,7 +38,10 @@ export function ProfessionalMarketChart({
     chartRef.current = chart;
     chart.setTimezone("Asia/Shanghai");
 
-    const resizeObserver = new ResizeObserver(() => chart.resize());
+    const resizeObserver = new ResizeObserver(() => {
+      chart.resize();
+      applyChartLayout(chart, host, layoutRef.current.period, layoutRef.current.barCount);
+    });
     resizeObserver.observe(host);
     return () => {
       resizeObserver.disconnect();
@@ -55,6 +62,7 @@ export function ProfessionalMarketChart({
     const chart = chartRef.current;
     if (chart === null) return;
     const chartData = normalizeMarketBars(bars);
+    layoutRef.current = { period, barCount: chartData.length };
     chart.setStyles({
       candle: {
         type: period === "intraday" ? "area" : "candle_solid",
@@ -69,13 +77,9 @@ export function ProfessionalMarketChart({
         callback(chartData, { backward: false, forward: false });
       },
     });
-    if (period === "intraday") {
-      chart.setBarSpace(4.5);
-      chart.setRightMinVisibleBarCount(Math.max(240 - chartData.length, 0));
-    } else {
-      chart.setRightMinVisibleBarCount(5);
-    }
+    const host = hostRef.current;
     chart.resetData();
+    if (host !== null) applyChartLayout(chart, host, period, chartData.length);
   }, [bars, period]);
 
   useEffect(() => {
@@ -120,4 +124,24 @@ function inferPricePrecision(bars: MarketBar[]): number {
   if (last < 1) return 4;
   if (last < 100) return 3;
   return 2;
+}
+
+function applyChartLayout(
+  chart: Chart,
+  host: HTMLDivElement,
+  period: MarketPeriod,
+  barCount: number,
+) {
+  if (period !== "intraday") {
+    chart.setRightMinVisibleBarCount(5);
+    chart.setOffsetRightDistance(56);
+    return;
+  }
+  const sessionBars = 240;
+  const remainingBars = Math.max(sessionBars - barCount, 0);
+  const plotWidth = Math.max(host.clientWidth - 64, 960);
+  const barSpace = plotWidth / sessionBars;
+  chart.setBarSpace(barSpace);
+  chart.setRightMinVisibleBarCount(0);
+  chart.setOffsetRightDistance(remainingBars * barSpace);
 }
