@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./theme/tokens.css";
 import "./styles/app.css";
+import "./styles/paper.css";
 import {
   applyBackgroundEffect,
   applyTheme,

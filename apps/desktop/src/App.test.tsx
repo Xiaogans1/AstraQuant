@@ -29,6 +29,7 @@ vi.mock("./api/client", () => ({
     listDatasets = vi.fn().mockResolvedValue([]);
     listSnapshots = vi.fn().mockResolvedValue([]);
     listBars = vi.fn().mockResolvedValue([]);
+    listPaperAccounts = vi.fn().mockResolvedValue([]);
     createDataImport = vi.fn();
     getSettings = vi.fn().mockResolvedValue({
       theme: "astra-minimal",
@@ -52,7 +53,19 @@ it("renders the responsive workspace shell", async () => {
     "page",
   );
   expect(screen.getByRole("button", { name: "智能选股" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Paper 模拟" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Paper 模拟" })).toBeEnabled();
+});
+
+it("opens the Paper account workspace", async () => {
+  render(<App />);
+
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Paper 模拟" }),
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "建立第一本模拟账本" }),
+  ).toBeVisible();
 });
 
 it("opens the enabled local data center", async () => {

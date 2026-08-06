@@ -9,6 +9,11 @@ import { isTaskActive } from "./contracts";
 import type { Settings, Task } from "./contracts";
 import type { DataImportRequest } from "./data-contracts";
 import type { ConnectionState, MarketPeriod } from "./market-contracts";
+import type {
+  CreatePaperAccountRequest,
+  OpeningPositionRequest,
+  PaperMarketOrderRequest,
+} from "./paper-contracts";
 
 export const queryKeys = {
   health: ["health"] as const,
@@ -31,7 +36,104 @@ export const queryKeys = {
   marketSignal: (instrumentId: string) =>
     ["market", "signal", instrumentId] as const,
   marketSearch: (search: string) => ["market", "search", search] as const,
+  paperAccounts: ["paper", "accounts"] as const,
+  paperAccount: (accountId: string) => ["paper", "accounts", accountId] as const,
+  paperOrders: (accountId: string) => ["paper", "accounts", accountId, "orders"] as const,
+  paperFills: (accountId: string) => ["paper", "accounts", accountId, "fills"] as const,
+  paperEquity: (accountId: string) => ["paper", "accounts", accountId, "equity"] as const,
 };
+
+export function usePaperAccountsQuery(client: ApiClient) {
+  return useQuery({
+    queryKey: queryKeys.paperAccounts,
+    queryFn: () => client.listPaperAccounts(),
+    refetchInterval: 3_000,
+  });
+}
+
+export function usePaperAccountQuery(client: ApiClient, accountId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.paperAccount(accountId ?? "none"),
+    queryFn: () => client.getPaperAccount(requireId(accountId, "Paper account")),
+    enabled: accountId !== null,
+    refetchInterval: 1_000,
+  });
+}
+
+export function usePaperOrdersQuery(client: ApiClient, accountId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.paperOrders(accountId ?? "none"),
+    queryFn: () => client.listPaperOrders(requireId(accountId, "Paper account")),
+    enabled: accountId !== null,
+    refetchInterval: 2_000,
+  });
+}
+
+export function usePaperFillsQuery(client: ApiClient, accountId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.paperFills(accountId ?? "none"),
+    queryFn: () => client.listPaperFills(requireId(accountId, "Paper account")),
+    enabled: accountId !== null,
+    refetchInterval: 2_000,
+  });
+}
+
+export function usePaperEquityQuery(client: ApiClient, accountId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.paperEquity(accountId ?? "none"),
+    queryFn: () => client.listPaperEquity(requireId(accountId, "Paper account")),
+    enabled: accountId !== null,
+    refetchInterval: 1_000,
+  });
+}
+
+export function useCreatePaperAccountMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (request: CreatePaperAccountRequest) => client.createPaperAccount(request),
+    onSuccess: async (detail) => {
+      queryClient.setQueryData(queryKeys.paperAccount(detail.account.account_id), detail);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.paperAccounts });
+    },
+  });
+}
+
+export function useAddPaperPositionMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ accountId, request }: { accountId: string; request: OpeningPositionRequest }) =>
+      client.addPaperOpeningPosition(accountId, request),
+    onSuccess: async (detail) => {
+      queryClient.setQueryData(queryKeys.paperAccount(detail.account.account_id), detail);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.paperAccounts });
+    },
+  });
+}
+
+export function useSubmitPaperOrderMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      accountId,
+      request,
+      idempotencyKey,
+    }: {
+      accountId: string;
+      request: PaperMarketOrderRequest;
+      idempotencyKey: string;
+    }) => client.submitPaperOrder(accountId, request, idempotencyKey),
+    onSuccess: async (result) => {
+      const accountId = result.portfolio.account.account_id;
+      queryClient.setQueryData(queryKeys.paperAccount(accountId), result.portfolio);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperAccounts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperOrders(accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperFills(accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperEquity(accountId) }),
+      ]);
+    },
+  });
+}
 
 function marketRefetchInterval(state: ConnectionState | undefined) {
   if (state === "LIVE" || state === "CONNECTING" || state === "STALE") {

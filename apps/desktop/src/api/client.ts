@@ -24,6 +24,17 @@ import type {
   MarketPeriod,
   RealtimeQuantDecision,
 } from "./market-contracts";
+import type {
+  CreatePaperAccountRequest,
+  OpeningPositionRequest,
+  PaperAccountDetail,
+  PaperAccountSummary,
+  PaperEquity,
+  PaperFill,
+  PaperMarketOrderRequest,
+  PaperOrder,
+  PaperOrderExecution,
+} from "./paper-contracts";
 
 type Fetch = typeof fetch;
 
@@ -182,6 +193,55 @@ export class ApiClient {
       `/v1/market/watchlist/${encodeURIComponent(instrumentId)}`,
       { method: "DELETE" },
     );
+  }
+
+  listPaperAccounts(): Promise<PaperAccountSummary[]> {
+    return this.request("/v1/paper/accounts");
+  }
+
+  createPaperAccount(request: CreatePaperAccountRequest): Promise<PaperAccountDetail> {
+    return this.request("/v1/paper/accounts", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  }
+
+  getPaperAccount(accountId: string): Promise<PaperAccountDetail> {
+    return this.request(`/v1/paper/accounts/${encodeURIComponent(accountId)}`);
+  }
+
+  addPaperOpeningPosition(
+    accountId: string,
+    request: OpeningPositionRequest,
+  ): Promise<PaperAccountDetail> {
+    return this.request(
+      `/v1/paper/accounts/${encodeURIComponent(accountId)}/positions/opening`,
+      { method: "POST", body: JSON.stringify(request) },
+    );
+  }
+
+  submitPaperOrder(
+    accountId: string,
+    request: PaperMarketOrderRequest,
+    idempotencyKey: string,
+  ): Promise<PaperOrderExecution> {
+    return this.request(`/v1/paper/accounts/${encodeURIComponent(accountId)}/orders`, {
+      method: "POST",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify(request),
+    });
+  }
+
+  listPaperOrders(accountId: string): Promise<PaperOrder[]> {
+    return this.request(`/v1/paper/accounts/${encodeURIComponent(accountId)}/orders`);
+  }
+
+  listPaperFills(accountId: string): Promise<PaperFill[]> {
+    return this.request(`/v1/paper/accounts/${encodeURIComponent(accountId)}/fills`);
+  }
+
+  listPaperEquity(accountId: string): Promise<PaperEquity[]> {
+    return this.request(`/v1/paper/accounts/${encodeURIComponent(accountId)}/equity`);
   }
 
   getSettings(): Promise<Settings> {

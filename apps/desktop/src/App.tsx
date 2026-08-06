@@ -35,6 +35,7 @@ import { StatusRail } from "./components/StatusRail";
 import { ActivityPage } from "./pages/ActivityPage";
 import { DataPage } from "./pages/DataPage";
 import { OverviewPage } from "./pages/OverviewPage";
+import { PaperPage } from "./pages/PaperPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TasksPage } from "./pages/TasksPage";
 import {
@@ -67,6 +68,11 @@ const viewCopy: Record<
     index: "CONNECTIONS / 02",
     title: "数据与连接",
     summary: "接入真实只读行情，管理本地历史仓库，并将通过质量校验的快照送入后续 AI 特征流程。",
+  },
+  paper: {
+    index: "PORTFOLIO / PAPER",
+    title: "模拟账户",
+    summary: "用真实行情驱动本地虚拟成交，观察持仓、资金与策略收益；当前不会向券商发送任何委托。",
   },
   tasks: {
     index: "WORKSPACE / 03",
@@ -355,6 +361,9 @@ function renderView({
         />
       </>
     );
+  }
+  if (currentView === "paper") {
+    return <PaperPage client={client} />;
   }
   if (currentView === "tasks") {
     return (

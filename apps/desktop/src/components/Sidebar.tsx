@@ -1,5 +1,6 @@
 export type WorkspaceView =
   | "overview"
+  | "paper"
   | "data"
   | "tasks"
   | "activity"
@@ -31,7 +32,7 @@ const navigation: NavigationItem[] = [
   { id: "watchlist", label: "行情浏览", glyph: "QT", disabled: true },
   { id: "scanner", label: "智能选股", glyph: "AI", disabled: true, groupStart: true },
   { id: "analysis", label: "个股分析", glyph: "AN", disabled: true },
-  { id: "paper", label: "Paper 模拟", glyph: "PP", disabled: true, groupStart: true },
+  { id: "paper", label: "Paper 模拟", glyph: "PP", groupStart: true },
   { id: "strategy", label: "策略实验室", glyph: "ST", disabled: true },
   { id: "data", label: "数据与连接", glyph: "DT", groupStart: true },
   { id: "tasks", label: "任务", glyph: "TK" },
