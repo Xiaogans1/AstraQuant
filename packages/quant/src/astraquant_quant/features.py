@@ -75,8 +75,7 @@ def build_intraday_features(
                 event_time=latest.timestamp,
                 available_time=latest.timestamp + _ONE_MINUTE,
                 values={
-                    name: None if value is None else float(value)
-                    for name, value in values.items()
+                    name: None if value is None else float(value) for name, value in values.items()
                 },
             ),
         ),
@@ -101,14 +100,10 @@ def _feature_values(bars: list[MarketBar]) -> dict[str, Decimal | None]:
     close = recent[-1].close
     closes = [item.close for item in recent]
     volumes = [item.volume for item in recent]
-    returns = [
-        (current / previous) - Decimal("1")
-        for previous, current in pairwise(closes)
-    ]
+    returns = [(current / previous) - Decimal("1") for previous, current in pairwise(closes)]
     mean_return = sum(returns, start=Decimal("0")) / Decimal(len(returns))
-    variance = (
-        sum(((item - mean_return) ** 2 for item in returns), start=Decimal("0"))
-        / Decimal(len(returns))
+    variance = sum(((item - mean_return) ** 2 for item in returns), start=Decimal("0")) / Decimal(
+        len(returns)
     )
     mean_volume = sum(volumes, start=Decimal("0")) / Decimal(len(volumes))
     with localcontext() as context:

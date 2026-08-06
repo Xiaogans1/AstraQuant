@@ -325,9 +325,6 @@ def test_realtime_signal_route_returns_auditable_suppressed_decision(
     assert body["signal"]["strategy_id"] == "intraday-momentum-volume"
     assert body["signal"]["strategy_version"] == "baseline-v1"
     assert body["decision_record"]["decision_id"].startswith("decision-")
-    assert (
-        body["decision_record"]["feature_snapshot_id"]
-        == body["features"]["feature_snapshot_id"]
-    )
+    assert body["decision_record"]["feature_snapshot_id"] == body["features"]["feature_snapshot_id"]
     assert "MARKET_NOT_LIVE" in body["decision_record"]["advisory_checks"]
     assert "token" not in json.dumps(body).lower()
