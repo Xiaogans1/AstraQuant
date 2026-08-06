@@ -38,6 +38,11 @@ function quote(
     last_price,
     change: last_price === null ? null : "20.12",
     change_percent: last_price === null ? null : "0.5684",
+    previous_close: last_price === null ? null : "3539.99",
+    open: last_price,
+    high: last_price,
+    low: last_price,
+    volume: last_price === null ? null : "120000",
     turnover: last_price === null ? null : "4300000",
     source_id: last_price === null ? null : "eastmoney",
   };

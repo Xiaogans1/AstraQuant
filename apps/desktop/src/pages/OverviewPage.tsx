@@ -28,6 +28,11 @@ const coreIndexSlots: QuoteCard[] = [
   last_price: null,
   change: null,
   change_percent: null,
+  previous_close: null,
+  open: null,
+  high: null,
+  low: null,
+  volume: null,
   turnover: null,
   source_id: null,
 }));

@@ -39,6 +39,11 @@ class QuoteCardResponse(StrictModel):
     last_price: str | None
     change: str | None
     change_percent: str | None
+    previous_close: str | None
+    open: str | None
+    high: str | None
+    low: str | None
+    volume: str | None
     turnover: str | None
     source_id: str | None
 

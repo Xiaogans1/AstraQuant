@@ -186,6 +186,11 @@ def test_home_keeps_unknown_change_values_null(
     assert quote["last_price"] == "3884.55"
     assert quote["change"] is None
     assert quote["change_percent"] is None
+    assert quote["previous_close"] is None
+    assert quote["open"] == "3884.55"
+    assert quote["high"] == "3884.55"
+    assert quote["low"] == "3884.55"
+    assert quote["volume"] == "0"
 
 
 def test_configuration_stores_token_without_returning_it(

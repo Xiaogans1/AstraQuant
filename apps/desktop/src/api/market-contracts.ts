@@ -40,6 +40,11 @@ export interface QuoteCard {
   last_price: string | null;
   change: string | null;
   change_percent: string | null;
+  previous_close: string | null;
+  open: string | null;
+  high: string | null;
+  low: string | null;
+  volume: string | null;
   turnover: string | null;
   source_id: string | null;
 }

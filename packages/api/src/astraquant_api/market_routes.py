@@ -226,6 +226,13 @@ def _quote_card(item: MarketItemSnapshot, state: str) -> QuoteCardResponse:
         change_percent=(
             None if quote is None or quote.change_percent is None else str(quote.change_percent)
         ),
+        previous_close=(
+            None if quote is None or quote.previous_close is None else str(quote.previous_close)
+        ),
+        open=None if quote is None else str(quote.open),
+        high=None if quote is None else str(quote.high),
+        low=None if quote is None else str(quote.low),
+        volume=None if quote is None else str(quote.cumulative_volume),
         turnover=(
             None
             if quote is None or quote.cumulative_turnover is None
