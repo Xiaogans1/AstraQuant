@@ -80,6 +80,18 @@ def test_start_restores_position_subscriptions(tmp_path: Path) -> None:
     assert "159516.SZSE" in market.active_instruments()
 
 
+def test_start_creates_the_default_local_account_before_the_page_opens(tmp_path: Path) -> None:
+    service, repository, _ = build_services(tmp_path)
+
+    service.start()
+    service.start()
+
+    accounts = repository.list_accounts()
+    assert len(accounts) == 1
+    assert accounts[0].name == "主模拟账户"
+    assert accounts[0].initial_cash == Decimal("100000")
+
+
 def test_order_requires_a_real_latest_quote(tmp_path: Path) -> None:
     service, repository, _ = build_services(tmp_path)
     add_account_and_position(service)

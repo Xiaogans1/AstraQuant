@@ -270,6 +270,7 @@ fn runtime_launch_spec(project_root: &Path) -> RuntimeLaunchSpec {
                 project_root.join("packages").join("api").join("src"),
                 project_root.join("packages").join("data").join("src"),
                 project_root.join("packages").join("domain").join("src"),
+                project_root.join("packages").join("paper").join("src"),
                 project_root.join("packages").join("quant").join("src"),
             ];
             if let Ok(python_path) = std::env::join_paths(search_paths) {
@@ -409,6 +410,7 @@ mod tests {
         assert!(python_path.contains("packages\\api\\src"));
         assert!(python_path.contains("packages\\data\\src"));
         assert!(python_path.contains("packages\\domain\\src"));
+        assert!(python_path.contains("packages\\paper\\src"));
         assert!(python_path.contains("packages\\quant\\src"));
     }
 }

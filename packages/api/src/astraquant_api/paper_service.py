@@ -33,6 +33,7 @@ class PaperService:
     def start(self) -> None:
         if self._started:
             return
+        self.ensure_default_account()
         for account in self._repository.list_accounts():
             state = self._repository.load_state(account.account_id)
             for position in state.positions:
