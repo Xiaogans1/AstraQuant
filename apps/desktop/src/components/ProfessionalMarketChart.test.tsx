@@ -18,6 +18,7 @@ const { chart, dispose, init, registerOverlay } = vi.hoisted(() => {
     setOffsetRightDistance: vi.fn(),
     setBarSpace: vi.fn(),
     getBarSpace: vi.fn(),
+    scrollToRealTime: vi.fn(),
     convertFromPixel: vi.fn(),
     createOverlay: vi.fn(),
     removeOverlay: vi.fn(),
@@ -154,7 +155,8 @@ it("shows hovered price and change together beside the crosshair", () => {
     callback({
       paneId: "candle_pane",
       y: 160,
-      kLineData: { timestamp: Date.parse(bars[0]!.timestamp) },
+      dataIndex: 0,
+      kLineData: { timestamp: Date.parse(bars[0]!.timestamp) + 500 },
     });
   });
 
@@ -259,4 +261,23 @@ it("prevents wheel zoom from shrinking an intraday session below the canvas", ()
   act(() => callback({ scale: 0.8 }));
 
   expect(chart.setBarSpace).toHaveBeenLastCalledWith(4);
+  expect(chart.scrollToRealTime).toHaveBeenCalledWith(0);
+});
+
+it("anchors partial provider history by trading time instead of bar count", () => {
+  const closingBars: MarketBar[] = [{
+    ...bars[0]!,
+    timestamp: "2026-08-06T15:00:00+08:00",
+  }];
+
+  render(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="intraday"
+      indicator="MA"
+      bars={closingBars}
+    />,
+  );
+
+  expect(chart.setOffsetRightDistance).toHaveBeenLastCalledWith(0);
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   dispose,
   init,
@@ -86,17 +86,21 @@ export function ProfessionalMarketChart({
 }: ProfessionalMarketChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart | null>(null);
-  const barsRef = useRef(bars);
+  const orderedBars = useMemo(() => orderMarketBars(bars), [bars]);
+  const barsRef = useRef(orderedBars);
   const precisionRef = useRef(inferPricePrecision(bars));
   const onCrosshairBarChangeRef = useRef(onCrosshairBarChange);
   const [crosshairQuote, setCrosshairQuote] = useState<
     (CrosshairQuote & { top: number }) | null
   >(null);
-  const layoutRef = useRef<{ period: MarketPeriod; barCount: number }>({
+  const layoutRef = useRef<{
+    period: MarketPeriod;
+    lastTimestamp: number | null;
+  }>({
     period,
-    barCount: bars.length,
+    lastTimestamp: timestampOfLastBar(orderedBars),
   });
-  barsRef.current = bars;
+  barsRef.current = orderedBars;
   precisionRef.current = inferPricePrecision(bars);
   onCrosshairBarChangeRef.current = onCrosshairBarChange;
 
@@ -129,9 +133,20 @@ export function ProfessionalMarketChart({
         onCrosshairBarChangeRef.current?.(null);
         return;
       }
-      const sourceBar = barsRef.current.find(
-        (bar) => Date.parse(bar.timestamp) === crosshair.kLineData?.timestamp,
-      );
+      const sourceBar = (
+        crosshair.dataIndex !== undefined
+        && Number.isInteger(crosshair.dataIndex)
+        && crosshair.dataIndex >= 0
+      )
+        ? (
+            barsRef.current[crosshair.dataIndex]
+            ?? barsRef.current.find(
+              (bar) => Date.parse(bar.timestamp) === crosshair.kLineData?.timestamp,
+            )
+          )
+        : barsRef.current.find(
+            (bar) => Date.parse(bar.timestamp) === crosshair.kLineData?.timestamp,
+          );
       onCrosshairBarChangeRef.current?.(sourceBar ?? null);
       const converted = chart.convertFromPixel(
         [{ y: crosshair.y }],
@@ -158,13 +173,19 @@ export function ProfessionalMarketChart({
       const minimum = minimumBarSpace(host, layoutRef.current.period);
       if (chart.getBarSpace().bar < minimum) {
         chart.setBarSpace(minimum);
+        chart.scrollToRealTime(0);
       }
     };
     chart.subscribeAction("onZoom", handleZoom);
 
     const resizeObserver = new ResizeObserver(() => {
       chart.resize();
-      applyChartLayout(chart, host, layoutRef.current.period, layoutRef.current.barCount);
+      applyChartLayout(
+        chart,
+        host,
+        layoutRef.current.period,
+        layoutRef.current.lastTimestamp,
+      );
     });
     resizeObserver.observe(host);
     return () => {
@@ -189,7 +210,8 @@ export function ProfessionalMarketChart({
     const chart = chartRef.current;
     if (chart === null) return;
     const chartData = normalizeMarketBars(bars);
-    layoutRef.current = { period, barCount: chartData.length };
+    const lastTimestamp = chartData.at(-1)?.timestamp ?? null;
+    layoutRef.current = { period, lastTimestamp };
     chart.setStyles({
       candle: {
         type: period === "intraday" ? "area" : "candle_solid",
@@ -206,7 +228,7 @@ export function ProfessionalMarketChart({
     });
     const host = hostRef.current;
     chart.resetData();
-    if (host !== null) applyChartLayout(chart, host, period, chartData.length);
+    if (host !== null) applyChartLayout(chart, host, period, lastTimestamp);
   }, [bars, period]);
 
   useEffect(() => {
@@ -298,15 +320,14 @@ function applyChartLayout(
   chart: Chart,
   host: HTMLDivElement,
   period: MarketPeriod,
-  barCount: number,
+  lastTimestamp: number | null,
 ) {
   if (period !== "intraday") {
     chart.setRightMinVisibleBarCount(5);
     chart.setOffsetRightDistance(56);
     return;
   }
-  const sessionBars = 240;
-  const remainingBars = Math.max(sessionBars - barCount, 0);
+  const remainingBars = remainingIntradayBars(lastTimestamp);
   const barSpace = minimumBarSpace(host, period);
   chart.setBarSpace(barSpace);
   chart.setRightMinVisibleBarCount(0);
@@ -320,4 +341,41 @@ function minimumBarSpace(
   if (period !== "intraday") return MINIMUM_KLINE_BAR_SPACE;
   const plotWidth = Math.max(host.clientWidth - 64, 960);
   return plotWidth / 240;
+}
+
+function orderMarketBars(bars: MarketBar[]): MarketBar[] {
+  const unique = new Map<number, MarketBar>();
+  for (const bar of bars) {
+    const timestamp = Date.parse(bar.timestamp);
+    if (Number.isFinite(timestamp)) unique.set(timestamp, bar);
+  }
+  return [...unique.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, bar]) => bar);
+}
+
+function timestampOfLastBar(bars: MarketBar[]): number | null {
+  const timestamp = bars.at(-1)?.timestamp;
+  if (timestamp === undefined) return null;
+  const parsed = Date.parse(timestamp);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function remainingIntradayBars(timestamp: number | null): number {
+  if (timestamp === null) return 0;
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Shanghai",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(timestamp));
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
+  const tradingMinute = (hour * 60) + minute;
+  if (tradingMinute <= 570) return 240;
+  if (tradingMinute <= 690) return 240 - (tradingMinute - 570);
+  if (tradingMinute < 780) return 120;
+  if (tradingMinute <= 900) return 120 - (tradingMinute - 780);
+  return 0;
 }
