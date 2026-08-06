@@ -15,6 +15,14 @@ from astraquant_domain.orders import (
     TimeInForce,
     transition_order,
 )
+from astraquant_domain.portfolio import (
+    AccountMode,
+    PaperAccount,
+    PaperFill,
+    PaperOrder,
+    PortfolioSnapshot,
+    Position,
+)
 from astraquant_domain.signals import (
     DecisionRecord,
     SignalAction,
@@ -24,6 +32,7 @@ from astraquant_domain.signals import (
 
 __all__ = [
     "Adjustment",
+    "AccountMode",
     "Bar",
     "BarFrequency",
     "Clock",
@@ -40,6 +49,11 @@ __all__ = [
     "OrderSide",
     "OrderStatus",
     "OrderType",
+    "PaperAccount",
+    "PaperFill",
+    "PaperOrder",
+    "PortfolioSnapshot",
+    "Position",
     "QuoteLevel",
     "SignalAction",
     "SignalFrame",
