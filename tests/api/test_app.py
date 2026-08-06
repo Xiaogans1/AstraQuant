@@ -135,6 +135,27 @@ def test_health_is_public(client: TestClient) -> None:
     }
 
 
+def test_app_lifespan_starts_and_stops_paper_service(app_state: AppState) -> None:
+    class FakePaperService:
+        def __init__(self) -> None:
+            self.started = 0
+            self.stopped = 0
+
+        def start(self) -> None:
+            self.started += 1
+
+        def stop(self) -> None:
+            self.stopped += 1
+
+    paper_service = FakePaperService()
+    app_state.paper_service = paper_service
+
+    with TestClient(create_app(app_state)):
+        assert paper_service.started == 1
+
+    assert paper_service.stopped == 1
+
+
 def test_v1_requires_bearer_token(client: TestClient) -> None:
     assert client.get("/v1/runtime").status_code == 401
     assert (

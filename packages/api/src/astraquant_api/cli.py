@@ -18,6 +18,8 @@ from astraquant_api.database import create_database, migrate_database
 from astraquant_api.logging import ActivityBuffer, configure_logging
 from astraquant_api.market_config import load_eastmoney_runtime_config
 from astraquant_api.market_service import MarketDataService
+from astraquant_api.paper_repository import PaperRepository
+from astraquant_api.paper_service import PaperService
 from astraquant_api.repository import TaskRepository
 from astraquant_api.secret_store import CredentialSecretStore
 from astraquant_api.supervisor import TaskSupervisor
@@ -48,6 +50,7 @@ def serve() -> None:
     repository = TaskRepository(engine)
     repository.interrupt_active_tasks("service_restarted")
     data_catalog = DataCatalogRepository(engine)
+    paper_repository = PaperRepository(engine)
     data_catalog.reconcile_staged()
     activity = ActivityBuffer()
     logger = configure_logging(config.log_dir, activity)
@@ -80,6 +83,10 @@ def serve() -> None:
         poll_interval_seconds=market_config.poll_interval_seconds,
         stale_after_seconds=market_config.stale_after_seconds,
     )
+    paper_service = PaperService(
+        repository=paper_repository,
+        market_service=market_service,
+    )
     state = AppState(
         repository=repository,
         data_catalog=data_catalog,
@@ -88,6 +95,7 @@ def serve() -> None:
         session_token=config.session_token,
         state_dir=config.state_dir,
         market_service=market_service,
+        paper_service=paper_service,
         secret_store=secret_store,
         market_provider_factory=market_provider_factory,
         allowed_data_instruments=config.allowed_data_instruments,

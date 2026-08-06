@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time
 from typing import Any
@@ -23,6 +24,7 @@ _CHINA_ZONE = ZoneInfo("Asia/Shanghai")
 _INTRADAY_BAR_CACHE_SECONDS = 8
 _KLINE_BAR_CACHE_SECONDS = 60
 type BarCacheKey = tuple[str, MarketPeriod, int]
+type QuoteObserver = Callable[[tuple[LiveQuote, ...]], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +74,7 @@ class MarketDataService:
         self._trading_calendar_date: date | None = None
         self._trading_calendar_is_open = False
         self._connection = ProviderHealth(provider_id="eastmoney")
+        self._quote_observers: list[QuoteObserver] = []
         self._restore_watchlist()
 
     async def start(self) -> None:
@@ -187,12 +190,39 @@ class MarketDataService:
         as_of = max((quote.event_time for quote in self._quotes.values()), default=None)
         return MarketHomeSnapshot(self._connection, core, watchlist, selected, as_of)
 
+    def active_instruments(self) -> tuple[str, ...]:
+        return self._budget.active_instruments()
+
+    def request_quote(self, instrument_id: str) -> None:
+        self._budget.add_temporary(instrument_id)
+
+    def latest_quote(self, instrument_id: str) -> LiveQuote | None:
+        canonical = str(InstrumentId.parse(instrument_id))
+        return self._quotes.get(canonical)
+
+    def add_quote_observer(self, observer: QuoteObserver) -> None:
+        if observer not in self._quote_observers:
+            self._quote_observers.append(observer)
+
+    def remove_quote_observer(self, observer: QuoteObserver) -> None:
+        with contextlib.suppress(ValueError):
+            self._quote_observers.remove(observer)
+
     def record_quotes(self, quotes: list[LiveQuote]) -> None:
         active = frozenset(self._budget.active_instruments())
+        accepted: list[LiveQuote] = []
         for quote in quotes:
             key = str(quote.instrument_id)
             if key in active:
                 self._quotes[key] = quote
+                accepted.append(quote)
+        if accepted:
+            payload = tuple(accepted)
+            for observer in tuple(self._quote_observers):
+                try:
+                    observer(payload)
+                except Exception:
+                    continue
         if quotes:
             last_event = max(quote.event_time for quote in quotes)
             self._connection = replace(

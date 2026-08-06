@@ -46,6 +46,12 @@ class Supervisor(Protocol):
     def shutdown(self, timeout_seconds: float) -> None: ...
 
 
+class PaperLifecycle(Protocol):
+    def start(self) -> None: ...
+
+    def stop(self) -> None: ...
+
+
 @dataclass(slots=True)
 class AppState:
     repository: TaskRepository
@@ -55,6 +61,7 @@ class AppState:
     session_token: str
     state_dir: Path
     market_service: MarketDataService | None = None
+    paper_service: PaperLifecycle | None = None
     secret_store: SecretStore | None = None
     market_provider_factory: Callable[[Path, float], LiveMarketProvider] | None = None
     allowed_data_instruments: frozenset[str] = frozenset({"600000.SSE", "RB0.SHFE"})
@@ -76,9 +83,13 @@ def create_app(state: AppState) -> FastAPI:
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         if state.market_service is not None:
             await state.market_service.start()
+        if state.paper_service is not None:
+            state.paper_service.start()
         try:
             yield
         finally:
+            if state.paper_service is not None:
+                state.paper_service.stop()
             if state.market_service is not None:
                 await state.market_service.stop()
 

@@ -265,6 +265,75 @@ def test_stale_and_closed_states_never_claim_realtime() -> None:
     assert service.connection().state is ConnectionState.CLOSED
 
 
+def test_quote_observers_receive_cached_quotes_and_can_be_removed() -> None:
+    service, _, clock = build_service()
+    service.add_watchlist("600000.SSE")
+    received: list[tuple[str, ...]] = []
+
+    def observer(quotes: tuple[LiveQuote, ...]) -> None:
+        received.append(tuple(str(item.instrument_id) for item in quotes))
+
+    service.add_quote_observer(observer)
+    service.record_quotes(
+        [
+            LiveQuote.minimum(
+                InstrumentId.parse("600000.SSE"),
+                event_time=clock.now(),
+                last_price=Decimal("10"),
+                previous_close=Decimal("9"),
+            ),
+            LiveQuote.minimum(
+                InstrumentId.parse("RB0.SHFE"),
+                event_time=clock.now(),
+                last_price=Decimal("3000"),
+                previous_close=Decimal("2990"),
+            ),
+        ]
+    )
+
+    assert received == [("600000.SSE",)]
+    assert service.latest_quote("600000.SSE") is not None
+    assert service.latest_quote("RB0.SHFE") is None
+
+    service.remove_quote_observer(observer)
+    service.record_quotes(
+        [
+            LiveQuote.minimum(
+                InstrumentId.parse("600000.SSE"),
+                event_time=clock.now(),
+                last_price=Decimal("10.1"),
+                previous_close=Decimal("9"),
+            )
+        ]
+    )
+    assert len(received) == 1
+
+
+def test_failing_quote_observer_does_not_block_other_observers() -> None:
+    service, _, clock = build_service()
+    service.add_watchlist("600000.SSE")
+    received: list[LiveQuote] = []
+
+    def failing(_quotes: tuple[LiveQuote, ...]) -> None:
+        raise RuntimeError("observer failed")
+
+    service.add_quote_observer(failing)
+    service.add_quote_observer(lambda quotes: received.extend(quotes))
+
+    service.record_quotes(
+        [
+            LiveQuote.minimum(
+                InstrumentId.parse("600000.SSE"),
+                event_time=clock.now(),
+                last_price=Decimal("10"),
+                previous_close=Decimal("9"),
+            )
+        ]
+    )
+
+    assert [str(item.instrument_id) for item in received] == ["600000.SSE"]
+
+
 def test_poll_loop_caches_the_trading_calendar_for_the_local_date() -> None:
     async def scenario() -> None:
         service, provider, _ = build_service()
