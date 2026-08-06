@@ -7,6 +7,7 @@ from typing import Any
 from astraquant_api.market_service import MarketDataService
 from astraquant_api.secret_store import MemorySecretStore
 from astraquant_data.live_providers import ConnectionState, ProviderHealth
+from astraquant_data.market_bars import MarketBar, MarketPeriod
 from astraquant_data.subscriptions import CORE_INDICES, SubscriptionBudget
 from astraquant_domain import InstrumentId, LiveQuote, MarketEventQuality
 
@@ -40,6 +41,7 @@ class FakeProvider:
         self.fail_polls = 0
         self.fail_connects = 0
         self.history_rows: list[dict[str, Any]] | None = None
+        self.bar_requests: list[tuple[str, MarketPeriod, int]] = []
         self._health = ProviderHealth(provider_id="eastmoney")
 
     def connect(self, token: str) -> None:
@@ -78,6 +80,28 @@ class FakeProvider:
         if self.history_rows is not None:
             return self.history_rows
         return [{"instrument_id": str(instrument_id), "index": index} for index in range(count)]
+
+    def bars(
+        self,
+        instrument_id: InstrumentId,
+        *,
+        period: MarketPeriod,
+        count: int,
+    ) -> list[MarketBar]:
+        self.bar_requests.append((str(instrument_id), period, count))
+        return [
+            MarketBar(
+                timestamp=datetime(2026, 8, 5, 9, 30, tzinfo=UTC) + timedelta(minutes=index),
+                open=Decimal("10"),
+                high=Decimal("11"),
+                low=Decimal("9"),
+                close=Decimal("10.5"),
+                volume=Decimal(index + 1),
+                turnover=Decimal((index + 1) * 10),
+                previous_close=Decimal("9.5"),
+            )
+            for index in range(count)
+        ]
 
     def search(self, query: str) -> list[dict[str, Any]]:
         return [{"symbol": "SHSE.600000", "sec_name": "浦发银行"}]
@@ -257,6 +281,18 @@ def test_intraday_keeps_only_the_latest_trading_day() -> None:
             "2026-08-05T09:30:00+08:00",
             "2026-08-05T15:00:00+08:00",
         ]
+
+    asyncio.run(scenario())
+
+
+def test_period_bars_are_bounded_and_forward_the_requested_period() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+
+        bars = await service.bars("600000.SSE", period=MarketPeriod.MINUTE_5, count=6000)
+
+        assert len(bars) == 5000
+        assert provider.bar_requests == [("600000.SSE", MarketPeriod.MINUTE_5, 5000)]
 
     asyncio.run(scenario())
 

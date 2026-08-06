@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from collections import OrderedDict
 from dataclasses import dataclass, replace
 from datetime import datetime, time
 from typing import Any
@@ -14,6 +15,7 @@ from astraquant_api.market_watchlist import WatchlistEntry, load_watchlist, save
 from astraquant_api.secret_store import SecretStore
 from astraquant_data.eastmoney_protocol import from_eastmoney_symbol
 from astraquant_data.live_providers import ConnectionState, LiveMarketProvider, ProviderHealth
+from astraquant_data.market_bars import MarketBar, MarketPeriod
 from astraquant_data.subscriptions import CORE_INDICES, SubscriptionBudget
 from astraquant_domain import Clock, InstrumentId, LiveQuote, SystemClock
 
@@ -59,6 +61,7 @@ class MarketDataService:
         self._task: asyncio.Task[None] | None = None
         self._quotes: dict[str, LiveQuote] = {}
         self._history: dict[str, list[dict[str, Any]]] = {}
+        self._bar_history: OrderedDict[tuple[str, MarketPeriod], list[MarketBar]] = OrderedDict()
         self._instrument_names: dict[str, str] = {}
         self._selected: str | None = None
         self._connection = ProviderHealth(provider_id="eastmoney")
@@ -139,6 +142,9 @@ class MarketDataService:
         self._budget.remove(canonical)
         self._quotes.pop(canonical, None)
         self._history.pop(canonical, None)
+        for key in tuple(self._bar_history):
+            if key[0] == canonical:
+                self._bar_history.pop(key)
         if self._selected == canonical:
             self._selected = None
         if self._budget.persistent_instruments != before:
@@ -217,6 +223,30 @@ class MarketDataService:
         )
         self._history[canonical] = _latest_intraday_session(list(rows[-240:]))
         return self._history[canonical]
+
+    async def bars(
+        self,
+        instrument_id: str,
+        *,
+        period: MarketPeriod,
+        count: int = 300,
+    ) -> list[MarketBar]:
+        canonical = str(InstrumentId.parse(instrument_id))
+        bounded_count = max(1, min(count, 5_000))
+        if self._provider is None:
+            return []
+        rows = await asyncio.to_thread(
+            self._provider.bars,
+            InstrumentId.parse(canonical),
+            period=period,
+            count=bounded_count,
+        )
+        key = (canonical, period)
+        self._bar_history[key] = list(rows[-bounded_count:])
+        self._bar_history.move_to_end(key)
+        while len(self._bar_history) > 5:
+            self._bar_history.popitem(last=False)
+        return self._bar_history[key]
 
     async def search(self, query: str) -> list[dict[str, Any]]:
         if self._provider is None:

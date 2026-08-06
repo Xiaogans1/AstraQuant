@@ -19,6 +19,7 @@ from astraquant_api.market_schemas import (
     EastmoneyConfigRequest,
     EastmoneyConfigStatus,
     InstrumentSearchResponse,
+    MarketBarResponse,
     MarketConnectionResponse,
     MarketHomeResponse,
     QuoteCardResponse,
@@ -30,6 +31,7 @@ from astraquant_api.repository import TaskRepository
 from astraquant_api.secret_store import SecretStore
 from astraquant_data.eastmoney_protocol import from_eastmoney_symbol
 from astraquant_data.live_providers import LiveMarketProvider
+from astraquant_data.market_bars import MarketBar, MarketPeriod
 from astraquant_data.subscriptions import SubscriptionLimitReached
 from astraquant_domain import InstrumentId, Venue
 
@@ -162,6 +164,19 @@ def build_market_router(
         canonical = _observable_instrument(instrument_id)
         return await service.intraday(str(canonical), count=count)
 
+    @router.get(
+        "/instruments/{instrument_id}/bars",
+        response_model=list[MarketBarResponse],
+    )
+    async def bars(
+        instrument_id: str,
+        period: MarketPeriod,
+        count: Annotated[int, Query(ge=1, le=5_000)] = 300,
+    ) -> list[MarketBarResponse]:
+        canonical = _observable_instrument(instrument_id)
+        rows = await service.bars(str(canonical), period=period, count=count)
+        return [_bar_response(item) for item in rows]
+
     @router.post("/watchlist", response_model=MarketHomeResponse)
     def add_watchlist(request: WatchlistRequest) -> MarketHomeResponse:
         canonical = _observable_instrument(request.instrument_id)
@@ -217,4 +232,17 @@ def _quote_card(item: MarketItemSnapshot, state: str) -> QuoteCardResponse:
             else str(quote.cumulative_turnover)
         ),
         source_id=None if quote is None else quote.source_id,
+    )
+
+
+def _bar_response(item: MarketBar) -> MarketBarResponse:
+    return MarketBarResponse(
+        timestamp=item.timestamp,
+        open=float(item.open),
+        high=float(item.high),
+        low=float(item.low),
+        close=float(item.close),
+        volume=float(item.volume),
+        turnover=float(item.turnover),
+        previous_close=None if item.previous_close is None else float(item.previous_close),
     )

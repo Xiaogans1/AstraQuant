@@ -19,6 +19,7 @@ from astraquant_api.repository import TaskRepository
 from astraquant_api.secret_store import MemorySecretStore
 from astraquant_api.task_model import TaskRecord
 from astraquant_data.live_providers import ProviderHealth
+from astraquant_data.market_bars import MarketBar, MarketPeriod
 from astraquant_data.subscriptions import SubscriptionBudget
 from astraquant_domain import InstrumentId, LiveQuote
 
@@ -62,6 +63,26 @@ class EmptyProvider:
 
     def history_n(self, instrument_id: InstrumentId, *, count: int) -> list[dict[str, Any]]:
         return []
+
+    def bars(
+        self,
+        instrument_id: InstrumentId,
+        *,
+        period: MarketPeriod,
+        count: int,
+    ) -> list[MarketBar]:
+        return [
+            MarketBar(
+                timestamp=datetime(2026, 8, 6, 2, 10, tzinfo=UTC),
+                open=Decimal("0.701"),
+                high=Decimal("0.715"),
+                low=Decimal("0.699"),
+                close=Decimal("0.712"),
+                volume=Decimal("481900"),
+                turnover=Decimal("34260000"),
+                previous_close=Decimal("0.701"),
+            )
+        ]
 
     def search(self, query: str) -> list[dict[str, Any]]:
         return [{"symbol": "SHSE.510300", "sec_name": "沪深300ETF", "query": query}]
@@ -117,6 +138,7 @@ def test_every_market_route_requires_local_authentication(client: TestClient) ->
         ("GET", "/v1/market/home"),
         ("GET", "/v1/market/instruments/search?q=510300"),
         ("GET", "/v1/market/instruments/000001.SSE/intraday"),
+        ("GET", "/v1/market/instruments/000001.SSE/bars?period=5m"),
         ("POST", "/v1/market/watchlist"),
         ("DELETE", "/v1/market/watchlist/600000.SSE"),
     ]
@@ -257,3 +279,26 @@ def test_intraday_count_and_instrument_validation(auth_client: TestClient) -> No
         auth_client.get("/v1/market/instruments/000001.SSE/intraday?count=241").status_code == 422
     )
     assert auth_client.get("/v1/market/instruments/RB0.SHFE/intraday").status_code == 422
+
+
+def test_period_bars_are_strict_and_validate_query_values(auth_client: TestClient) -> None:
+    response = auth_client.get("/v1/market/instruments/159516.SZSE/bars?period=5m&count=300")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "timestamp": "2026-08-06T02:10:00Z",
+            "open": 0.701,
+            "high": 0.715,
+            "low": 0.699,
+            "close": 0.712,
+            "volume": 481900.0,
+            "turnover": 34260000.0,
+            "previous_close": 0.701,
+        }
+    ]
+    assert auth_client.get("/v1/market/instruments/159516.SZSE/bars?period=2m").status_code == 422
+    assert (
+        auth_client.get("/v1/market/instruments/159516.SZSE/bars?period=1d&count=5001").status_code
+        == 422
+    )

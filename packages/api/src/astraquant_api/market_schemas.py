@@ -72,3 +72,14 @@ class InstrumentSearchResponse(StrictModel):
     instrument_id: str
     name: str
     kind: str
+
+
+class MarketBarResponse(StrictModel):
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    turnover: float
+    previous_close: float | None
