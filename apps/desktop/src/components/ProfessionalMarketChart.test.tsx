@@ -4,7 +4,7 @@ import type { DataLoaderGetBarsParams } from "klinecharts";
 import type { MarketBar } from "../api/market-contracts";
 import { ProfessionalMarketChart } from "./ProfessionalMarketChart";
 
-const { chart, dispose, init, registerOverlay } = vi.hoisted(() => {
+const { chart, dispose, init, registerIndicator, registerOverlay } = vi.hoisted(() => {
   const chart = {
     setTimezone: vi.fn(),
     setSymbol: vi.fn(),
@@ -30,11 +30,17 @@ const { chart, dispose, init, registerOverlay } = vi.hoisted(() => {
     chart,
     dispose: vi.fn(),
     init: vi.fn(() => chart),
+    registerIndicator: vi.fn(),
     registerOverlay: vi.fn(),
   };
 });
 
-vi.mock("klinecharts", () => ({ init, dispose, registerOverlay }));
+vi.mock("klinecharts", () => ({
+  init,
+  dispose,
+  registerIndicator,
+  registerOverlay,
+}));
 
 class ResizeObserverMock {
   observe = vi.fn();
@@ -73,7 +79,9 @@ it("loads real bars into a Shanghai-time intraday area chart", () => {
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
       period="intraday"
-      indicator="MA"
+      mainIndicator="AVG"
+      secondaryIndicator="VOL"
+      showQuantSignals
       bars={bars}
     />,
   );
@@ -91,8 +99,18 @@ it("loads real bars into a Shanghai-time intraday area chart", () => {
     expect.any(Number),
   );
   expect(chart.setOffsetRightDistance.mock.calls.at(-1)?.[0]).toBeGreaterThan(800);
-  expect(chart.createIndicator).toHaveBeenCalledWith("VOL", false);
-  expect(chart.createIndicator).not.toHaveBeenCalledWith("MA", true);
+  expect(registerIndicator).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "AVG" }),
+  );
+  expect(chart.createIndicator).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "AVG", paneId: "candle_pane" }),
+    false,
+  );
+  expect(chart.createIndicator).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "VOL", paneId: "astraquant_secondary_pane" }),
+    false,
+  );
+  expect(chart.removeIndicator).not.toHaveBeenCalledWith();
 
   const loader = chart.setDataLoader.mock.calls.at(-1)?.[0];
   const callback = vi.fn();
@@ -107,7 +125,9 @@ it("switches to candles and releases the chart on unmount", () => {
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
       period="intraday"
-      indicator="MA"
+      mainIndicator="AVG"
+      secondaryIndicator="VOL"
+      showQuantSignals
       bars={bars}
     />,
   );
@@ -116,7 +136,9 @@ it("switches to candles and releases the chart on unmount", () => {
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
       period="1d"
-      indicator="MACD"
+      mainIndicator="BOLL"
+      secondaryIndicator="MACD"
+      showQuantSignals
       bars={bars}
     />,
   );
@@ -125,7 +147,18 @@ it("switches to candles and releases the chart on unmount", () => {
   expect(chart.setStyles).toHaveBeenLastCalledWith(
     expect.objectContaining({ candle: expect.objectContaining({ type: "candle_solid" }) }),
   );
-  expect(chart.createIndicator).toHaveBeenCalledWith("MACD", false);
+  expect(chart.createIndicator).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: "BOLL",
+      paneId: "candle_pane",
+      calcParams: [20, 2],
+    }),
+    false,
+  );
+  expect(chart.createIndicator).toHaveBeenCalledWith(
+    expect.objectContaining({ name: "MACD", paneId: "astraquant_secondary_pane" }),
+    false,
+  );
 
   unmount();
   expect(chart.unsubscribeAction).toHaveBeenCalledWith(
@@ -145,7 +178,9 @@ it("shows hovered price and change together beside the crosshair", () => {
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
       period="intraday"
-      indicator="MA"
+      mainIndicator="AVG"
+      secondaryIndicator="VOL"
+      showQuantSignals
       bars={bars}
     />,
   );
@@ -183,7 +218,9 @@ it("reports the horizontally selected market bar and clears it on leave", () => 
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
       period="intraday"
-      indicator="MA"
+      mainIndicator="AVG"
+      secondaryIndicator="VOL"
+      showQuantSignals
       bars={bars}
       onCrosshairBarChange={onCrosshairBarChange}
     />,
@@ -223,7 +260,9 @@ it("keeps the last selected quote when a transient crosshair point cannot be res
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
       period="intraday"
-      indicator="MA"
+      mainIndicator="AVG"
+      secondaryIndicator="VOL"
+      showQuantSignals
       bars={bars}
       onCrosshairBarChange={onCrosshairBarChange}
     />,
@@ -244,7 +283,9 @@ it("renders only explicit quant buy and sell decisions as chart overlays", () =>
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
       period="intraday"
-      indicator="MA"
+      mainIndicator="AVG"
+      secondaryIndicator="VOL"
+      showQuantSignals
       bars={bars}
       signals={[
         {
@@ -275,12 +316,48 @@ it("renders only explicit quant buy and sell decisions as chart overlays", () =>
   );
 });
 
+it("hides quant overlays without removing chart indicators", () => {
+  render(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="1d"
+      mainIndicator="BOLL"
+      secondaryIndicator="VOL"
+      showQuantSignals={false}
+      bars={bars}
+      signals={[{
+        id: "signal-buy",
+        timestamp: Date.parse("2026-08-06T09:30:00+08:00"),
+        side: "BUY",
+        price: 0.705,
+        label: "量价动量买入观察",
+        source: "QUANT",
+      }]}
+    />,
+  );
+
+  expect(chart.removeOverlay).toHaveBeenCalledWith({
+    groupId: "astraquant-quant-signals",
+  });
+  expect(chart.createOverlay).not.toHaveBeenCalled();
+  expect(chart.createIndicator).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: "BOLL",
+      paneId: "candle_pane",
+      calcParams: [20, 2],
+    }),
+    false,
+  );
+});
+
 it("prevents wheel zoom from shrinking an intraday session below the canvas", () => {
   render(
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
       period="intraday"
-      indicator="MA"
+      mainIndicator="AVG"
+      secondaryIndicator="VOL"
+      showQuantSignals
       bars={bars}
     />,
   );
@@ -314,7 +391,9 @@ it("anchors partial provider history by trading time instead of bar count", () =
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
       period="intraday"
-      indicator="MA"
+      mainIndicator="AVG"
+      secondaryIndicator="VOL"
+      showQuantSignals
       bars={closingBars}
     />,
   );

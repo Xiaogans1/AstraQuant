@@ -2,22 +2,28 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   dispose,
   init,
+  registerIndicator,
   registerOverlay,
   type Chart,
   type Crosshair,
+  type IndicatorCreate,
   type OverlayTemplate,
   type Period,
   type Point,
 } from "klinecharts";
 
 import type { MarketBar, MarketPeriod } from "../api/market-contracts";
-import type { MarketIndicator } from "./MarketChartToolbar";
+import type {
+  MainChartIndicator,
+  SecondaryChartIndicator,
+} from "./MarketChartToolbar";
 import {
   buildCrosshairQuote,
   type CrosshairQuote,
 } from "../features/market/crosshairQuote";
 import { normalizeMarketBars } from "../features/market/marketChartData";
 import { marketChartTheme } from "../features/market/marketChartTheme";
+import { intradayAverageIndicator } from "../features/market/intradayAverage";
 import {
   toSignalOverlays,
   type MarketSignalMarker,
@@ -25,6 +31,8 @@ import {
 } from "../features/market/marketSignalOverlay";
 
 const QUANT_SIGNAL_GROUP_ID = "astraquant-quant-signals";
+const CANDLE_PANE_ID = "candle_pane";
+const SECONDARY_PANE_ID = "astraquant_secondary_pane";
 const MINIMUM_KLINE_BAR_SPACE = 2.5;
 
 const quantSignalOverlay: OverlayTemplate<MarketSignalOverlay> = {
@@ -70,7 +78,9 @@ const quantSignalOverlay: OverlayTemplate<MarketSignalOverlay> = {
 interface ProfessionalMarketChartProps {
   instrumentId: string;
   period: MarketPeriod;
-  indicator: MarketIndicator;
+  mainIndicator: MainChartIndicator;
+  secondaryIndicator: SecondaryChartIndicator;
+  showQuantSignals: boolean;
   bars: MarketBar[];
   signals?: MarketSignalMarker[];
   onCrosshairBarChange?: (bar: MarketBar | null) => void;
@@ -79,7 +89,9 @@ interface ProfessionalMarketChartProps {
 export function ProfessionalMarketChart({
   instrumentId,
   period,
-  indicator,
+  mainIndicator,
+  secondaryIndicator,
+  showQuantSignals,
   bars,
   signals = [],
   onCrosshairBarChange,
@@ -119,6 +131,7 @@ export function ProfessionalMarketChart({
       },
     });
     if (chart === null) return;
+    registerIndicator(intradayAverageIndicator);
     registerOverlay(quantSignalOverlay);
     chartRef.current = chart;
     chart.setTimezone("Asia/Shanghai");
@@ -239,28 +252,33 @@ export function ProfessionalMarketChart({
   useEffect(() => {
     const chart = chartRef.current;
     if (chart === null) return;
-    chart.removeIndicator();
-    if (period !== "intraday") {
-      chart.createIndicator(indicator, indicator === "MA" || indicator === "BOLL");
+    chart.removeIndicator({ paneId: CANDLE_PANE_ID });
+    chart.removeIndicator({ paneId: SECONDARY_PANE_ID });
+    if (mainIndicator !== "NONE") {
+      chart.createIndicator(mainIndicatorCreate(mainIndicator), false);
     }
-    chart.createIndicator("VOL", false);
-  }, [indicator, period]);
+    chart.createIndicator({
+      name: secondaryIndicator,
+      paneId: SECONDARY_PANE_ID,
+    }, false);
+  }, [mainIndicator, secondaryIndicator]);
 
   useEffect(() => {
     const chart = chartRef.current;
     if (chart === null) return;
     chart.removeOverlay({ groupId: QUANT_SIGNAL_GROUP_ID });
+    if (!showQuantSignals) return;
     for (const signal of toSignalOverlays(signals)) {
       chart.createOverlay({
         name: quantSignalOverlay.name,
         groupId: QUANT_SIGNAL_GROUP_ID,
-        paneId: "candle_pane",
+        paneId: CANDLE_PANE_ID,
         lock: true,
         points: [{ timestamp: signal.timestamp, value: signal.price }],
         extendData: signal,
       });
     }
-  }, [signals]);
+  }, [showQuantSignals, signals]);
 
   return (
     <div
@@ -295,6 +313,18 @@ export function ProfessionalMarketChart({
       )}
     </div>
   );
+}
+
+function mainIndicatorCreate(
+  indicator: Exclude<MainChartIndicator, "NONE">,
+): IndicatorCreate {
+  const create: IndicatorCreate = {
+    name: indicator,
+    paneId: CANDLE_PANE_ID,
+  };
+  if (indicator === "MA") create.calcParams = [5, 10, 20, 60];
+  if (indicator === "BOLL") create.calcParams = [20, 2];
+  return create;
 }
 
 function toChartPeriod(period: MarketPeriod): Period {
