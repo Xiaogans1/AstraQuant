@@ -7,6 +7,7 @@ import pytest
 
 from astraquant_data.adapters.eastmoney import EastmoneyProvider
 from astraquant_data.live_providers import ConnectionState
+from astraquant_data.market_bars import MarketPeriod
 from astraquant_domain import FixedClock, InstrumentId
 
 
@@ -34,18 +35,18 @@ class FakeBridgeClient:
         if self.fail_current:
             raise RuntimeError("child failed with private details")
         valid = {
-                "symbol": "SHSE.000001",
-                "price": 3560.12,
-                "pre_close": 3540,
-                "open": 3544.2,
-                "high": 3565.1,
-                "low": 3538.4,
-                "cum_volume": 1200,
-                "cum_amount": 4300000,
-                "cum_position": 0,
-                "created_at": "2026-08-05T10:30:03+08:00",
-                "quotes": [],
-            }
+            "symbol": "SHSE.000001",
+            "price": 3560.12,
+            "pre_close": 3540,
+            "open": 3544.2,
+            "high": 3565.1,
+            "low": 3538.4,
+            "cum_volume": 1200,
+            "cum_amount": 4300000,
+            "cum_position": 0,
+            "created_at": "2026-08-05T10:30:03+08:00",
+            "quotes": [],
+        }
         if self.omit_previous_close:
             valid.pop("pre_close")
         return [valid, {"symbol": "invalid"}]
@@ -129,6 +130,57 @@ def test_history_requests_sixty_second_bars_with_a_bounded_count() -> None:
     assert client.history_requests == [
         {"symbol": "SHSE.000001", "frequency": "60s", "count": 33000}
     ]
+
+
+@pytest.mark.parametrize(
+    ("period", "frequency"),
+    [
+        (MarketPeriod.INTRADAY, "60s"),
+        (MarketPeriod.MINUTE_1, "60s"),
+        (MarketPeriod.MINUTE_5, "300s"),
+        (MarketPeriod.MINUTE_15, "900s"),
+        (MarketPeriod.MINUTE_30, "1800s"),
+        (MarketPeriod.MINUTE_60, "3600s"),
+        (MarketPeriod.DAY, "1d"),
+    ],
+)
+def test_bars_maps_direct_periods_to_eastmoney(
+    period: MarketPeriod,
+    frequency: str,
+) -> None:
+    market, client = provider()
+
+    market.bars(InstrumentId.parse("000001.SSE"), period=period, count=20)
+
+    assert client.history_requests[-1] == {
+        "symbol": "SHSE.000001",
+        "frequency": frequency,
+        "count": 20,
+    }
+
+
+@pytest.mark.parametrize(
+    ("period", "daily_count"),
+    [
+        (MarketPeriod.WEEK, 35),
+        (MarketPeriod.MONTH, 115),
+        (MarketPeriod.YEAR, 1250),
+    ],
+)
+def test_bars_aggregates_higher_periods_from_daily_data(
+    period: MarketPeriod,
+    daily_count: int,
+) -> None:
+    market, client = provider()
+
+    result = market.bars(InstrumentId.parse("000001.SSE"), period=period, count=5)
+
+    assert result[-1].close == 3540
+    assert client.history_requests[-1] == {
+        "symbol": "SHSE.000001",
+        "frequency": "1d",
+        "count": daily_count,
+    }
 
 
 def test_search_delegates_a_trimmed_query_to_the_catalog_bridge() -> None:

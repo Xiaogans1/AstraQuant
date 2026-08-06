@@ -6,6 +6,7 @@ from datetime import date, datetime
 from enum import StrEnum
 from typing import Any, Protocol
 
+from astraquant_data.market_bars import MarketBar, MarketPeriod
 from astraquant_domain import InstrumentId, LiveQuote
 
 
@@ -41,6 +42,14 @@ class LiveMarketProvider(Protocol):
     def health(self) -> ProviderHealth: ...
 
     def history_n(self, instrument_id: InstrumentId, *, count: int) -> list[dict[str, Any]]: ...
+
+    def bars(
+        self,
+        instrument_id: InstrumentId,
+        *,
+        period: MarketPeriod,
+        count: int,
+    ) -> list[MarketBar]: ...
 
     def search(self, query: str) -> list[dict[str, Any]]: ...
 

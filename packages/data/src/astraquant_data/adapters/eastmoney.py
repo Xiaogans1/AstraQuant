@@ -10,7 +10,28 @@ from typing import Any, Protocol
 
 from astraquant_data.eastmoney_protocol import map_current_quote, to_eastmoney_symbol
 from astraquant_data.live_providers import ConnectionState, ProviderHealth
+from astraquant_data.market_bars import (
+    MarketBar,
+    MarketPeriod,
+    aggregate_daily_bars,
+    normalize_market_bars,
+)
 from astraquant_domain import Clock, InstrumentId, LiveQuote
+
+_DIRECT_FREQUENCIES = {
+    MarketPeriod.INTRADAY: "60s",
+    MarketPeriod.MINUTE_1: "60s",
+    MarketPeriod.MINUTE_5: "300s",
+    MarketPeriod.MINUTE_15: "900s",
+    MarketPeriod.MINUTE_30: "1800s",
+    MarketPeriod.MINUTE_60: "3600s",
+    MarketPeriod.DAY: "1d",
+}
+_DAILY_AGGREGATION_MULTIPLIERS = {
+    MarketPeriod.WEEK: 7,
+    MarketPeriod.MONTH: 23,
+    MarketPeriod.YEAR: 250,
+}
 
 
 class EastmoneyClient(Protocol):
@@ -122,6 +143,32 @@ class EastmoneyProvider:
             frequency="60s",
             count=bounded_count,
         )
+
+    def bars(
+        self,
+        instrument_id: InstrumentId,
+        *,
+        period: MarketPeriod,
+        count: int,
+    ) -> list[MarketBar]:
+        bounded_count = max(1, min(count, 33_000))
+        frequency = _DIRECT_FREQUENCIES.get(period)
+        if frequency is not None:
+            rows = self._client.history_n(
+                symbol=to_eastmoney_symbol(instrument_id),
+                frequency=frequency,
+                count=bounded_count,
+            )
+            return normalize_market_bars(rows)
+        multiplier = _DAILY_AGGREGATION_MULTIPLIERS.get(period)
+        if multiplier is None:
+            raise ValueError(f"Unsupported market period: {period}")
+        rows = self._client.history_n(
+            symbol=to_eastmoney_symbol(instrument_id),
+            frequency="1d",
+            count=min(bounded_count * multiplier, 33_000),
+        )
+        return aggregate_daily_bars(normalize_market_bars(rows), period)[-bounded_count:]
 
     def search(self, query: str) -> list[dict[str, Any]]:
         return self._client.search_symbols(query.strip())
