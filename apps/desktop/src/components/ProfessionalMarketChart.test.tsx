@@ -206,6 +206,39 @@ it("reports the horizontally selected market bar and clears it on leave", () => 
   expect(onCrosshairBarChange).toHaveBeenLastCalledWith(null);
 });
 
+it("keeps the last selected quote when a transient crosshair point cannot be resolved", () => {
+  const onCrosshairBarChange = vi.fn();
+  chart.convertFromPixel
+    .mockReturnValueOnce([{
+      value: 0.703,
+      dataIndex: 0,
+      timestamp: Date.parse(bars[0]!.timestamp),
+    }])
+    .mockReturnValueOnce([{
+      value: 0.704,
+      dataIndex: 999,
+      timestamp: Date.parse(bars[0]!.timestamp) + 500,
+    }]);
+  render(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="intraday"
+      indicator="MA"
+      bars={bars}
+      onCrosshairBarChange={onCrosshairBarChange}
+    />,
+  );
+  const callback = chart.subscribeAction.mock.calls.find(
+    ([action]) => action === "onCrosshairChange",
+  )?.[1];
+
+  act(() => callback({ paneId: "candle_pane", x: 100, y: 160 }));
+  act(() => callback({ paneId: "candle_pane", x: 101, y: 160 }));
+
+  expect(onCrosshairBarChange).toHaveBeenCalledTimes(1);
+  expect(onCrosshairBarChange).toHaveBeenLastCalledWith(bars[0]);
+});
+
 it("renders only explicit quant buy and sell decisions as chart overlays", () => {
   render(
     <ProfessionalMarketChart

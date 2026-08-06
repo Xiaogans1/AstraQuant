@@ -86,6 +86,8 @@ Expected: FAIL because the chart has no crosshair quote label.
   按画布宽度动态钳制分时图的最小缩放比例。
 - 根据最后 bar 的上海交易时间计算午间/收盘剩余分钟；缩放触底后调用
   `scrollToRealTime(0)` 恢复实时锚点。
+- 顶部报价采用固定宽度的“价格 + 涨跌幅/涨跌额”双列布局；分时 bar 缺少
+  `previous_close` 时回退到实时行情快照昨收，瞬时无法解析 bar 时保留最后有效值。
 
 - [ ] **Step 4: Run focused tests**
 

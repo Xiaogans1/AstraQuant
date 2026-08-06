@@ -154,7 +154,9 @@ export function ProfessionalMarketChart({
         : barsRef.current.find(
             (bar) => Date.parse(bar.timestamp) === point?.timestamp,
           );
-      onCrosshairBarChangeRef.current?.(sourceBar ?? null);
+      if (sourceBar !== undefined) {
+        onCrosshairBarChangeRef.current?.(sourceBar);
+      }
       const price = point?.value;
       if (price === undefined || !Number.isFinite(price)) {
         setCrosshairQuote(null);

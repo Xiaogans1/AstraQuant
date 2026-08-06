@@ -33,7 +33,7 @@ vi.mock("./ProfessionalMarketChart", () => ({
             close: 0.703,
             volume: 120,
             turnover: 84.36,
-            previous_close: 0.701,
+            previous_close: null,
           })
         }
       >

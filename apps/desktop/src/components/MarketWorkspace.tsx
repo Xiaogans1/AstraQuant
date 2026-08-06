@@ -42,10 +42,15 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
   }, [barsQuery.data, period, quote]);
   const hasBars = chartBars.length > 0;
   const displayedPrice = crosshairBar?.close.toString() ?? quote.last_price;
-  const displayedChange = crosshairChange(crosshairBar, quote.change);
+  const displayedChange = crosshairChange(
+    crosshairBar,
+    quote.change,
+    quote.previous_close,
+  );
   const displayedChangePercent = crosshairChangePercent(
     crosshairBar,
     quote.change_percent,
+    quote.previous_close,
   );
   const signalMarkers = useMemo(
     () =>
@@ -279,21 +284,36 @@ function formatTime(value: string): string {
 function crosshairChange(
   bar: MarketBar | null,
   fallback: string | null,
+  fallbackPreviousClose: string | null,
 ): string | null {
   if (bar === null) return fallback;
-  const previousClose = bar.previous_close;
-  if (previousClose === null || previousClose <= 0) return null;
+  const previousClose = crosshairPreviousClose(bar, fallbackPreviousClose);
+  if (previousClose === null) return null;
   return (bar.close - previousClose).toString();
 }
 
 function crosshairChangePercent(
   bar: MarketBar | null,
   fallback: string | null,
+  fallbackPreviousClose: string | null,
 ): string | null {
   if (bar === null) return fallback;
-  const previousClose = bar.previous_close;
-  if (previousClose === null || previousClose <= 0) return null;
+  const previousClose = crosshairPreviousClose(bar, fallbackPreviousClose);
+  if (previousClose === null) return null;
   return (((bar.close / previousClose) - 1) * 100).toString();
+}
+
+function crosshairPreviousClose(
+  bar: MarketBar,
+  fallbackPreviousClose: string | null,
+): number | null {
+  if (bar.previous_close !== null && bar.previous_close > 0) {
+    return bar.previous_close;
+  }
+  const parsedFallback = Number(fallbackPreviousClose);
+  return Number.isFinite(parsedFallback) && parsedFallback > 0
+    ? parsedFallback
+    : null;
 }
 
 function periodLabel(period: MarketPeriod): string {
