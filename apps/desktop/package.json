@@ -13,6 +13,7 @@
   "dependencies": {
     "@tanstack/react-query": "^5.101.4",
     "@tauri-apps/api": "^2.11.1",
+    "klinecharts": "10.0.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

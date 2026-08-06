@@ -8,7 +8,7 @@ import { ApiClient } from "./client";
 import { isTaskActive } from "./contracts";
 import type { Settings, Task } from "./contracts";
 import type { DataImportRequest } from "./data-contracts";
-import type { ConnectionState } from "./market-contracts";
+import type { ConnectionState, MarketPeriod } from "./market-contracts";
 
 export const queryKeys = {
   health: ["health"] as const,
@@ -26,6 +26,8 @@ export const queryKeys = {
   marketHome: ["market", "home"] as const,
   marketIntraday: (instrumentId: string) =>
     ["market", "intraday", instrumentId] as const,
+  marketBars: (instrumentId: string, period: MarketPeriod) =>
+    ["market", "bars", instrumentId, period] as const,
   marketSearch: (search: string) => ["market", "search", search] as const,
 };
 
@@ -63,6 +65,27 @@ export function useMarketIntradayQuery(
   return useQuery({
     queryKey: queryKeys.marketIntraday(instrumentId ?? "none"),
     queryFn: () => client.getMarketIntraday(requireId(instrumentId, "Instrument")),
+    enabled:
+      instrumentId !== null
+      && (state === "LIVE" || state === "STALE" || state === "CLOSED"),
+    refetchInterval: marketRefetchInterval(state),
+  });
+}
+
+export function useMarketBarsQuery(
+  client: ApiClient,
+  instrumentId: string | null,
+  period: MarketPeriod,
+  state?: ConnectionState,
+) {
+  return useQuery({
+    queryKey: queryKeys.marketBars(instrumentId ?? "none", period),
+    queryFn: () =>
+      client.getMarketBars(
+        requireId(instrumentId, "Instrument"),
+        period,
+        period === "intraday" ? 240 : 500,
+      ),
     enabled:
       instrumentId !== null
       && (state === "LIVE" || state === "STALE" || state === "CLOSED"),

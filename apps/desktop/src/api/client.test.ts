@@ -228,3 +228,21 @@ it("calls authenticated realtime market endpoints", async () => {
     }),
   );
 });
+
+it("requests strict market bars for the selected period", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(
+    new Response("[]", {
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+  const client = new ApiClient(connectionFixture, fetchMock);
+
+  await client.getMarketBars("159516.SZSE", "5m", 300);
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "http://127.0.0.1:43127/v1/market/instruments/159516.SZSE/bars?period=5m&count=300",
+    expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: "Bearer session-token" }),
+    }),
+  );
+});

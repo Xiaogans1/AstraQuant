@@ -19,7 +19,9 @@ import type {
   InstrumentSearchResult,
   IntradayBar,
   MarketConnection,
+  MarketBar,
   MarketHome,
+  MarketPeriod,
 } from "./market-contracts";
 
 type Fetch = typeof fetch;
@@ -148,6 +150,16 @@ export class ApiClient {
   getMarketIntraday(instrumentId: string, count = 240): Promise<IntradayBar[]> {
     return this.request(
       `/v1/market/instruments/${encodeURIComponent(instrumentId)}/intraday?count=${encodeURIComponent(count)}`,
+    );
+  }
+
+  getMarketBars(
+    instrumentId: string,
+    period: MarketPeriod,
+    count = 300,
+  ): Promise<MarketBar[]> {
+    return this.request(
+      `/v1/market/instruments/${encodeURIComponent(instrumentId)}/bars?period=${encodeURIComponent(period)}&count=${encodeURIComponent(count)}`,
     );
   }
 

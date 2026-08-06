@@ -1,2 +1,4 @@
 packages:
   - apps/*
+minimumReleaseAgeExclude:
+  - klinecharts@10.0.2
