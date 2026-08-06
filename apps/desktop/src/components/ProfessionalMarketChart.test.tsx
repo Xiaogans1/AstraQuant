@@ -160,6 +160,36 @@ it("shows hovered price and change together beside the crosshair", () => {
   );
 });
 
+it("reports the horizontally selected market bar and clears it on leave", () => {
+  const onCrosshairBarChange = vi.fn();
+  chart.convertFromPixel.mockReturnValue([{ value: 0.703 }]);
+  render(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="intraday"
+      indicator="MA"
+      bars={bars}
+      onCrosshairBarChange={onCrosshairBarChange}
+    />,
+  );
+
+  const callback = chart.subscribeAction.mock.calls.find(
+    ([action]) => action === "onCrosshairChange",
+  )?.[1];
+
+  act(() => {
+    callback({
+      paneId: "candle_pane",
+      y: 160,
+      kLineData: { timestamp: Date.parse(bars[0]!.timestamp) },
+    });
+  });
+  expect(onCrosshairBarChange).toHaveBeenLastCalledWith(bars[0]);
+
+  act(() => callback(undefined));
+  expect(onCrosshairBarChange).toHaveBeenLastCalledWith(null);
+});
+
 it("renders only explicit quant buy and sell decisions as chart overlays", () => {
   render(
     <ProfessionalMarketChart

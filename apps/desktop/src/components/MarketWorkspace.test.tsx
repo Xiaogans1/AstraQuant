@@ -11,15 +11,37 @@ vi.mock("./ProfessionalMarketChart", () => ({
     period,
     bars: chartBars,
     signals,
+    onCrosshairBarChange,
   }: {
     period: string;
     bars: MarketBar[];
     signals: Array<{ id: string; side: string }>;
+    onCrosshairBarChange?: (bar: MarketBar | null) => void;
   }) => (
     <div data-testid="professional-chart">
       <span>{period}</span>
       <span data-testid="chart-latest-close">{chartBars.at(-1)?.close}</span>
       <span data-testid="chart-signals">{(signals ?? []).map((signal) => signal.id).join(",")}</span>
+      <button
+        type="button"
+        onClick={() =>
+          onCrosshairBarChange?.({
+            timestamp: "2026-08-06T10:01:00+08:00",
+            open: 0.702,
+            high: 0.706,
+            low: 0.7,
+            close: 0.703,
+            volume: 120,
+            turnover: 84.36,
+            previous_close: 0.701,
+          })
+        }
+      >
+        移动十字光标
+      </button>
+      <button type="button" onClick={() => onCrosshairBarChange?.(null)}>
+        离开行情图
+      </button>
     </div>
   ),
 }));
@@ -132,6 +154,20 @@ it("loads real daily bars and supports chart fullscreen", async () => {
   expect(screen.getByTestId("market-workspace")).toHaveAttribute("data-fullscreen", "true");
   await user.keyboard("{Escape}");
   expect(screen.getByTestId("market-workspace")).toHaveAttribute("data-fullscreen", "false");
+});
+
+it("updates the main quote from the crosshair bar and restores realtime quote on leave", async () => {
+  const user = userEvent.setup();
+  renderWorkspace();
+
+  await user.click(await screen.findByRole("button", { name: "移动十字光标" }));
+  expect(screen.getByText("0.703")).toBeVisible();
+  expect(screen.getByText("+0.29%")).toBeVisible();
+  expect(screen.getByText("+0.0020")).toBeVisible();
+
+  await user.click(screen.getByRole("button", { name: "离开行情图" }));
+  expect(screen.getAllByText("0.712")[0]).toBeVisible();
+  expect(screen.getByText("+1.57%")).toBeVisible();
 });
 
 it("keeps the last successful chart visible when a background refresh fails", async () => {

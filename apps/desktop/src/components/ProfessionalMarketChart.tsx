@@ -72,6 +72,7 @@ interface ProfessionalMarketChartProps {
   indicator: MarketIndicator;
   bars: MarketBar[];
   signals?: MarketSignalMarker[];
+  onCrosshairBarChange?: (bar: MarketBar | null) => void;
 }
 
 export function ProfessionalMarketChart({
@@ -80,11 +81,13 @@ export function ProfessionalMarketChart({
   indicator,
   bars,
   signals = [],
+  onCrosshairBarChange,
 }: ProfessionalMarketChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart | null>(null);
   const barsRef = useRef(bars);
   const precisionRef = useRef(inferPricePrecision(bars));
+  const onCrosshairBarChangeRef = useRef(onCrosshairBarChange);
   const [crosshairQuote, setCrosshairQuote] = useState<
     (CrosshairQuote & { top: number }) | null
   >(null);
@@ -94,6 +97,7 @@ export function ProfessionalMarketChart({
   });
   barsRef.current = bars;
   precisionRef.current = inferPricePrecision(bars);
+  onCrosshairBarChangeRef.current = onCrosshairBarChange;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -115,8 +119,13 @@ export function ProfessionalMarketChart({
         || crosshair.kLineData?.timestamp === undefined
       ) {
         setCrosshairQuote(null);
+        onCrosshairBarChangeRef.current?.(null);
         return;
       }
+      const sourceBar = barsRef.current.find(
+        (bar) => Date.parse(bar.timestamp) === crosshair.kLineData?.timestamp,
+      );
+      onCrosshairBarChangeRef.current?.(sourceBar ?? null);
       const converted = chart.convertFromPixel(
         [{ y: crosshair.y }],
         { paneId: crosshair.paneId },
@@ -126,9 +135,6 @@ export function ProfessionalMarketChart({
         setCrosshairQuote(null);
         return;
       }
-      const sourceBar = barsRef.current.find(
-        (bar) => Date.parse(bar.timestamp) === crosshair.kLineData?.timestamp,
-      );
       const quote = buildCrosshairQuote(
         price,
         sourceBar?.previous_close ?? null,
@@ -150,6 +156,7 @@ export function ProfessionalMarketChart({
     return () => {
       resizeObserver.disconnect();
       chart.unsubscribeAction("onCrosshairChange", handleCrosshairChange);
+      onCrosshairBarChangeRef.current?.(null);
       chartRef.current = null;
       dispose(chart);
     };

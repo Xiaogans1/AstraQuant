@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ApiClient } from "../api/client";
 import type {
   ConnectionState,
+  MarketBar,
   MarketPeriod,
   QuoteCard,
   RealtimeQuantDecision,
@@ -26,6 +27,7 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
   const [period, setPeriod] = useState<MarketPeriod>("intraday");
   const [indicator, setIndicator] = useState<MarketIndicator>("MA");
   const [fullscreen, setFullscreen] = useState(false);
+  const [crosshairBar, setCrosshairBar] = useState<MarketBar | null>(null);
   const barsQuery = useMarketBarsQuery(client, quote.instrument_id, period, state);
   const signalQuery = useMarketSignalQuery(
     client,
@@ -39,6 +41,12 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
       : authoritativeBars;
   }, [barsQuery.data, period, quote]);
   const hasBars = chartBars.length > 0;
+  const displayedPrice = crosshairBar?.close.toString() ?? quote.last_price;
+  const displayedChange = crosshairChange(crosshairBar, quote.change);
+  const displayedChangePercent = crosshairChangePercent(
+    crosshairBar,
+    quote.change_percent,
+  );
   const signalMarkers = useMemo(
     () =>
       period === "intraday" || period === "1m"
@@ -55,6 +63,10 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
     return () => document.removeEventListener("keydown", exitFullscreen);
   }, []);
 
+  useEffect(() => {
+    setCrosshairBar(null);
+  }, [period, quote.instrument_id]);
+
   return (
     <section
       className="terminal-panel market-workspace"
@@ -68,10 +80,10 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
           <h2>{quote.name}<span>{quote.instrument_id}</span></h2>
         </div>
         <div className="market-workspace__price">
-          <strong>{formatPrice(quote.last_price)}</strong>
+          <strong>{formatPrice(displayedPrice)}</strong>
           <div>
-            <MarketChange value={quote.change_percent} />
-            <span>{formatSigned(quote.change)}</span>
+            <MarketChange value={displayedChangePercent} />
+            <span>{formatSigned(displayedChange)}</span>
           </div>
         </div>
         <dl className="market-workspace__stats">
@@ -103,6 +115,7 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
             indicator={indicator}
             bars={chartBars}
             signals={signalMarkers}
+            onCrosshairBarChange={setCrosshairBar}
           />
         ) : barsQuery.isLoading ? (
           <div className="market-chart-state"><strong>正在读取真实行情</strong><p>从东财加载{periodLabel(period)}数据…</p></div>
@@ -261,6 +274,26 @@ function formatTime(value: string): string {
     second: "2-digit",
     hour12: false,
   }).format(new Date(value));
+}
+
+function crosshairChange(
+  bar: MarketBar | null,
+  fallback: string | null,
+): string | null {
+  if (bar === null) return fallback;
+  const previousClose = bar.previous_close;
+  if (previousClose === null || previousClose <= 0) return null;
+  return (bar.close - previousClose).toString();
+}
+
+function crosshairChangePercent(
+  bar: MarketBar | null,
+  fallback: string | null,
+): string | null {
+  if (bar === null) return fallback;
+  const previousClose = bar.previous_close;
+  if (previousClose === null || previousClose <= 0) return null;
+  return (((bar.close / previousClose) - 1) * 100).toString();
 }
 
 function periodLabel(period: MarketPeriod): string {

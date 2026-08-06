@@ -76,6 +76,8 @@ Expected: FAIL because the chart has no crosshair quote label.
 - `ProfessionalMarketChart` 保存 `bars` 与精度的 ref，避免每秒实时刷新导致重复订阅。
 - 使用 `chart.convertFromPixel([{ y }], { paneId })` 得到主图价格。
 - 使用光标数据索引对应的 `MarketBar.previous_close` 计算涨跌幅。
+- 将横向选中的 `MarketBar` 回传给 `MarketWorkspace`，驱动页面主报价区的价格、涨跌额
+  与涨跌幅；十字光标清除时恢复实时 `QuoteCard`。
 - 在主图右侧渲染 `role="status"` 标签，并通过 CSS 约束位置。
 - 将原生 `crosshair.horizontal.text.show` 设置为 `false`，防止重复价格标签。
 
@@ -113,4 +115,3 @@ Expected: exit 0 with no whitespace errors.
 git add apps/desktop/src docs/superpowers
 git commit -m "feat(desktop): 十字光标同步显示价格涨幅"
 ```
-
