@@ -7,8 +7,17 @@ import type { MarketBar, QuoteCard } from "../api/market-contracts";
 import { MarketWorkspace } from "./MarketWorkspace";
 
 vi.mock("./ProfessionalMarketChart", () => ({
-  ProfessionalMarketChart: ({ period }: { period: string }) => (
-    <div data-testid="professional-chart">{period}</div>
+  ProfessionalMarketChart: ({
+    period,
+    bars: chartBars,
+  }: {
+    period: string;
+    bars: MarketBar[];
+  }) => (
+    <div data-testid="professional-chart">
+      <span>{period}</span>
+      <span data-testid="chart-latest-close">{chartBars.at(-1)?.close}</span>
+    </div>
   ),
 }));
 
@@ -62,11 +71,12 @@ it("shows truthful broker-style quote stats and a full-width chart", async () =>
   const client = renderWorkspace();
 
   expect(await screen.findByTestId("professional-chart")).toHaveTextContent("intraday");
-  expect(screen.getByText("0.712")).toBeVisible();
+  expect(screen.getAllByText("0.712")[0]).toBeVisible();
   expect(screen.getByText("+1.57%")).toBeVisible();
   expect(screen.getByText("0.701")).toBeVisible();
   expect(screen.getByText("09:30")).toBeVisible();
   expect(screen.getByText("15:00")).toBeVisible();
+  expect(screen.getByTestId("chart-latest-close")).toHaveTextContent("0.712");
   expect(client.getMarketBars).toHaveBeenCalledWith("159516.SZSE", "intraday", 240);
 });
 
@@ -76,6 +86,7 @@ it("loads real daily bars and supports chart fullscreen", async () => {
 
   await user.click(await screen.findByRole("button", { name: "日K" }));
   expect(await screen.findByTestId("professional-chart")).toHaveTextContent("1d");
+  expect(screen.getByTestId("chart-latest-close")).toHaveTextContent("0.685");
   expect(client.getMarketBars).toHaveBeenCalledWith("159516.SZSE", "1d", 500);
 
   await user.click(screen.getByRole("button", { name: "进入图表全屏" }));

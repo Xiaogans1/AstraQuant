@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { ApiClient } from "../api/client";
 import type {
@@ -7,6 +7,7 @@ import type {
   QuoteCard,
 } from "../api/market-contracts";
 import { useMarketBarsQuery } from "../api/queries";
+import { mergeLiveQuoteIntoIntradayBars } from "../features/market/liveIntraday";
 import {
   MarketChartToolbar,
   type MarketIndicator,
@@ -24,7 +25,13 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
   const [indicator, setIndicator] = useState<MarketIndicator>("MA");
   const [fullscreen, setFullscreen] = useState(false);
   const barsQuery = useMarketBarsQuery(client, quote.instrument_id, period, state);
-  const hasBars = barsQuery.data !== undefined && barsQuery.data.length > 0;
+  const chartBars = useMemo(() => {
+    const authoritativeBars = barsQuery.data ?? [];
+    return period === "intraday"
+      ? mergeLiveQuoteIntoIntradayBars(authoritativeBars, quote)
+      : authoritativeBars;
+  }, [barsQuery.data, period, quote]);
+  const hasBars = chartBars.length > 0;
 
   useEffect(() => {
     const exitFullscreen = (event: KeyboardEvent) => {
@@ -78,7 +85,7 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
             instrumentId={quote.instrument_id}
             period={period}
             indicator={indicator}
-            bars={barsQuery.data}
+            bars={chartBars}
           />
         ) : barsQuery.isLoading ? (
           <div className="market-chart-state"><strong>正在读取真实行情</strong><p>从东财加载{periodLabel(period)}数据…</p></div>
