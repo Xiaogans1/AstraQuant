@@ -8,6 +8,9 @@
 
 **Tech Stack:** React 19、TypeScript、KLineCharts 10、TanStack Query、Vitest、Testing Library
 
+**Status:** COMPLETE（2026-08-06）。功能、回归测试与文档已完成；实际东财行情仍按真实
+Provider 可用性显示，不使用演示数据兜底。
+
 ---
 
 ### Task 1: 指标类型与工具栏信息架构
@@ -331,4 +334,3 @@ git add README.md docs apps/desktop/src
 git commit -m "docs(frontend): 完成行情图前端收尾"
 git push origin feature/phase-1-desktop-platform
 ```
-
