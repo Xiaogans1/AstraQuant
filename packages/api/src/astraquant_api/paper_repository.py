@@ -1,0 +1,351 @@
+"""Transactional SQLite repository for the local Paper ledger."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from decimal import Decimal
+
+import sqlalchemy as sa
+from sqlalchemy import Engine, RowMapping
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+from astraquant_domain import (
+    AccountMode,
+    InstrumentId,
+    OrderSide,
+    OrderStatus,
+    PaperAccount,
+    PaperFill,
+    PaperOrder,
+    PortfolioSnapshot,
+    Position,
+)
+from astraquant_paper import LedgerState
+
+metadata = sa.MetaData()
+
+paper_accounts = sa.Table(
+    "paper_accounts",
+    metadata,
+    sa.Column("account_id", sa.String(36), primary_key=True),
+    sa.Column("name", sa.String(100), nullable=False),
+    sa.Column("mode", sa.String(16), nullable=False),
+    sa.Column("initial_cash", sa.String(64), nullable=False),
+    sa.Column("initial_equity", sa.String(64), nullable=False),
+    sa.Column("cash", sa.String(64), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+)
+paper_positions = sa.Table(
+    "paper_positions",
+    metadata,
+    sa.Column("account_id", sa.String(36), primary_key=True),
+    sa.Column("instrument_id", sa.String(64), primary_key=True),
+    sa.Column("name", sa.String(200)),
+    sa.Column("quantity", sa.Integer(), nullable=False),
+    sa.Column("available_quantity", sa.Integer(), nullable=False),
+    sa.Column("average_cost", sa.String(64), nullable=False),
+    sa.Column("last_price", sa.String(64)),
+    sa.Column("marked_at", sa.DateTime(timezone=True)),
+)
+paper_orders = sa.Table(
+    "paper_orders",
+    metadata,
+    sa.Column("order_id", sa.String(36), primary_key=True),
+    sa.Column("account_id", sa.String(36), nullable=False),
+    sa.Column("idempotency_key", sa.String(200), nullable=False),
+    sa.Column("instrument_id", sa.String(64), nullable=False),
+    sa.Column("side", sa.String(8), nullable=False),
+    sa.Column("quantity", sa.Integer(), nullable=False),
+    sa.Column("status", sa.String(32), nullable=False),
+    sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("reject_reason", sa.String(100)),
+)
+paper_fills = sa.Table(
+    "paper_fills",
+    metadata,
+    sa.Column("fill_id", sa.String(36), primary_key=True),
+    sa.Column("order_id", sa.String(36), nullable=False),
+    sa.Column("account_id", sa.String(36), nullable=False),
+    sa.Column("instrument_id", sa.String(64), nullable=False),
+    sa.Column("side", sa.String(8), nullable=False),
+    sa.Column("quantity", sa.Integer(), nullable=False),
+    sa.Column("price", sa.String(64), nullable=False),
+    sa.Column("gross_amount", sa.String(64), nullable=False),
+    sa.Column("commission", sa.String(64), nullable=False),
+    sa.Column("stamp_duty", sa.String(64), nullable=False),
+    sa.Column("transfer_fee", sa.String(64), nullable=False),
+    sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+)
+paper_equity_snapshots = sa.Table(
+    "paper_equity_snapshots",
+    metadata,
+    sa.Column("snapshot_id", sa.String(36), primary_key=True),
+    sa.Column("account_id", sa.String(36), nullable=False),
+    sa.Column("cash", sa.String(64), nullable=False),
+    sa.Column("market_value", sa.String(64), nullable=False),
+    sa.Column("total_equity", sa.String(64), nullable=False),
+    sa.Column("initial_equity", sa.String(64), nullable=False),
+    sa.Column("total_pnl", sa.String(64), nullable=False),
+    sa.Column("total_pnl_percent", sa.String(64)),
+    sa.Column("as_of", sa.DateTime(timezone=True), nullable=False),
+)
+
+
+def _utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _decimal(value: object) -> Decimal:
+    return Decimal(str(value))
+
+
+def _account_from_row(row: RowMapping) -> PaperAccount:
+    return PaperAccount(
+        account_id=row["account_id"],
+        name=row["name"],
+        mode=AccountMode(row["mode"]),
+        initial_cash=_decimal(row["initial_cash"]),
+        cash=_decimal(row["cash"]),
+        created_at=_utc(row["created_at"]),
+        updated_at=_utc(row["updated_at"]),
+    )
+
+
+class PaperRepository:
+    def __init__(self, engine: Engine) -> None:
+        self.engine = engine
+
+    def create_account(self, account: PaperAccount) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                paper_accounts.insert().values(
+                    account_id=account.account_id,
+                    name=account.name,
+                    mode=account.mode.value,
+                    initial_cash=str(account.initial_cash),
+                    initial_equity=str(account.initial_cash),
+                    cash=str(account.cash),
+                    created_at=account.created_at,
+                    updated_at=account.updated_at,
+                )
+            )
+
+    def list_accounts(self) -> list[PaperAccount]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                sa.select(paper_accounts).order_by(paper_accounts.c.created_at.desc())
+            ).mappings()
+            return [_account_from_row(row) for row in rows]
+
+    def load_state(self, account_id: str) -> LedgerState:
+        with self.engine.connect() as connection:
+            account_row = connection.execute(
+                sa.select(paper_accounts).where(paper_accounts.c.account_id == account_id)
+            ).mappings().one_or_none()
+            if account_row is None:
+                raise KeyError(account_id)
+            position_rows = list(
+                connection.execute(
+                    sa.select(paper_positions)
+                    .where(paper_positions.c.account_id == account_id)
+                    .order_by(paper_positions.c.instrument_id)
+                ).mappings()
+            )
+            order_rows = list(
+                connection.execute(
+                    sa.select(paper_orders)
+                    .where(paper_orders.c.account_id == account_id)
+                    .order_by(paper_orders.c.submitted_at)
+                ).mappings()
+            )
+            fill_rows = list(
+                connection.execute(
+                    sa.select(paper_fills)
+                    .where(paper_fills.c.account_id == account_id)
+                    .order_by(paper_fills.c.occurred_at)
+                ).mappings()
+            )
+            snapshot_rows = list(
+                connection.execute(
+                    sa.select(paper_equity_snapshots)
+                    .where(paper_equity_snapshots.c.account_id == account_id)
+                    .order_by(paper_equity_snapshots.c.as_of)
+                ).mappings()
+            )
+        return LedgerState(
+            account=_account_from_row(account_row),
+            initial_equity=_decimal(account_row["initial_equity"]),
+            positions=tuple(self._position(row) for row in position_rows),
+            orders=tuple(self._order(row) for row in order_rows),
+            fills=tuple(self._fill(row) for row in fill_rows),
+            snapshots=tuple(self._snapshot(row) for row in snapshot_rows),
+        )
+
+    def save_state(self, state: LedgerState) -> None:
+        assert state.initial_equity is not None
+        with self.engine.begin() as connection:
+            result = connection.execute(
+                paper_accounts.update()
+                .where(paper_accounts.c.account_id == state.account.account_id)
+                .values(
+                    cash=str(state.account.cash),
+                    initial_equity=str(state.initial_equity),
+                    updated_at=state.account.updated_at,
+                )
+            )
+            if result.rowcount != 1:
+                raise KeyError(state.account.account_id)
+            connection.execute(
+                paper_positions.delete().where(
+                    paper_positions.c.account_id == state.account.account_id
+                )
+            )
+            if state.positions:
+                connection.execute(
+                    paper_positions.insert(),
+                    [self._position_values(item) for item in state.positions],
+                )
+            for table, values, key in (
+                (paper_orders, (self._order_values(item) for item in state.orders), "order_id"),
+                (paper_fills, (self._fill_values(item) for item in state.fills), "fill_id"),
+                (
+                    paper_equity_snapshots,
+                    (self._snapshot_values(item) for item in state.snapshots),
+                    "snapshot_id",
+                ),
+            ):
+                for item in values:
+                    connection.execute(
+                        sqlite_insert(table).values(**item).on_conflict_do_nothing(
+                            index_elements=[key]
+                        )
+                    )
+
+    @staticmethod
+    def _position_values(item: Position) -> dict[str, object]:
+        return {
+            "account_id": item.account_id,
+            "instrument_id": str(item.instrument_id),
+            "name": item.name,
+            "quantity": item.quantity,
+            "available_quantity": item.available_quantity,
+            "average_cost": str(item.average_cost),
+            "last_price": None if item.last_price is None else str(item.last_price),
+            "marked_at": item.marked_at,
+        }
+
+    @staticmethod
+    def _order_values(item: PaperOrder) -> dict[str, object]:
+        return {
+            "order_id": item.order_id,
+            "account_id": item.account_id,
+            "idempotency_key": item.idempotency_key,
+            "instrument_id": str(item.instrument_id),
+            "side": item.side.value,
+            "quantity": item.quantity,
+            "status": item.status.value,
+            "submitted_at": item.submitted_at,
+            "updated_at": item.updated_at,
+            "reject_reason": item.reject_reason,
+        }
+
+    @staticmethod
+    def _fill_values(item: PaperFill) -> dict[str, object]:
+        return {
+            "fill_id": item.fill_id,
+            "order_id": item.order_id,
+            "account_id": item.account_id,
+            "instrument_id": str(item.instrument_id),
+            "side": item.side.value,
+            "quantity": item.quantity,
+            "price": str(item.price),
+            "gross_amount": str(item.gross_amount),
+            "commission": str(item.commission),
+            "stamp_duty": str(item.stamp_duty),
+            "transfer_fee": str(item.transfer_fee),
+            "occurred_at": item.occurred_at,
+        }
+
+    @staticmethod
+    def _snapshot_values(item: PortfolioSnapshot) -> dict[str, object]:
+        return {
+            "snapshot_id": item.snapshot_id,
+            "account_id": item.account_id,
+            "cash": str(item.cash),
+            "market_value": str(item.market_value),
+            "total_equity": str(item.total_equity),
+            "initial_equity": str(item.initial_equity),
+            "total_pnl": str(item.total_pnl),
+            "total_pnl_percent": (
+                None if item.total_pnl_percent is None else str(item.total_pnl_percent)
+            ),
+            "as_of": item.as_of,
+        }
+
+    @staticmethod
+    def _position(row: RowMapping) -> Position:
+        return Position(
+            account_id=row["account_id"],
+            instrument_id=InstrumentId.parse(row["instrument_id"]),
+            name=row["name"],
+            quantity=row["quantity"],
+            available_quantity=row["available_quantity"],
+            average_cost=_decimal(row["average_cost"]),
+            last_price=None if row["last_price"] is None else _decimal(row["last_price"]),
+            marked_at=None if row["marked_at"] is None else _utc(row["marked_at"]),
+        )
+
+    @staticmethod
+    def _order(row: RowMapping) -> PaperOrder:
+        return PaperOrder(
+            order_id=row["order_id"],
+            account_id=row["account_id"],
+            idempotency_key=row["idempotency_key"],
+            instrument_id=InstrumentId.parse(row["instrument_id"]),
+            side=OrderSide(row["side"]),
+            quantity=row["quantity"],
+            status=OrderStatus(row["status"]),
+            submitted_at=_utc(row["submitted_at"]),
+            updated_at=_utc(row["updated_at"]),
+            reject_reason=row["reject_reason"],
+        )
+
+    @staticmethod
+    def _fill(row: RowMapping) -> PaperFill:
+        return PaperFill(
+            fill_id=row["fill_id"],
+            order_id=row["order_id"],
+            account_id=row["account_id"],
+            instrument_id=InstrumentId.parse(row["instrument_id"]),
+            side=OrderSide(row["side"]),
+            quantity=row["quantity"],
+            price=_decimal(row["price"]),
+            gross_amount=_decimal(row["gross_amount"]),
+            commission=_decimal(row["commission"]),
+            stamp_duty=_decimal(row["stamp_duty"]),
+            transfer_fee=_decimal(row["transfer_fee"]),
+            occurred_at=_utc(row["occurred_at"]),
+        )
+
+    @staticmethod
+    def _snapshot(row: RowMapping) -> PortfolioSnapshot:
+        return PortfolioSnapshot(
+            snapshot_id=row["snapshot_id"],
+            account_id=row["account_id"],
+            cash=_decimal(row["cash"]),
+            market_value=_decimal(row["market_value"]),
+            total_equity=_decimal(row["total_equity"]),
+            initial_equity=_decimal(row["initial_equity"]),
+            total_pnl=_decimal(row["total_pnl"]),
+            total_pnl_percent=(
+                None
+                if row["total_pnl_percent"] is None
+                else _decimal(row["total_pnl_percent"])
+            ),
+            as_of=_utc(row["as_of"]),
+        )
+
