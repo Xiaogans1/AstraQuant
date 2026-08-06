@@ -1,8 +1,19 @@
-import { useEffect, useRef } from "react";
-import { dispose, init, type Chart, type Period } from "klinecharts";
+import { useEffect, useRef, useState } from "react";
+import {
+  dispose,
+  init,
+  type Chart,
+  type Crosshair,
+  type Period,
+  type Point,
+} from "klinecharts";
 
 import type { MarketBar, MarketPeriod } from "../api/market-contracts";
 import type { MarketIndicator } from "./MarketChartToolbar";
+import {
+  buildCrosshairQuote,
+  type CrosshairQuote,
+} from "../features/market/crosshairQuote";
 import { normalizeMarketBars } from "../features/market/marketChartData";
 import { marketChartTheme } from "../features/market/marketChartTheme";
 
@@ -21,10 +32,17 @@ export function ProfessionalMarketChart({
 }: ProfessionalMarketChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart | null>(null);
+  const barsRef = useRef(bars);
+  const precisionRef = useRef(inferPricePrecision(bars));
+  const [crosshairQuote, setCrosshairQuote] = useState<
+    (CrosshairQuote & { top: number }) | null
+  >(null);
   const layoutRef = useRef<{ period: MarketPeriod; barCount: number }>({
     period,
     barCount: bars.length,
   });
+  barsRef.current = bars;
+  precisionRef.current = inferPricePrecision(bars);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -37,6 +55,40 @@ export function ProfessionalMarketChart({
     if (chart === null) return;
     chartRef.current = chart;
     chart.setTimezone("Asia/Shanghai");
+    const handleCrosshairChange = (value?: unknown) => {
+      const crosshair = value as Crosshair | undefined;
+      if (
+        crosshair?.paneId !== "candle_pane"
+        || crosshair.y === undefined
+        || crosshair.kLineData?.timestamp === undefined
+      ) {
+        setCrosshairQuote(null);
+        return;
+      }
+      const converted = chart.convertFromPixel(
+        [{ y: crosshair.y }],
+        { paneId: crosshair.paneId },
+      ) as Partial<Point>[];
+      const price = converted[0]?.value;
+      if (price === undefined || !Number.isFinite(price)) {
+        setCrosshairQuote(null);
+        return;
+      }
+      const sourceBar = barsRef.current.find(
+        (bar) => Date.parse(bar.timestamp) === crosshair.kLineData?.timestamp,
+      );
+      const quote = buildCrosshairQuote(
+        price,
+        sourceBar?.previous_close ?? null,
+        precisionRef.current,
+      );
+      const maxTop = Math.max(host.clientHeight - 22, 22);
+      setCrosshairQuote({
+        ...quote,
+        top: Math.min(Math.max(crosshair.y, 22), maxTop),
+      });
+    };
+    chart.subscribeAction("onCrosshairChange", handleCrosshairChange);
 
     const resizeObserver = new ResizeObserver(() => {
       chart.resize();
@@ -45,6 +97,7 @@ export function ProfessionalMarketChart({
     resizeObserver.observe(host);
     return () => {
       resizeObserver.disconnect();
+      chart.unsubscribeAction("onCrosshairChange", handleCrosshairChange);
       chartRef.current = null;
       dispose(chart);
     };
@@ -94,11 +147,36 @@ export function ProfessionalMarketChart({
 
   return (
     <div
-      ref={hostRef}
       className="professional-market-chart"
       role="img"
       aria-label={`${instrumentId}${period === "intraday" ? "分时" : "K线"}行情图`}
-    />
+    >
+      <div ref={hostRef} className="professional-market-chart__surface" />
+      {crosshairQuote === null ? null : (
+        <>
+          <div
+            className={`market-crosshair-quote market-crosshair-quote--${crosshairQuote.direction}`}
+            role="status"
+            aria-label="光标价格涨幅"
+          >
+            <strong>{crosshairQuote.priceText}</strong>
+            {crosshairQuote.changeText === null ? null : (
+              <span>{crosshairQuote.changeText}</span>
+            )}
+          </div>
+          <div
+            className={`market-crosshair-axis-label market-crosshair-axis-label--${crosshairQuote.direction}`}
+            style={{ top: crosshairQuote.top }}
+            aria-hidden="true"
+          >
+            <strong>{crosshairQuote.priceText}</strong>
+            {crosshairQuote.changeText === null ? null : (
+              <span>{crosshairQuote.changeText}</span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

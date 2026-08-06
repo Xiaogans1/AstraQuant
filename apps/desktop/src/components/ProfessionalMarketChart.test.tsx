@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import type { DataLoaderGetBarsParams } from "klinecharts";
 
 import type { MarketBar } from "../api/market-contracts";
@@ -17,6 +17,9 @@ const { chart, dispose, init } = vi.hoisted(() => {
     setRightMinVisibleBarCount: vi.fn(),
     setOffsetRightDistance: vi.fn(),
     setBarSpace: vi.fn(),
+    convertFromPixel: vi.fn(),
+    subscribeAction: vi.fn(),
+    unsubscribeAction: vi.fn(),
     resize: vi.fn(),
   };
   return { chart, dispose: vi.fn(), init: vi.fn(() => chart) };
@@ -110,5 +113,42 @@ it("switches to candles and releases the chart on unmount", () => {
   expect(chart.createIndicator).toHaveBeenCalledWith("MACD", false);
 
   unmount();
+  expect(chart.unsubscribeAction).toHaveBeenCalledWith(
+    "onCrosshairChange",
+    expect.any(Function),
+  );
   expect(dispose).toHaveBeenCalled();
+});
+
+it("shows hovered price and change together beside the crosshair", () => {
+  chart.convertFromPixel.mockReturnValue([{ value: 0.703 }]);
+  render(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="intraday"
+      indicator="MA"
+      bars={bars}
+    />,
+  );
+
+  const callback = chart.subscribeAction.mock.calls.find(
+    ([action]) => action === "onCrosshairChange",
+  )?.[1];
+  expect(callback).toBeTypeOf("function");
+
+  act(() => {
+    callback({
+      paneId: "candle_pane",
+      y: 160,
+      kLineData: { timestamp: Date.parse(bars[0]!.timestamp) },
+    });
+  });
+
+  expect(screen.getByRole("status", { name: "光标价格涨幅" })).toHaveTextContent(
+    "0.7030+0.72%",
+  );
+  expect(chart.convertFromPixel).toHaveBeenCalledWith(
+    [{ y: 160 }],
+    { paneId: "candle_pane" },
+  );
 });

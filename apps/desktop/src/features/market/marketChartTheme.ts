@@ -72,7 +72,7 @@ export const marketChartTheme: Options["styles"] = {
     horizontal: {
       line: { color: "#486f73", size: 1, style: "dashed", dashedValue: [4, 3] },
       text: {
-        show: true,
+        show: false,
         color: "#f4f8f7",
         backgroundColor: "#355d61",
         borderColor: "#355d61",
