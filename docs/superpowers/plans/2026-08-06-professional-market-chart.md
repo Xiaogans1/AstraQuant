@@ -8,6 +8,29 @@
 
 **Tech Stack:** Python 3.12, Eastmoney `gm`, FastAPI/Pydantic, React 19, TypeScript 7, TanStack Query, KLineChart 10.0.2, Vitest, Tauri 2, uv, pnpm.
 
+## Execution status
+
+Completed on 2026-08-06:
+
+- Truthful nullable previous-close and change semantics, enriched from the latest completed real daily bar.
+- Strict real multi-period data contract for intraday, 1/5/15/30/60 minute, day, week, month and year.
+- Authenticated period-aware API with bounded cache and the legacy intraday compatibility route.
+- KLineChart 10.0.2 integration, AstraQuant chart theme, volume/technical indicators and future signal-overlay boundary.
+- Full-width broker-style workspace with quote summary, hierarchical period controls, full-screen mode and fixed A-share session landmarks.
+- Old narrow hand-written SVG chart removed from the homepage.
+
+Verification evidence:
+
+```text
+Python:   245 passed
+Ruff:     All checks passed
+Mypy:     Success: no issues found in 52 source files
+Frontend: 49 passed
+TypeScript: no errors
+Vite:     production build succeeded
+Rust:     cargo check succeeded
+```
+
 ---
 
 ## File map
