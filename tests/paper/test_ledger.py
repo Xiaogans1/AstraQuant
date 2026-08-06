@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -63,6 +63,41 @@ def test_buy_uses_best_ask_and_freezes_new_quantity_for_t_plus_one() -> None:
     assert result.state.positions[0].available_quantity == 0
     assert result.state.snapshots[-1].initial_equity == Decimal("100000")
     assert result.state.snapshots[-1].total_pnl == Decimal("-6.01")
+
+
+def test_next_market_day_releases_frozen_quantity_before_sell() -> None:
+    ledger = PaperLedger()
+    bought = ledger.execute_market_order(
+        LedgerState(account=account()),
+        quote=quote(),
+        side=OrderSide.BUY,
+        quantity=1_000,
+        idempotency_key="paper-order-t1-buy",
+        now=NOW,
+        name="半导体设备ETF",
+        stamp_duty_exempt=True,
+    )
+    next_day = NOW + timedelta(days=1)
+    next_quote = LiveQuote.minimum(
+        INSTRUMENT,
+        event_time=next_day,
+        last_price=Decimal("0.720"),
+        previous_close=Decimal("0.714"),
+        bid=(QuoteLevel(Decimal("0.719"), Decimal("10000")),),
+    )
+
+    sold = ledger.execute_market_order(
+        bought.state,
+        quote=next_quote,
+        side=OrderSide.SELL,
+        quantity=1_000,
+        idempotency_key="paper-order-t1-sell",
+        now=next_day,
+        stamp_duty_exempt=True,
+    )
+
+    assert sold.order.status is OrderStatus.FILLED
+    assert sold.state.positions == ()
 
 
 def test_sell_uses_best_bid_and_reduces_available_quantity() -> None:

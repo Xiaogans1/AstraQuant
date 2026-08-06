@@ -119,7 +119,9 @@ class PaperOrder:
 
     def __post_init__(self) -> None:
         for field_name in ("order_id", "account_id", "idempotency_key"):
-            object.__setattr__(self, field_name, _require_text(field_name, getattr(self, field_name)))
+            object.__setattr__(
+                self, field_name, _require_text(field_name, getattr(self, field_name))
+            )
         if self.quantity <= 0:
             raise ValueError("quantity must be positive")
         _require_aware("submitted_at", self.submitted_at)
@@ -143,7 +145,9 @@ class PaperFill:
 
     def __post_init__(self) -> None:
         for field_name in ("fill_id", "order_id", "account_id"):
-            object.__setattr__(self, field_name, _require_text(field_name, getattr(self, field_name)))
+            object.__setattr__(
+                self, field_name, _require_text(field_name, getattr(self, field_name))
+            )
         if self.quantity <= 0:
             raise ValueError("quantity must be positive")
         if self.price <= 0 or self.gross_amount <= 0:

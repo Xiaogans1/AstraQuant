@@ -139,4 +139,3 @@ def downgrade() -> None:
     op.drop_table("paper_positions")
     op.drop_index("ix_paper_accounts_created", table_name="paper_accounts")
     op.drop_table("paper_accounts")
-

@@ -7,6 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from astraquant_domain import (
     InstrumentId,
@@ -20,6 +21,8 @@ from astraquant_domain import (
     Position,
 )
 from astraquant_paper.fees import FeeBreakdown, FeeSchedule
+
+_CHINA_MARKET_TZ = ZoneInfo("Asia/Shanghai")
 
 
 class RejectionCode(StrEnum):
@@ -88,6 +91,7 @@ class PaperLedger:
         *,
         now: datetime,
     ) -> LedgerState:
+        state = self.settle_for_market_day(state, as_of=now)
         quote_by_instrument = {str(item.instrument_id): item for item in quotes}
         marked_positions = tuple(
             self._mark_position(position, quote_by_instrument.get(str(position.instrument_id)))
@@ -112,6 +116,7 @@ class PaperLedger:
         name: str | None = None,
         stamp_duty_exempt: bool = False,
     ) -> ExecutionResult:
+        state = self.settle_for_market_day(state, as_of=quote.event_time)
         duplicate = next(
             (item for item in state.orders if item.idempotency_key == idempotency_key),
             None,
@@ -182,6 +187,28 @@ class PaperLedger:
             snapshots=(*state.snapshots, snapshot),
         )
         return ExecutionResult(state=next_state, order=order, fill=fill)
+
+    @staticmethod
+    def settle_for_market_day(state: LedgerState, *, as_of: datetime) -> LedgerState:
+        """Release quantities frozen on a previous China market date.
+
+        ``marked_at`` is the last real quote date seen for a position. An opening
+        position with no quote is deliberately left untouched on its first day;
+        this preserves a manually entered unavailable quantity until the market
+        has established a local trading-day baseline.
+        """
+        market_day = as_of.astimezone(_CHINA_MARKET_TZ).date()
+        settled_positions = tuple(
+            replace(position, available_quantity=position.quantity)
+            if position.marked_at is not None
+            and position.marked_at.astimezone(_CHINA_MARKET_TZ).date() < market_day
+            and position.available_quantity != position.quantity
+            else position
+            for position in state.positions
+        )
+        if settled_positions == state.positions:
+            return state
+        return replace(state, positions=settled_positions)
 
     @staticmethod
     def _execution_price(quote: LiveQuote, side: OrderSide) -> Decimal:

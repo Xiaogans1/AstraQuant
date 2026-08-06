@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from astraquant_api.database import create_database, migrate_database
 from astraquant_api.market_service import MarketDataService
@@ -31,17 +32,23 @@ class BarProvider:
     def health(self) -> ProviderHealth:
         return ProviderHealth(provider_id="test")
 
-    def history_n(self, _instrument_id: InstrumentId, *, count: int):
+    def history_n(self, _instrument_id: InstrumentId, *, count: int) -> list[dict[str, Any]]:
         return []
 
-    def bars(self, _instrument_id: InstrumentId, *, period: MarketPeriod, count: int):
+    def bars(
+        self,
+        _instrument_id: InstrumentId,
+        *,
+        period: MarketPeriod,
+        count: int,
+    ) -> list[MarketBar]:
         assert period is MarketPeriod.MINUTE_1
         return self._bars[-count:]
 
-    def search(self, _query: str):
+    def search(self, _query: str) -> list[dict[str, Any]]:
         return []
 
-    def trading_dates(self, start: date, _end: date):
+    def trading_dates(self, start: date, _end: date) -> list[date]:
         return [start]
 
 
@@ -172,16 +179,28 @@ def test_auto_execution_is_idempotent_for_the_same_decision(tmp_path: Path) -> N
         last_volume="400",
     )
     service, repository = build_service(tmp_path, market_bars)
-    request = {
-        "instrument_id": INSTRUMENT,
-        "quantity": 100,
-        "auto_execute": True,
-        "max_position_percent": Decimal("20"),
-        "decision_time": market_bars[-1].timestamp + timedelta(minutes=1),
-    }
+    decision_time = market_bars[-1].timestamp + timedelta(minutes=1)
 
-    first = asyncio.run(service.run("account-1", **request))
-    second = asyncio.run(service.run("account-1", **request))
+    first = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=True,
+            max_position_percent=Decimal("20"),
+            decision_time=decision_time,
+        )
+    )
+    second = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=True,
+            max_position_percent=Decimal("20"),
+            decision_time=decision_time,
+        )
+    )
 
     assert first.outcome is StrategyOutcome.EXECUTED
     assert second.order == first.order

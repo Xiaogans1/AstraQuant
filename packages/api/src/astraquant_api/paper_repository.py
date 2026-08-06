@@ -143,9 +143,13 @@ class PaperRepository:
 
     def load_state(self, account_id: str) -> LedgerState:
         with self.engine.connect() as connection:
-            account_row = connection.execute(
-                sa.select(paper_accounts).where(paper_accounts.c.account_id == account_id)
-            ).mappings().one_or_none()
+            account_row = (
+                connection.execute(
+                    sa.select(paper_accounts).where(paper_accounts.c.account_id == account_id)
+                )
+                .mappings()
+                .one_or_none()
+            )
             if account_row is None:
                 raise KeyError(account_id)
             position_rows = list(
@@ -220,9 +224,9 @@ class PaperRepository:
             ):
                 for item in values:
                     connection.execute(
-                        sqlite_insert(table).values(**item).on_conflict_do_nothing(
-                            index_elements=[key]
-                        )
+                        sqlite_insert(table)
+                        .values(**item)
+                        .on_conflict_do_nothing(index_elements=[key])
                     )
 
     @staticmethod
@@ -342,10 +346,7 @@ class PaperRepository:
             initial_equity=_decimal(row["initial_equity"]),
             total_pnl=_decimal(row["total_pnl"]),
             total_pnl_percent=(
-                None
-                if row["total_pnl_percent"] is None
-                else _decimal(row["total_pnl_percent"])
+                None if row["total_pnl_percent"] is None else _decimal(row["total_pnl_percent"])
             ),
             as_of=_utc(row["as_of"]),
         )
-

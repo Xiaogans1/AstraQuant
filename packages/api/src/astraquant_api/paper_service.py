@@ -113,11 +113,7 @@ class PaperService:
         for account in self._repository.list_accounts():
             state = self._repository.load_state(account.account_id)
             held_instruments = {position.instrument_id for position in state.positions}
-            relevant = tuple(
-                item
-                for item in quotes
-                if item.instrument_id in held_instruments
-            )
+            relevant = tuple(item for item in quotes if item.instrument_id in held_instruments)
             if not relevant:
                 continue
             newest = max(item.event_time for item in relevant)
