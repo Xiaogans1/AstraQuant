@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Event
-from typing import Annotated, Protocol, cast
+from typing import TYPE_CHECKING, Annotated, Protocol, cast
 
 from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +27,9 @@ from astraquant_api.schemas import (
 from astraquant_api.secret_store import SecretStore
 from astraquant_api.task_model import TaskRecord
 from astraquant_data.live_providers import LiveMarketProvider
+
+if TYPE_CHECKING:
+    from astraquant_api.paper_strategy_service import PaperStrategyService
 
 
 class Supervisor(Protocol):
@@ -62,6 +65,7 @@ class AppState:
     state_dir: Path
     market_service: MarketDataService | None = None
     paper_service: PaperLifecycle | None = None
+    paper_strategy_service: PaperStrategyService | None = None
     secret_store: SecretStore | None = None
     market_provider_factory: Callable[[Path, float], LiveMarketProvider] | None = None
     allowed_data_instruments: frozenset[str] = frozenset({"600000.SSE", "RB0.SHFE"})
@@ -270,6 +274,7 @@ def create_app(state: AppState) -> FastAPI:
         app.include_router(
             build_paper_router(
                 service=cast(PaperService, state.paper_service),
+                strategy_service=state.paper_strategy_service,
                 authenticated=authenticated,
                 validate_idempotency_key=_validate_idempotency_key,
             )

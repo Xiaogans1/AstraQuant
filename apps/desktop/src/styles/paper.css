@@ -36,6 +36,23 @@
 .paper-pulse svg { width: 100%; height: 100%; overflow: visible; }
 .paper-pulse line { stroke: var(--border-strong); stroke-width: .45; stroke-dasharray: 2 2; }
 .paper-pulse polyline { fill: none; stroke: var(--accent); stroke-width: 1.25; vector-effect: non-scaling-stroke; }
+.paper-strategy .panel__body { padding: 0; }
+.paper-strategy__version { padding: 6px 9px; border: 1px solid var(--border); color: var(--accent); font: 600 10px var(--font-data); letter-spacing: .08em; }
+.paper-strategy__layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(310px, .7fr); }
+.paper-strategy__controls { display: grid; grid-template-columns: 1.4fr .8fr .9fr 1.25fr auto; gap: 12px; align-items: end; padding: 18px; }
+.paper-strategy__controls label { position: relative; display: grid; gap: 6px; color: var(--text-muted); font-size: 10px; letter-spacing: .04em; }
+.paper-strategy__controls input:not([type="checkbox"]) { min-height: 38px; padding: 0 10px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); color: var(--text-primary); font: 12px var(--font-data); }
+.paper-strategy__controls label > span:not(.paper-strategy__switch span) { position: absolute; right: 10px; bottom: 11px; }
+.paper-strategy__switch { min-height: 38px; grid-template-columns: auto 1fr; align-content: center; align-items: center; padding: 0 10px; border: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 3%, var(--surface)); }
+.paper-strategy__switch input { accent-color: var(--accent); }
+.paper-strategy__controls button { min-height: 38px; padding: 0 16px; border: 1px solid var(--accent); border-radius: 3px; background: var(--accent); color: var(--surface); font-weight: 700; cursor: pointer; }
+.paper-strategy__result { min-height: 112px; display: flex; flex-direction: column; justify-content: center; gap: 7px; padding: 18px 20px; border-left: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 4%, var(--panel)); }
+.paper-strategy__result strong { font-size: 14px; }
+.paper-strategy__result p { margin: 0; color: var(--text-muted); font-size: 11px; line-height: 1.6; }
+.paper-strategy__result code, .paper-strategy__result small { color: var(--text-muted); font: 9px var(--font-data); }
+.paper-strategy__outcome { color: var(--accent); font: 700 11px var(--font-data); letter-spacing: .1em; }
+.paper-strategy__outcome[data-outcome="BLOCKED"] { color: var(--negative); }
+.paper-strategy__outcome[data-outcome="EXECUTED"] { color: var(--positive); }
 .paper-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(330px, .8fr); gap: 14px; align-items: start; }
 .paper-grid--history { grid-template-columns: 1fr 1fr; }
 .paper-table-wrap { overflow-x: auto; }
@@ -57,5 +74,6 @@
 .paper-audit li:last-child { border-bottom: 0; }
 .paper-audit strong { font-size: 12px; }
 .paper-audit span { color: var(--text-muted); font: 10px var(--font-data); }
+@media (max-width: 1180px) { .paper-strategy__layout { grid-template-columns: 1fr; } .paper-strategy__result { border-top: 1px solid var(--border); border-left: 0; } .paper-strategy__controls { grid-template-columns: repeat(2, 1fr); } .paper-strategy__controls button { grid-column: 1 / -1; } }
 @media (max-width: 980px) { .paper-onboarding, .paper-grid, .paper-grid--history { grid-template-columns: 1fr; } .paper-onboarding__form { border-top: 1px solid var(--border); border-left: 0; } .paper-equity-rail { grid-template-columns: repeat(2, 1fr); } .paper-metric { border-bottom: 1px solid var(--border); } }
-@media (max-width: 620px) { .paper-account-bar { align-items: stretch; flex-direction: column; } .paper-account-bar select { width: 100%; } .paper-equity-rail { grid-template-columns: 1fr; } .paper-pulse { grid-template-columns: 1fr; height: 170px; } .paper-pulse > div { border-right: 0; border-bottom: 1px solid var(--border); } .paper-form--compact { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .paper-account-bar { align-items: stretch; flex-direction: column; } .paper-account-bar select { width: 100%; } .paper-equity-rail { grid-template-columns: 1fr; } .paper-pulse { grid-template-columns: 1fr; height: 170px; } .paper-pulse > div { border-right: 0; border-bottom: 1px solid var(--border); } .paper-form--compact, .paper-strategy__controls { grid-template-columns: 1fr; } .paper-strategy__controls button { grid-column: auto; } }

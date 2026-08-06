@@ -34,6 +34,8 @@ import type {
   PaperMarketOrderRequest,
   PaperOrder,
   PaperOrderExecution,
+  PaperStrategyRun,
+  PaperStrategyRunRequest,
 } from "./paper-contracts";
 
 type Fetch = typeof fetch;
@@ -242,6 +244,16 @@ export class ApiClient {
 
   listPaperEquity(accountId: string): Promise<PaperEquity[]> {
     return this.request(`/v1/paper/accounts/${encodeURIComponent(accountId)}/equity`);
+  }
+
+  runPaperStrategy(
+    accountId: string,
+    request: PaperStrategyRunRequest,
+  ): Promise<PaperStrategyRun> {
+    return this.request(
+      `/v1/paper/accounts/${encodeURIComponent(accountId)}/strategy/run`,
+      { method: "POST", body: JSON.stringify(request) },
+    );
   }
 
   getSettings(): Promise<Settings> {

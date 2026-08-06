@@ -14,6 +14,7 @@ from astraquant_api.logging import ActivityBuffer
 from astraquant_api.market_service import MarketDataService
 from astraquant_api.paper_repository import PaperRepository
 from astraquant_api.paper_service import PaperService
+from astraquant_api.paper_strategy_service import PaperStrategyService
 from astraquant_api.repository import TaskRepository
 from astraquant_api.secret_store import MemorySecretStore
 from astraquant_api.task_model import TaskRecord
@@ -67,6 +68,10 @@ def build_client(tmp_path: Path) -> tuple[TestClient, MarketDataService]:
         session_token=TOKEN,
         state_dir=tmp_path,
         paper_service=paper,
+        paper_strategy_service=PaperStrategyService(
+            paper_service=paper,
+            market_service=market,
+        ),
     )
     client = TestClient(create_app(state))
     client.headers.update({"Authorization": f"Bearer {TOKEN}"})
@@ -184,3 +189,34 @@ def test_invalid_idempotency_key_is_rejected(tmp_path: Path) -> None:
 
     assert response.status_code == 400
     assert response.json()["code"] == "invalid_idempotency_key"
+
+
+def test_strategy_run_returns_auditable_hold_without_warm_features(tmp_path: Path) -> None:
+    client, market = build_client(tmp_path)
+    account_id = create_account(client)
+    market.request_quote("159516.SZSE")
+    market.record_quotes(
+        [
+            LiveQuote.minimum(
+                InstrumentId.parse("159516.SZSE"),
+                event_time=NOW,
+                last_price=Decimal("0.714"),
+                previous_close=Decimal("0.701"),
+            )
+        ]
+    )
+
+    response = client.post(
+        f"/v1/paper/accounts/{account_id}/strategy/run",
+        json={
+            "instrument_id": "159516.SZSE",
+            "quantity": 100,
+            "auto_execute": False,
+            "max_position_percent": "20",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["outcome"] == "HOLD"
+    assert response.json()["signal"]["strategy_version"] == "baseline-v1"
+    assert response.json()["decision_id"].startswith("decision-")

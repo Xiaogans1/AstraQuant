@@ -13,6 +13,7 @@ import type {
   CreatePaperAccountRequest,
   OpeningPositionRequest,
   PaperMarketOrderRequest,
+  PaperStrategyRunRequest,
 } from "./paper-contracts";
 
 export const queryKeys = {
@@ -130,6 +131,29 @@ export function useSubmitPaperOrderMutation(client: ApiClient) {
         queryClient.invalidateQueries({ queryKey: queryKeys.paperOrders(accountId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.paperFills(accountId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.paperEquity(accountId) }),
+      ]);
+    },
+  });
+}
+
+export function useRunPaperStrategyMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      accountId,
+      request,
+    }: {
+      accountId: string;
+      request: PaperStrategyRunRequest;
+    }) => client.runPaperStrategy(accountId, request),
+    onSuccess: async (result, variables) => {
+      if (result.outcome !== "EXECUTED") return;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperAccounts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperAccount(variables.accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperOrders(variables.accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperFills(variables.accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperEquity(variables.accountId) }),
       ]);
     },
   });

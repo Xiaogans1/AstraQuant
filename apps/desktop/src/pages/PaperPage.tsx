@@ -9,6 +9,7 @@ import {
   usePaperEquityQuery,
   usePaperFillsQuery,
   usePaperOrdersQuery,
+  useRunPaperStrategyMutation,
   useSubmitPaperOrderMutation,
 } from "../api/queries";
 import type { PaperEquity, PaperOrderSide } from "../api/paper-contracts";
@@ -144,6 +145,12 @@ function AccountWorkspace({
 
       <EquityPulse equity={equityQuery.data ?? []} baseline={selectedSummary.initial_equity} />
 
+      <StrategyConsole
+        client={client}
+        accountId={accountId}
+        defaultInstrument={detail?.positions[0]?.instrument_id ?? "159516.SZSE"}
+      />
+
       <div className="paper-grid">
         <Panel title="当前持仓" eyebrow="POSITIONS / MARKED">
           {detail === undefined || detail.positions.length === 0 ? (
@@ -197,6 +204,71 @@ function AccountWorkspace({
         </Panel>
       </div>
     </div>
+  );
+}
+
+function StrategyConsole({
+  client,
+  accountId,
+  defaultInstrument,
+}: {
+  client: ApiClient;
+  accountId: string;
+  defaultInstrument: string;
+}) {
+  const runStrategy = useRunPaperStrategyMutation(client);
+  const [instrument, setInstrument] = useState(defaultInstrument);
+  const [quantity, setQuantity] = useState("100");
+  const [maxPosition, setMaxPosition] = useState("20");
+  const [autoExecute, setAutoExecute] = useState(false);
+
+  useEffect(() => setInstrument(defaultInstrument), [defaultInstrument]);
+  const result = runStrategy.data;
+  return (
+    <Panel
+      title="策略执行台"
+      eyebrow="QUANT / AUDITABLE BASELINE"
+      className="paper-strategy"
+      action={<span className="paper-strategy__version">baseline-v1</span>}
+    >
+      <div className="paper-strategy__layout">
+        <form
+          className="paper-strategy__controls"
+          onSubmit={(event) => {
+            event.preventDefault();
+            runStrategy.mutate({
+              accountId,
+              request: {
+                instrument_id: instrument,
+                quantity: Number(quantity),
+                auto_execute: autoExecute,
+                max_position_percent: maxPosition,
+              },
+            });
+          }}
+        >
+          <label>证券代码<input value={instrument} onChange={(event) => setInstrument(event.target.value.toUpperCase())} /></label>
+          <label>建议数量<input inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
+          <label>单标的仓位上限<input inputMode="decimal" value={maxPosition} onChange={(event) => setMaxPosition(event.target.value)} /><span>%</span></label>
+          <label className="paper-strategy__switch"><input type="checkbox" checked={autoExecute} onChange={(event) => setAutoExecute(event.target.checked)} /><span>允许自动执行模拟成交</span></label>
+          <button type="submit" disabled={runStrategy.isPending}>{runStrategy.isPending ? "正在读取真实行情…" : "运行 baseline-v1"}</button>
+        </form>
+        <div className="paper-strategy__result" aria-live="polite">
+          {result === undefined ? (
+            <><strong>默认只生成建议</strong><p>策略、信号、风控和结果都有确定版本与审计编号。即使开启自动执行，也只写入本地模拟账本。</p></>
+          ) : (
+            <>
+              <div className="paper-strategy__outcome" data-outcome={result.outcome}>{result.outcome} · {result.signal.state}</div>
+              <strong>{result.signal.action} · 置信度 {(Number(result.signal.confidence) * 100).toFixed(0)}%</strong>
+              <p>{result.risk_reason ?? result.signal.reason_codes.join(" · ")}</p>
+              <code>{result.decision_id}</code>
+              {result.fill !== null ? <small>已按真实快照价 {result.fill.price} 虚拟成交 {result.fill.quantity} 份</small> : null}
+            </>
+          )}
+          {runStrategy.error instanceof Error ? <p className="paper-form__error">{runStrategy.error.message}</p> : null}
+        </div>
+      </div>
+    </Panel>
   );
 }
 
@@ -293,4 +365,3 @@ function formatSignedMoney(value: string): string { const amount = Number(value)
 function formatPercent(value: string | null): string { if (value === null) return "—"; const amount = Number(value); return `${amount >= 0 ? "+" : ""}${amount.toFixed(2)}%`; }
 function formatTime(value: string): string { return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date(value)); }
 function trendClass(value: number): string { return value >= 0 ? "paper-trend-up" : "paper-trend-down"; }
-

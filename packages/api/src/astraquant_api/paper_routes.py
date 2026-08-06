@@ -20,8 +20,12 @@ from astraquant_api.paper_schemas import (
     OpeningPositionRequest,
     OrderExecutionView,
     OrderView,
+    StrategyRunRequest,
+    StrategyRunView,
+    StrategySignalView,
 )
 from astraquant_api.paper_service import PaperService, QuoteUnavailable
+from astraquant_api.paper_strategy_service import PaperStrategyService
 from astraquant_domain import InstrumentId, PaperAccount
 from astraquant_paper import LedgerState
 
@@ -29,6 +33,7 @@ from astraquant_paper import LedgerState
 def build_paper_router(
     *,
     service: PaperService,
+    strategy_service: PaperStrategyService | None,
     authenticated: Any,
     validate_idempotency_key: Callable[[str | None], str],
 ) -> APIRouter:
@@ -146,6 +151,42 @@ def build_paper_router(
     def list_equity(account_id: str) -> list[EquityView]:
         state = _state_or_404(service, account_id)
         return [EquityView.from_domain(item) for item in state.snapshots]
+
+    if strategy_service is not None:
+
+        @router.post(
+            "/accounts/{account_id}/strategy/run",
+            response_model=StrategyRunView,
+        )
+        async def run_strategy(
+            account_id: str,
+            request: StrategyRunRequest,
+        ) -> StrategyRunView:
+            try:
+                result = await strategy_service.run(
+                    account_id,
+                    instrument_id=InstrumentId.parse(request.instrument_id),
+                    quantity=request.quantity,
+                    auto_execute=request.auto_execute,
+                    max_position_percent=request.max_position_percent,
+                    decision_time=datetime.now(UTC),
+                )
+            except KeyError:
+                raise ApiProblem(404, "paper_account_not_found", "未找到模拟账户") from None
+            except ValueError as error:
+                raise ApiProblem(422, "invalid_strategy_request", str(error)) from None
+            decision = result.decision.decision_record
+            return StrategyRunView(
+                outcome=result.outcome,
+                proposed_side=result.proposed_side,
+                proposed_quantity=result.proposed_quantity,
+                risk_reason=result.risk_reason,
+                decision_id=decision.decision_id,
+                advisory_checks=list(decision.advisory_checks),
+                signal=StrategySignalView.from_domain(result.decision.signal),
+                order=None if result.order is None else OrderView.from_domain(result.order),
+                fill=None if result.fill is None else FillView.from_domain(result.fill),
+            )
 
     return router
 

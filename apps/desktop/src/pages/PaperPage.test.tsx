@@ -114,3 +114,52 @@ test("creating an account sends the user-entered cash baseline", async () => {
     initial_cash: "200000",
   });
 });
+
+test("strategy console runs baseline in advisory mode and renders the audit result", async () => {
+  const runPaperStrategy = vi.fn().mockResolvedValue({
+    outcome: "HOLD",
+    proposed_side: null,
+    proposed_quantity: 100,
+    risk_reason: null,
+    decision_id: "decision-audit-1",
+    advisory_checks: ["MARKET_LIVE", "FEATURES_WARMING_UP"],
+    signal: {
+      signal_id: "signal-audit-1",
+      action: "HOLD",
+      state: "WARMING_UP",
+      reference_price: null,
+      confidence: "0",
+      strategy_id: "intraday-momentum-volume",
+      strategy_version: "baseline-v1",
+      feature_version: "realtime-v1",
+      reason_codes: ["INSUFFICIENT_COMPLETED_BARS"],
+      event_time: "2026-08-06T06:31:00Z",
+      decision_time: "2026-08-06T06:31:00Z",
+      expires_at: "2026-08-06T06:32:00Z",
+    },
+    order: null,
+    fill: null,
+  });
+  const client = {
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    runPaperStrategy,
+  } as unknown as ApiClient;
+  renderPage(client);
+  const user = userEvent.setup();
+
+  await user.click(await screen.findByRole("button", { name: "运行 baseline-v1" }));
+
+  expect(runPaperStrategy).toHaveBeenCalledWith("account-1", {
+    instrument_id: "159516.SZSE",
+    quantity: 100,
+    auto_execute: false,
+    max_position_percent: "20",
+  });
+  expect(await screen.findByText("HOLD · WARMING_UP")).toBeVisible();
+  expect(screen.getByText("INSUFFICIENT_COMPLETED_BARS")).toBeVisible();
+  expect(screen.getByText("decision-audit-1")).toBeVisible();
+});

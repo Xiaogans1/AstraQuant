@@ -16,6 +16,7 @@ from astraquant_domain import (
     PaperOrder,
     PortfolioSnapshot,
     Position,
+    SignalFrame,
 )
 from astraquant_paper import LedgerState
 
@@ -48,6 +49,45 @@ class MarketOrderRequest(BaseModel):
     quantity: int = Field(gt=0)
     name: str | None = Field(default=None, max_length=200)
     stamp_duty_exempt: bool = False
+
+
+class StrategyRunRequest(BaseModel):
+    instrument_id: str
+    quantity: int = Field(gt=0)
+    auto_execute: bool = False
+    max_position_percent: Decimal = Field(default=Decimal("20"), gt=0, le=100)
+
+
+class StrategySignalView(BaseModel):
+    signal_id: str
+    action: str
+    state: str
+    reference_price: Decimal | None
+    confidence: Decimal
+    strategy_id: str
+    strategy_version: str
+    feature_version: str
+    reason_codes: list[str]
+    event_time: datetime
+    decision_time: datetime
+    expires_at: datetime
+
+    @classmethod
+    def from_domain(cls, item: SignalFrame) -> StrategySignalView:
+        return cls(
+            signal_id=item.signal_id,
+            action=item.action,
+            state=item.state,
+            reference_price=item.reference_price,
+            confidence=item.confidence,
+            strategy_id=item.strategy_id,
+            strategy_version=item.strategy_version,
+            feature_version=item.feature_version,
+            reason_codes=list(item.reason_codes),
+            event_time=item.event_time,
+            decision_time=item.decision_time,
+            expires_at=item.expires_at,
+        )
 
 
 class AccountView(BaseModel):
@@ -194,3 +234,14 @@ class OrderExecutionView(BaseModel):
     fill: FillView | None
     portfolio: AccountDetailView
 
+
+class StrategyRunView(BaseModel):
+    outcome: str
+    proposed_side: OrderSide | None
+    proposed_quantity: int
+    risk_reason: str | None
+    decision_id: str
+    advisory_checks: list[str]
+    signal: StrategySignalView
+    order: OrderView | None
+    fill: FillView | None

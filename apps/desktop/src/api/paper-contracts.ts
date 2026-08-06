@@ -102,3 +102,36 @@ export interface PaperOrderExecution {
   portfolio: PaperAccountDetail;
 }
 
+export interface PaperStrategyRunRequest {
+  instrument_id: string;
+  quantity: number;
+  auto_execute: boolean;
+  max_position_percent: string;
+}
+
+export interface PaperStrategySignal {
+  signal_id: string;
+  action: "BUY" | "SELL" | "HOLD";
+  state: "ACTIVE" | "SUPPRESSED" | "WARMING_UP";
+  reference_price: string | null;
+  confidence: string;
+  strategy_id: string;
+  strategy_version: string;
+  feature_version: string;
+  reason_codes: string[];
+  event_time: string;
+  decision_time: string;
+  expires_at: string;
+}
+
+export interface PaperStrategyRun {
+  outcome: "HOLD" | "SUGGESTED" | "BLOCKED" | "EXECUTED";
+  proposed_side: PaperOrderSide | null;
+  proposed_quantity: number;
+  risk_reason: string | null;
+  decision_id: string;
+  advisory_checks: string[];
+  signal: PaperStrategySignal;
+  order: PaperOrder | null;
+  fill: PaperFill | null;
+}
