@@ -8,7 +8,7 @@ from decimal import Decimal
 from astraquant_api.market_service import MarketDataService
 from astraquant_api.paper_repository import PaperRepository
 from astraquant_domain import InstrumentId, LiveQuote, OrderSide, PaperAccount
-from astraquant_paper import ExecutionResult, PaperLedger
+from astraquant_paper import ExecutionResult, LedgerState, PaperLedger
 
 
 class QuoteUnavailable(RuntimeError):
@@ -44,8 +44,15 @@ class PaperService:
         self._market_service.remove_quote_observer(self.on_quotes)
         self._started = False
 
-    def create_account(self, account: PaperAccount) -> None:
+    def list_accounts(self) -> list[PaperAccount]:
+        return self._repository.list_accounts()
+
+    def get_state(self, account_id: str) -> LedgerState:
+        return self._repository.load_state(account_id)
+
+    def create_account(self, account: PaperAccount) -> LedgerState:
         self._repository.create_account(account)
+        return self._repository.load_state(account.account_id)
 
     def add_opening_position(
         self,
@@ -56,7 +63,7 @@ class PaperService:
         quantity: int,
         available_quantity: int,
         average_cost: Decimal,
-    ) -> None:
+    ) -> LedgerState:
         state = self._repository.load_state(account_id)
         next_state = self._ledger.add_opening_position(
             state,
@@ -68,6 +75,7 @@ class PaperService:
         )
         self._repository.save_state(next_state)
         self._market_service.request_quote(str(instrument_id))
+        return next_state
 
     def submit_market_order(
         self,

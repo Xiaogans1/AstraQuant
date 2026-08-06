@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Event
-from typing import Annotated, Protocol
+from typing import Annotated, Protocol, cast
 
 from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -261,6 +261,17 @@ def create_app(state: AppState) -> FastAPI:
                 secret_store=state.secret_store,
                 provider_factory=state.market_provider_factory,
                 authenticated=authenticated,
+            )
+        )
+    if state.paper_service is not None:
+        from astraquant_api.paper_routes import build_paper_router
+        from astraquant_api.paper_service import PaperService
+
+        app.include_router(
+            build_paper_router(
+                service=cast(PaperService, state.paper_service),
+                authenticated=authenticated,
+                validate_idempotency_key=_validate_idempotency_key,
             )
         )
     return app
