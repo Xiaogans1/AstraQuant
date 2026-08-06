@@ -25,6 +25,7 @@ import {
 } from "../features/market/marketSignalOverlay";
 
 const QUANT_SIGNAL_GROUP_ID = "astraquant-quant-signals";
+const MINIMUM_KLINE_BAR_SPACE = 2.5;
 
 const quantSignalOverlay: OverlayTemplate<MarketSignalOverlay> = {
   name: "astraquantSignal",
@@ -106,6 +107,12 @@ export function ProfessionalMarketChart({
       locale: "zh-CN",
       timezone: "Asia/Shanghai",
       styles: marketChartTheme,
+      layout: {
+        barSpaceLimit: {
+          min: MINIMUM_KLINE_BAR_SPACE,
+          max: 50,
+        },
+      },
     });
     if (chart === null) return;
     registerOverlay(quantSignalOverlay);
@@ -147,6 +154,13 @@ export function ProfessionalMarketChart({
       });
     };
     chart.subscribeAction("onCrosshairChange", handleCrosshairChange);
+    const handleZoom = () => {
+      const minimum = minimumBarSpace(host, layoutRef.current.period);
+      if (chart.getBarSpace().bar < minimum) {
+        chart.setBarSpace(minimum);
+      }
+    };
+    chart.subscribeAction("onZoom", handleZoom);
 
     const resizeObserver = new ResizeObserver(() => {
       chart.resize();
@@ -156,6 +170,7 @@ export function ProfessionalMarketChart({
     return () => {
       resizeObserver.disconnect();
       chart.unsubscribeAction("onCrosshairChange", handleCrosshairChange);
+      chart.unsubscribeAction("onZoom", handleZoom);
       onCrosshairBarChangeRef.current?.(null);
       chartRef.current = null;
       dispose(chart);
@@ -292,9 +307,17 @@ function applyChartLayout(
   }
   const sessionBars = 240;
   const remainingBars = Math.max(sessionBars - barCount, 0);
-  const plotWidth = Math.max(host.clientWidth - 64, 960);
-  const barSpace = plotWidth / sessionBars;
+  const barSpace = minimumBarSpace(host, period);
   chart.setBarSpace(barSpace);
   chart.setRightMinVisibleBarCount(0);
   chart.setOffsetRightDistance(remainingBars * barSpace);
+}
+
+function minimumBarSpace(
+  host: HTMLDivElement,
+  period: MarketPeriod,
+): number {
+  if (period !== "intraday") return MINIMUM_KLINE_BAR_SPACE;
+  const plotWidth = Math.max(host.clientWidth - 64, 960);
+  return plotWidth / 240;
 }

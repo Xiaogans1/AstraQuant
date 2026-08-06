@@ -80,6 +80,8 @@ Expected: FAIL because the chart has no crosshair quote label.
   与涨跌幅；十字光标清除时恢复实时 `QuoteCard`。
 - 在主图右侧渲染 `role="status"` 标签，并通过 CSS 约束位置。
 - 将原生 `crosshair.horizontal.text.show` 设置为 `false`，防止重复价格标签。
+- 通过 KLineCharts `barSpaceLimit` 设置通用 K 线最小柱宽，并订阅 `onZoom`，
+  按画布宽度动态钳制分时图的最小缩放比例。
 
 - [ ] **Step 4: Run focused tests**
 

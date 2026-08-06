@@ -17,6 +17,7 @@ const { chart, dispose, init, registerOverlay } = vi.hoisted(() => {
     setRightMinVisibleBarCount: vi.fn(),
     setOffsetRightDistance: vi.fn(),
     setBarSpace: vi.fn(),
+    getBarSpace: vi.fn(),
     convertFromPixel: vi.fn(),
     createOverlay: vi.fn(),
     removeOverlay: vi.fn(),
@@ -55,6 +56,12 @@ const bars: MarketBar[] = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  chart.getBarSpace.mockReturnValue({
+    bar: 1,
+    halfBar: 0.5,
+    gapBar: 0.2,
+    halfGapBar: 0.1,
+  });
   vi.stubGlobal("ResizeObserver", ResizeObserverMock);
 });
 
@@ -224,4 +231,32 @@ it("renders only explicit quant buy and sell decisions as chart overlays", () =>
       extendData: expect.objectContaining({ tag: "B", side: "BUY" }),
     }),
   );
+});
+
+it("prevents wheel zoom from shrinking an intraday session below the canvas", () => {
+  render(
+    <ProfessionalMarketChart
+      instrumentId="159516.SZSE"
+      period="intraday"
+      indicator="MA"
+      bars={bars}
+    />,
+  );
+
+  expect(init).toHaveBeenCalledWith(
+    expect.any(HTMLDivElement),
+    expect.objectContaining({
+      layout: {
+        barSpaceLimit: expect.objectContaining({ min: 2.5 }),
+      },
+    }),
+  );
+  const callback = chart.subscribeAction.mock.calls.find(
+    ([action]) => action === "onZoom",
+  )?.[1];
+  expect(callback).toBeTypeOf("function");
+
+  act(() => callback({ scale: 0.8 }));
+
+  expect(chart.setBarSpace).toHaveBeenLastCalledWith(4);
 });
