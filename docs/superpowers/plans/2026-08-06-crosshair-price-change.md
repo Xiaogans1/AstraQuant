@@ -78,7 +78,8 @@ Expected: FAIL because the chart has no crosshair quote label.
 - 使用光标数据索引对应的 `MarketBar.previous_close` 计算涨跌幅。
 - 将横向选中的 `MarketBar` 回传给 `MarketWorkspace`，驱动页面主报价区的价格、涨跌额
   与涨跌幅；十字光标清除时恢复实时 `QuoteCard`。
-- 优先用 KLineCharts `dataIndex` 回查排序去重后的原始 bar，时间戳只作为降级匹配。
+- 对 KLineCharts 10 的真实 `{x, y, paneId}` 回调调用 `convertFromPixel`，用返回的
+  `dataIndex` 回查排序去重后的原始 bar，时间戳只作为降级匹配。
 - 在主图右侧渲染 `role="status"` 标签，并通过 CSS 约束位置。
 - 将原生 `crosshair.horizontal.text.show` 设置为 `false`，防止重复价格标签。
 - 通过 KLineCharts `barSpaceLimit` 设置通用 K 线最小柱宽，并订阅 `onZoom`，

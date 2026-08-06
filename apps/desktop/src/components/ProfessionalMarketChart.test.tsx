@@ -136,7 +136,11 @@ it("switches to candles and releases the chart on unmount", () => {
 });
 
 it("shows hovered price and change together beside the crosshair", () => {
-  chart.convertFromPixel.mockReturnValue([{ value: 0.703 }]);
+  chart.convertFromPixel.mockReturnValue([{
+    value: 0.703,
+    dataIndex: 0,
+    timestamp: Date.parse(bars[0]!.timestamp),
+  }]);
   render(
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
@@ -154,9 +158,8 @@ it("shows hovered price and change together beside the crosshair", () => {
   act(() => {
     callback({
       paneId: "candle_pane",
+      x: 100,
       y: 160,
-      dataIndex: 0,
-      kLineData: { timestamp: Date.parse(bars[0]!.timestamp) + 500 },
     });
   });
 
@@ -164,14 +167,18 @@ it("shows hovered price and change together beside the crosshair", () => {
     "0.7030+0.72%",
   );
   expect(chart.convertFromPixel).toHaveBeenCalledWith(
-    [{ y: 160 }],
+    [{ x: 100, y: 160 }],
     { paneId: "candle_pane" },
   );
 });
 
 it("reports the horizontally selected market bar and clears it on leave", () => {
   const onCrosshairBarChange = vi.fn();
-  chart.convertFromPixel.mockReturnValue([{ value: 0.703 }]);
+  chart.convertFromPixel.mockReturnValue([{
+    value: 0.703,
+    dataIndex: 0,
+    timestamp: Date.parse(bars[0]!.timestamp),
+  }]);
   render(
     <ProfessionalMarketChart
       instrumentId="159516.SZSE"
@@ -189,8 +196,8 @@ it("reports the horizontally selected market bar and clears it on leave", () => 
   act(() => {
     callback({
       paneId: "candle_pane",
+      x: 100,
       y: 160,
-      kLineData: { timestamp: Date.parse(bars[0]!.timestamp) },
     });
   });
   expect(onCrosshairBarChange).toHaveBeenLastCalledWith(bars[0]);

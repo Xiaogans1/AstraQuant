@@ -127,32 +127,35 @@ export function ProfessionalMarketChart({
       if (
         crosshair?.paneId !== "candle_pane"
         || crosshair.y === undefined
-        || crosshair.kLineData?.timestamp === undefined
       ) {
         setCrosshairQuote(null);
         onCrosshairBarChangeRef.current?.(null);
         return;
       }
+      const coordinate = crosshair.x === undefined
+        ? { y: crosshair.y }
+        : { x: crosshair.x, y: crosshair.y };
+      const converted = chart.convertFromPixel(
+        [coordinate],
+        { paneId: crosshair.paneId },
+      ) as Partial<Point>[];
+      const point = converted[0];
       const sourceBar = (
-        crosshair.dataIndex !== undefined
-        && Number.isInteger(crosshair.dataIndex)
-        && crosshair.dataIndex >= 0
+        point?.dataIndex !== undefined
+        && Number.isInteger(point.dataIndex)
+        && point.dataIndex >= 0
       )
         ? (
-            barsRef.current[crosshair.dataIndex]
+            barsRef.current[point.dataIndex]
             ?? barsRef.current.find(
-              (bar) => Date.parse(bar.timestamp) === crosshair.kLineData?.timestamp,
+              (bar) => Date.parse(bar.timestamp) === point.timestamp,
             )
           )
         : barsRef.current.find(
-            (bar) => Date.parse(bar.timestamp) === crosshair.kLineData?.timestamp,
+            (bar) => Date.parse(bar.timestamp) === point?.timestamp,
           );
       onCrosshairBarChangeRef.current?.(sourceBar ?? null);
-      const converted = chart.convertFromPixel(
-        [{ y: crosshair.y }],
-        { paneId: crosshair.paneId },
-      ) as Partial<Point>[];
-      const price = converted[0]?.value;
+      const price = point?.value;
       if (price === undefined || !Number.isFinite(price)) {
         setCrosshairQuote(null);
         return;
