@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Event
@@ -71,7 +72,21 @@ class ApiProblem(Exception):
 
 
 def create_app(state: AppState) -> FastAPI:
-    app = FastAPI(title="AstraQuant Local API", version=__version__)
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        if state.market_service is not None:
+            await state.market_service.start()
+        try:
+            yield
+        finally:
+            if state.market_service is not None:
+                await state.market_service.stop()
+
+    app = FastAPI(
+        title="AstraQuant Local API",
+        version=__version__,
+        lifespan=lifespan,
+    )
     app.state.runtime = state
     app.add_middleware(
         CORSMiddleware,

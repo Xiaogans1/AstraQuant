@@ -126,15 +126,29 @@ Expected: all tests pass.
 ### Task 4: Full verification and delivery
 
 **Files:**
+- Modify: `packages/api/src/astraquant_api/app.py`
+- Modify: `tests/api/test_market_routes.py`
 - Modify: `README.md`
 - Modify: `docs/roadmap/product-roadmap.md`
 
-- [ ] **Step 1: Update capability documentation**
+- [ ] **Step 1: Verify startup auto-connect with a failing lifespan test**
+
+Use `TestClient` as a context manager and assert that a configured market service transitions away from
+`DISCONNECTED` without calling `/connection/start`. Add a service test proving an unavailable terminal produces
+`provider_connect_failed` without blocking a later manual retry.
+
+- [ ] **Step 2: Start and stop the market service with the API lifespan**
+
+Add a FastAPI lifespan handler that starts the configured market service before accepting requests and stops it
+on shutdown. Catch provider connection failures in `MarketDataService.start`, retain an actionable error state,
+and leave the service retryable.
+
+- [ ] **Step 3: Update capability documentation**
 
 State that user watchlists are local, ordered, persistent across restarts, and contain no market prices or
 credentials.
 
-- [ ] **Step 2: Run all quality gates**
+- [ ] **Step 4: Run all quality gates**
 
 Run:
 
@@ -150,8 +164,7 @@ pnpm --dir apps/desktop build
 
 Expected: every command exits with code 0.
 
-- [ ] **Step 3: Commit and push**
+- [ ] **Step 5: Commit and push**
 
 Commit the spec separately, then commit the implementation with Chinese messages and push the existing feature
 branch. Do not merge the Draft PR automatically.
-

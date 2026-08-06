@@ -76,6 +76,7 @@ def serve() -> None:
         provider=market_provider,
         budget=SubscriptionBudget(),
         secret_store=secret_store,
+        watchlist_store=repository,
         poll_interval_seconds=market_config.poll_interval_seconds,
         stale_after_seconds=market_config.stale_after_seconds,
     )

@@ -9,6 +9,8 @@ from datetime import datetime, time
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from astraquant_api.market_config import SettingsStore
+from astraquant_api.market_watchlist import WatchlistEntry, load_watchlist, save_watchlist
 from astraquant_api.secret_store import SecretStore
 from astraquant_data.eastmoney_protocol import from_eastmoney_symbol
 from astraquant_data.live_providers import ConnectionState, LiveMarketProvider, ProviderHealth
@@ -42,6 +44,7 @@ class MarketDataService:
         provider: LiveMarketProvider | None,
         budget: SubscriptionBudget,
         secret_store: SecretStore,
+        watchlist_store: SettingsStore | None = None,
         clock: Clock | None = None,
         poll_interval_seconds: float = 3,
         stale_after_seconds: float = 10,
@@ -49,6 +52,7 @@ class MarketDataService:
         self._provider = provider
         self._budget = budget
         self._secret_store = secret_store
+        self._watchlist_store = watchlist_store
         self._clock = clock or SystemClock()
         self._poll_interval_seconds = poll_interval_seconds
         self._stale_after_seconds = stale_after_seconds
@@ -58,6 +62,7 @@ class MarketDataService:
         self._instrument_names: dict[str, str] = {}
         self._selected: str | None = None
         self._connection = ProviderHealth(provider_id="eastmoney")
+        self._restore_watchlist()
 
     async def start(self) -> None:
         if self._task is not None and not self._task.done():
@@ -82,7 +87,16 @@ class MarketDataService:
             state=ConnectionState.CONNECTING,
             error_code=None,
         )
-        await asyncio.to_thread(self._provider.connect, token)
+        try:
+            await asyncio.to_thread(self._provider.connect, token)
+        except Exception:
+            self._connection = replace(
+                self._connection,
+                state=ConnectionState.ERROR,
+                error_code="provider_connect_failed",
+                reconnect_count=self._connection.reconnect_count + 1,
+            )
+            return
         self._connection = replace(
             self._connection,
             state=ConnectionState.CONNECTING,
@@ -112,17 +126,23 @@ class MarketDataService:
         self._connection = ProviderHealth(provider_id="eastmoney")
 
     def add_watchlist(self, instrument_id: str) -> None:
+        before = self._budget.persistent_instruments
         self._budget.add_persistent(instrument_id)
         if self._selected is None:
             self._selected = str(InstrumentId.parse(instrument_id))
+        if self._budget.persistent_instruments != before:
+            self._persist_watchlist()
 
     def remove_watchlist(self, instrument_id: str) -> None:
         canonical = str(InstrumentId.parse(instrument_id))
+        before = self._budget.persistent_instruments
         self._budget.remove(canonical)
         self._quotes.pop(canonical, None)
         self._history.pop(canonical, None)
         if self._selected == canonical:
             self._selected = None
+        if self._budget.persistent_instruments != before:
+            self._persist_watchlist()
 
     def home_snapshot(self) -> MarketHomeSnapshot:
         core = tuple(
@@ -215,6 +235,25 @@ class MarketDataService:
     @staticmethod
     def reconnect_delay_seconds(attempt: int) -> int:
         return int(min(2 ** min(max(attempt - 1, 0), 5), 30))
+
+    def _restore_watchlist(self) -> None:
+        if self._watchlist_store is None:
+            return
+        for entry in load_watchlist(self._watchlist_store):
+            self._budget.add_persistent(entry.instrument_id)
+            if entry.name is not None:
+                self._instrument_names[entry.instrument_id] = entry.name
+        if self._budget.persistent_instruments:
+            self._selected = self._budget.persistent_instruments[0]
+
+    def _persist_watchlist(self) -> None:
+        if self._watchlist_store is None:
+            return
+        entries = tuple(
+            WatchlistEntry(instrument_id, self._instrument_names.get(instrument_id))
+            for instrument_id in self._budget.persistent_instruments
+        )
+        save_watchlist(self._watchlist_store, entries)
 
     async def _poll_loop(self) -> None:
         reconnect_count = 0

@@ -80,6 +80,7 @@ def market_state(tmp_path: Path) -> AppState:
         provider=EmptyProvider(),
         budget=SubscriptionBudget(),
         secret_store=secret_store,
+        watchlist_store=repository,
         poll_interval_seconds=30,
     )
     return AppState(
@@ -183,7 +184,25 @@ def test_connection_start_stop_and_search(auth_client: TestClient) -> None:
     assert stopped.json()["state"] == "DISCONNECTED"
 
 
-def test_watchlist_is_bounded_and_rejects_continuous_futures(auth_client: TestClient) -> None:
+def test_configured_market_connection_starts_with_app_lifespan(
+    market_state: AppState,
+) -> None:
+    assert market_state.market_service is not None
+    assert market_state.market_service.connection().state.value == "DISCONNECTED"
+
+    with TestClient(create_app(market_state)) as started_client:
+        started_client.headers.update({"Authorization": f"Bearer {TOKEN}"})
+        response = started_client.get("/v1/market/connection")
+        assert response.status_code == 200
+        assert response.json()["state"] in {"CONNECTING", "CLOSED"}
+
+    assert market_state.market_service.connection().state.value == "DISCONNECTED"
+
+
+def test_watchlist_is_bounded_and_rejects_continuous_futures(
+    auth_client: TestClient,
+    market_state: AppState,
+) -> None:
     invalid = auth_client.post("/v1/market/watchlist", json={"instrument_id": "RB0.SHFE"})
     assert invalid.status_code == 422
     for index in range(34):
@@ -197,6 +216,16 @@ def test_watchlist_is_bounded_and_rejects_continuous_futures(auth_client: TestCl
         json={"instrument_id": "700000.SSE"},
     )
     assert overflow.status_code == 409
+    stored = market_state.repository.get_setting("market.watchlist")
+    assert isinstance(stored, dict)
+    assert stored["version"] == 1
+    assert stored["items"][0] == {
+        "instrument_id": "600000.SSE",
+        "name": None,
+    }
+    serialized = json.dumps(stored, ensure_ascii=False).lower()
+    assert "price" not in serialized
+    assert "token" not in serialized
 
 
 def test_intraday_count_and_instrument_validation(auth_client: TestClient) -> None:

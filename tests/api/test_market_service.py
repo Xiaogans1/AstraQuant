@@ -19,6 +19,17 @@ class MutableClock:
         return self.value
 
 
+class MemorySettings:
+    def __init__(self) -> None:
+        self.values: dict[str, object] = {}
+
+    def get_setting(self, key: str) -> object | None:
+        return self.values.get(key)
+
+    def set_setting(self, key: str, value: object) -> None:
+        self.values[key] = value
+
+
 class FakeProvider:
     def __init__(self, clock: MutableClock) -> None:
         self.clock = clock
@@ -27,12 +38,16 @@ class FakeProvider:
         self.polls: list[tuple[str, ...]] = []
         self.return_quotes = True
         self.fail_polls = 0
+        self.fail_connects = 0
         self.history_rows: list[dict[str, Any]] | None = None
         self._health = ProviderHealth(provider_id="eastmoney")
 
     def connect(self, token: str) -> None:
         assert token == "token-value"
         self.connect_count += 1
+        if self.fail_connects:
+            self.fail_connects -= 1
+            raise RuntimeError("terminal unavailable")
 
     def disconnect(self) -> None:
         self.disconnect_count += 1
@@ -75,6 +90,7 @@ def build_service(
     *,
     token: str | None = "token-value",
     provider_available: bool = True,
+    watchlist_store: MemorySettings | None = None,
 ) -> tuple[MarketDataService, FakeProvider, MutableClock]:
     clock = MutableClock(datetime(2026, 8, 5, 2, 30, tzinfo=UTC))
     provider = FakeProvider(clock)
@@ -82,6 +98,7 @@ def build_service(
         provider=provider if provider_available else None,
         budget=SubscriptionBudget(),
         secret_store=MemorySecretStore(token),
+        watchlist_store=watchlist_store,
         clock=clock,
         poll_interval_seconds=0.01,
         stale_after_seconds=0.05,
@@ -133,6 +150,24 @@ def test_missing_token_or_sdk_is_explicitly_unavailable() -> None:
     asyncio.run(scenario())
 
 
+def test_failed_automatic_connection_does_not_block_a_later_retry() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+        provider.fail_connects = 1
+
+        await service.start()
+
+        assert service.connection().state is ConnectionState.ERROR
+        assert service.connection().error_code == "provider_connect_failed"
+
+        await service.start()
+        await service.wait_for_quotes(6, timeout_seconds=1)
+        assert service.connection().state is ConnectionState.LIVE
+        await service.stop()
+
+    asyncio.run(scenario())
+
+
 def test_watchlist_changes_apply_to_the_next_poll() -> None:
     async def scenario() -> None:
         service, provider, _ = build_service()
@@ -154,6 +189,26 @@ def test_search_result_name_is_reused_in_watchlist() -> None:
         service.add_watchlist("600000.SSE")
 
         assert service.home_snapshot().watchlist[0].name == "浦发银行"
+
+    asyncio.run(scenario())
+
+
+def test_watchlist_survives_service_restart_and_deletion() -> None:
+    async def scenario() -> None:
+        settings = MemorySettings()
+        first, _, _ = build_service(watchlist_store=settings)
+        await first.search("浦发")
+        first.add_watchlist("600000.SSE")
+
+        restarted, _, _ = build_service(watchlist_store=settings)
+        restored = restarted.home_snapshot().watchlist
+        assert [(item.instrument_id, item.name) for item in restored] == [
+            ("600000.SSE", "浦发银行")
+        ]
+
+        restarted.remove_watchlist("600000.SSE")
+        after_deletion, _, _ = build_service(watchlist_store=settings)
+        assert after_deletion.home_snapshot().watchlist == ()
 
     asyncio.run(scenario())
 
