@@ -12,6 +12,7 @@ members = [
     "astraquant-api",
     "astraquant-data",
     "astraquant-domain",
+    "astraquant-paper",
     "astraquant-quant",
     "astraquant-workspace",
 ]
@@ -158,6 +159,17 @@ version = "0.1.0"
 source = { editable = "packages/domain" }
 
 [[package]]
+name = "astraquant-paper"
+version = "0.1.0"
+source = { editable = "packages/paper" }
+dependencies = [
+    { name = "astraquant-domain" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "astraquant-domain", editable = "packages/domain" }]
+
+[[package]]
 name = "astraquant-quant"
 version = "0.1.0"
 source = { editable = "packages/quant" }
@@ -180,6 +192,7 @@ dependencies = [
     { name = "astraquant-api" },
     { name = "astraquant-data", extra = ["akshare"] },
     { name = "astraquant-domain" },
+    { name = "astraquant-paper" },
     { name = "astraquant-quant" },
 ]
 
@@ -197,6 +210,7 @@ requires-dist = [
     { name = "astraquant-api", editable = "packages/api" },
     { name = "astraquant-data", extras = ["akshare"], editable = "packages/data" },
     { name = "astraquant-domain", editable = "packages/domain" },
+    { name = "astraquant-paper", editable = "packages/paper" },
     { name = "astraquant-quant", editable = "packages/quant" },
 ]
 

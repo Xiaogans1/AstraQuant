@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astraquant-paper"
+version = "0.1.0"
+description = "Deterministic local Paper trading ledger for AstraQuant."
+requires-python = ">=3.12,<3.13"
+dependencies = ["astraquant-domain"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astraquant_paper"]
+
