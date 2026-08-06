@@ -43,6 +43,7 @@ class FakeProvider:
         self.history_rows: list[dict[str, Any]] | None = None
         self.bar_rows: list[MarketBar] | None = None
         self.bar_requests: list[tuple[str, MarketPeriod, int]] = []
+        self.fail_bar_requests = 0
         self._health = ProviderHealth(provider_id="eastmoney")
 
     def connect(self, token: str) -> None:
@@ -90,6 +91,9 @@ class FakeProvider:
         count: int,
     ) -> list[MarketBar]:
         self.bar_requests.append((str(instrument_id), period, count))
+        if self.fail_bar_requests:
+            self.fail_bar_requests -= 1
+            raise RuntimeError("temporary history failure")
         if self.bar_rows is not None:
             return self.bar_rows
         return [
@@ -331,6 +335,55 @@ def test_period_intraday_bars_keep_only_the_latest_trading_day() -> None:
         )
 
         assert [item.timestamp.date() for item in bars] == [date(2026, 8, 5)]
+
+    asyncio.run(scenario())
+
+
+def test_period_bars_use_ttl_cache_and_fallback_after_transient_failure() -> None:
+    async def scenario() -> None:
+        service, provider, clock = build_service()
+
+        first = await service.bars(
+            "600000.SSE",
+            period=MarketPeriod.INTRADAY,
+            count=20,
+        )
+        second = await service.bars(
+            "600000.SSE",
+            period=MarketPeriod.INTRADAY,
+            count=20,
+        )
+
+        assert second == first
+        assert provider.bar_requests == [
+            ("600000.SSE", MarketPeriod.INTRADAY, 20)
+        ]
+
+        clock.value += timedelta(seconds=9)
+        provider.fail_bar_requests = 1
+        fallback = await service.bars(
+            "600000.SSE",
+            period=MarketPeriod.INTRADAY,
+            count=20,
+        )
+
+        assert fallback == first
+        assert len(provider.bar_requests) == 2
+
+    asyncio.run(scenario())
+
+
+def test_daily_bars_use_sixty_second_ttl() -> None:
+    async def scenario() -> None:
+        service, provider, clock = build_service()
+
+        await service.bars("600000.SSE", period=MarketPeriod.DAY, count=20)
+        clock.value += timedelta(seconds=59)
+        await service.bars("600000.SSE", period=MarketPeriod.DAY, count=20)
+
+        assert provider.bar_requests == [
+            ("600000.SSE", MarketPeriod.DAY, 20)
+        ]
 
     asyncio.run(scenario())
 

@@ -20,6 +20,9 @@ from astraquant_data.subscriptions import CORE_INDICES, SubscriptionBudget
 from astraquant_domain import Clock, InstrumentId, LiveQuote, SystemClock
 
 _CHINA_ZONE = ZoneInfo("Asia/Shanghai")
+_INTRADAY_BAR_CACHE_SECONDS = 8
+_KLINE_BAR_CACHE_SECONDS = 60
+type BarCacheKey = tuple[str, MarketPeriod, int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +64,9 @@ class MarketDataService:
         self._task: asyncio.Task[None] | None = None
         self._quotes: dict[str, LiveQuote] = {}
         self._history: dict[str, list[dict[str, Any]]] = {}
-        self._bar_history: OrderedDict[tuple[str, MarketPeriod], list[MarketBar]] = OrderedDict()
+        self._bar_history: OrderedDict[BarCacheKey, list[MarketBar]] = OrderedDict()
+        self._bar_history_fetched_at: dict[BarCacheKey, datetime] = {}
+        self._bar_fetch_lock = asyncio.Lock()
         self._instrument_names: dict[str, str] = {}
         self._selected: str | None = None
         self._connection = ProviderHealth(provider_id="eastmoney")
@@ -145,6 +150,7 @@ class MarketDataService:
         for key in tuple(self._bar_history):
             if key[0] == canonical:
                 self._bar_history.pop(key)
+                self._bar_history_fetched_at.pop(key, None)
         if self._selected == canonical:
             self._selected = None
         if self._budget.persistent_instruments != before:
@@ -235,23 +241,56 @@ class MarketDataService:
         bounded_count = max(1, min(count, 5_000))
         if self._provider is None:
             return []
-        rows = await asyncio.to_thread(
-            self._provider.bars,
-            InstrumentId.parse(canonical),
-            period=period,
-            count=bounded_count,
+        key = (canonical, period, bounded_count)
+        async with self._bar_fetch_lock:
+            cached = self._fresh_cached_bars(key, period)
+            if cached is not None:
+                return cached
+            previous = self._bar_history.get(key)
+            try:
+                rows = await asyncio.to_thread(
+                    self._provider.bars,
+                    InstrumentId.parse(canonical),
+                    period=period,
+                    count=bounded_count,
+                )
+            except Exception:
+                if previous is not None:
+                    self._bar_history.move_to_end(key)
+                    return previous
+                raise
+            normalized_rows = (
+                _latest_market_bar_session(list(rows))
+                if period is MarketPeriod.INTRADAY
+                else list(rows)
+            )
+            self._bar_history[key] = normalized_rows[-bounded_count:]
+            self._bar_history_fetched_at[key] = self._clock.now()
+            self._bar_history.move_to_end(key)
+            while len(self._bar_history) > 5:
+                evicted_key, _ = self._bar_history.popitem(last=False)
+                self._bar_history_fetched_at.pop(evicted_key, None)
+            return self._bar_history[key]
+
+    def _fresh_cached_bars(
+        self,
+        key: BarCacheKey,
+        period: MarketPeriod,
+    ) -> list[MarketBar] | None:
+        cached = self._bar_history.get(key)
+        fetched_at = self._bar_history_fetched_at.get(key)
+        if cached is None or fetched_at is None:
+            return None
+        ttl = (
+            _INTRADAY_BAR_CACHE_SECONDS
+            if period in (MarketPeriod.INTRADAY, MarketPeriod.MINUTE_1)
+            else _KLINE_BAR_CACHE_SECONDS
         )
-        normalized_rows = (
-            _latest_market_bar_session(list(rows))
-            if period is MarketPeriod.INTRADAY
-            else list(rows)
-        )
-        key = (canonical, period)
-        self._bar_history[key] = normalized_rows[-bounded_count:]
+        age_seconds = (self._clock.now() - fetched_at).total_seconds()
+        if age_seconds >= ttl:
+            return None
         self._bar_history.move_to_end(key)
-        while len(self._bar_history) > 5:
-            self._bar_history.popitem(last=False)
-        return self._bar_history[key]
+        return cached
 
     async def search(self, query: str) -> list[dict[str, Any]]:
         if self._provider is None:
