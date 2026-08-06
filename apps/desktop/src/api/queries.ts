@@ -38,17 +38,34 @@ export const queryKeys = {
     ["market", "signal", instrumentId] as const,
   marketSearch: (search: string) => ["market", "search", search] as const,
   paperAccounts: ["paper", "accounts"] as const,
+  paperDefaultAccount: ["paper", "accounts", "default"] as const,
   paperAccount: (accountId: string) => ["paper", "accounts", accountId] as const,
   paperOrders: (accountId: string) => ["paper", "accounts", accountId, "orders"] as const,
   paperFills: (accountId: string) => ["paper", "accounts", accountId, "fills"] as const,
   paperEquity: (accountId: string) => ["paper", "accounts", accountId, "equity"] as const,
 };
 
-export function usePaperAccountsQuery(client: ApiClient) {
+export function useDefaultPaperAccountQuery(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: queryKeys.paperDefaultAccount,
+    queryFn: async () => {
+      const detail = await client.ensureDefaultPaperAccount();
+      queryClient.setQueryData(queryKeys.paperAccount(detail.account.account_id), detail);
+      return detail;
+    },
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function usePaperAccountsQuery(client: ApiClient, enabled = true) {
   return useQuery({
     queryKey: queryKeys.paperAccounts,
     queryFn: () => client.listPaperAccounts(),
-    refetchInterval: 3_000,
+    enabled,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
   });
 }
 

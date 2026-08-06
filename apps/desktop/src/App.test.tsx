@@ -30,6 +30,19 @@ vi.mock("./api/client", () => ({
     listSnapshots = vi.fn().mockResolvedValue([]);
     listBars = vi.fn().mockResolvedValue([]);
     listPaperAccounts = vi.fn().mockResolvedValue([]);
+    ensureDefaultPaperAccount = vi.fn().mockResolvedValue({
+      account: {
+        account_id: "default-paper-account",
+        name: "主模拟账户",
+        mode: "PAPER",
+        initial_cash: "100000",
+        cash: "100000",
+        created_at: "2026-08-06T06:30:00Z",
+        updated_at: "2026-08-06T06:30:00Z",
+      },
+      positions: [],
+      latest_equity: null,
+    });
     createDataImport = vi.fn();
     getSettings = vi.fn().mockResolvedValue({
       theme: "astra-minimal",
@@ -63,9 +76,7 @@ it("opens the Paper account workspace", async () => {
     await screen.findByRole("button", { name: "Paper 模拟" }),
   );
 
-  expect(
-    await screen.findByRole("heading", { name: "建立第一本模拟账本" }),
-  ).toBeVisible();
+  expect(await screen.findByText("主模拟账户")).toBeVisible();
 });
 
 it("opens the enabled local data center", async () => {

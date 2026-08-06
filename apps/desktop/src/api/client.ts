@@ -201,6 +201,10 @@ export class ApiClient {
     return this.request("/v1/paper/accounts");
   }
 
+  ensureDefaultPaperAccount(): Promise<PaperAccountDetail> {
+    return this.request("/v1/paper/accounts/default", { method: "PUT" });
+  }
+
   createPaperAccount(request: CreatePaperAccountRequest): Promise<PaperAccountDetail> {
     return this.request("/v1/paper/accounts", {
       method: "POST",

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ApiClient } from "../api/client";
 import {
   useAddPaperPositionMutation,
-  useCreatePaperAccountMutation,
+  useDefaultPaperAccountQuery,
   usePaperAccountQuery,
   usePaperAccountsQuery,
   usePaperEquityQuery,
@@ -12,12 +12,25 @@ import {
   useRunPaperStrategyMutation,
   useSubmitPaperOrderMutation,
 } from "../api/queries";
-import type { PaperEquity, PaperOrderSide } from "../api/paper-contracts";
+import type {
+  PaperAccountDetail,
+  PaperAccountSummary,
+  PaperEquity,
+  PaperOrderSide,
+} from "../api/paper-contracts";
 import { Panel } from "../components/Panel";
 
 export function PaperPage({ client }: { client: ApiClient }) {
-  const accountsQuery = usePaperAccountsQuery(client);
-  const accounts = accountsQuery.data ?? [];
+  const defaultAccountQuery = useDefaultPaperAccountQuery(client);
+  const accountsQuery = usePaperAccountsQuery(client, defaultAccountQuery.isSuccess);
+  const fallbackAccount = defaultAccountQuery.data === undefined
+    ? undefined
+    : summarizeAccount(defaultAccountQuery.data);
+  const accounts = accountsQuery.data !== undefined && accountsQuery.data.length > 0
+    ? accountsQuery.data
+    : fallbackAccount === undefined
+      ? []
+      : [fallbackAccount];
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,11 +39,17 @@ export function PaperPage({ client }: { client: ApiClient }) {
     }
   }, [accounts, selectedAccountId]);
 
-  if (accountsQuery.isLoading) {
+  if (defaultAccountQuery.isPending) {
     return <div className="paper-loading">正在读取本地模拟账本…</div>;
   }
-  if (accounts.length === 0) {
-    return <CreateAccount client={client} />;
+  if (defaultAccountQuery.isError || accounts.length === 0) {
+    return (
+      <div className="paper-loading paper-loading--error">
+        <strong>模拟账户暂时无法打开</strong>
+        <span>{defaultAccountQuery.error instanceof Error ? defaultAccountQuery.error.message : "本地账本不可用"}</span>
+        <button type="button" onClick={() => void defaultAccountQuery.refetch()}>重新读取</button>
+      </div>
+    );
   }
   return (
     <AccountWorkspace
@@ -42,48 +61,15 @@ export function PaperPage({ client }: { client: ApiClient }) {
   );
 }
 
-function CreateAccount({ client }: { client: ApiClient }) {
-  const createAccount = useCreatePaperAccountMutation(client);
-  const [name, setName] = useState("主模拟账户");
-  const [initialCash, setInitialCash] = useState("100000");
-  return (
-    <section className="paper-onboarding">
-      <div className="paper-onboarding__copy">
-        <p className="panel__eyebrow">PAPER LEDGER / LOCAL ONLY</p>
-        <h2>建立第一本模拟账本</h2>
-        <p>
-          用真实行情验证仓位与策略，但所有成交只写入本机。不会向券商发送委托。
-        </p>
-        <div className="paper-safety-mark">只读行情 · 虚拟成交 · 可重启恢复</div>
-      </div>
-      <form
-        className="paper-form paper-onboarding__form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          createAccount.mutate({ name, mode: "PAPER", initial_cash: initialCash });
-        }}
-      >
-        <label>
-          账户名称
-          <input value={name} onChange={(event) => setName(event.target.value)} />
-        </label>
-        <label>
-          初始现金
-          <input
-            inputMode="decimal"
-            value={initialCash}
-            onChange={(event) => setInitialCash(event.target.value)}
-          />
-        </label>
-        <button type="submit" disabled={createAccount.isPending}>
-          {createAccount.isPending ? "正在创建…" : "创建模拟账户"}
-        </button>
-        {createAccount.error instanceof Error ? (
-          <p className="paper-form__error">{createAccount.error.message}</p>
-        ) : null}
-      </form>
-    </section>
-  );
+function summarizeAccount(detail: PaperAccountDetail): PaperAccountSummary {
+  const initialEquity = detail.latest_equity?.initial_equity ?? detail.account.initial_cash;
+  const totalEquity = detail.latest_equity?.total_equity ?? initialEquity;
+  return {
+    ...detail.account,
+    initial_equity: initialEquity,
+    total_equity: totalEquity,
+    total_pnl: detail.latest_equity?.total_pnl ?? "0",
+  };
 }
 
 function AccountWorkspace({

@@ -79,6 +79,10 @@ def build_paper_router(
             )
         return summaries
 
+    @router.put("/accounts/default", response_model=AccountDetailView)
+    def ensure_default_account() -> AccountDetailView:
+        return AccountDetailView.from_state(service.ensure_default_account())
+
     @router.get("/accounts/{account_id}", response_model=AccountDetailView)
     def get_account(account_id: str) -> AccountDetailView:
         return AccountDetailView.from_state(_state_or_404(service, account_id))

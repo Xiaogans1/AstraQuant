@@ -94,6 +94,31 @@ def test_paper_routes_require_authentication(tmp_path: Path) -> None:
     assert client.get("/v1/paper/accounts").status_code == 401
 
 
+def test_default_paper_account_is_created_once_and_reused(tmp_path: Path) -> None:
+    client, _ = build_client(tmp_path)
+
+    first = client.put("/v1/paper/accounts/default")
+    second = client.put("/v1/paper/accounts/default")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["account"]["account_id"] == second.json()["account"]["account_id"]
+    assert first.json()["account"]["name"] == "主模拟账户"
+    assert first.json()["account"]["initial_cash"] == "100000"
+    assert len(client.get("/v1/paper/accounts").json()) == 1
+
+
+def test_default_paper_account_reuses_an_existing_ledger(tmp_path: Path) -> None:
+    client, _ = build_client(tmp_path)
+    existing_account_id = create_account(client)
+
+    response = client.put("/v1/paper/accounts/default")
+
+    assert response.status_code == 200
+    assert response.json()["account"]["account_id"] == existing_account_id
+    assert len(client.get("/v1/paper/accounts").json()) == 1
+
+
 def test_create_account_and_add_opening_position(tmp_path: Path) -> None:
     client, market = build_client(tmp_path)
     account_id = create_account(client)

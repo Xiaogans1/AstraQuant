@@ -61,22 +61,26 @@ function renderPage(client: ApiClient) {
   );
 }
 
-test("empty workspace guides the user to create a local paper account", async () => {
+test("first visit creates and opens the default local paper account", async () => {
   const client = {
-    listPaperAccounts: vi.fn().mockResolvedValue([]),
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
   } as unknown as ApiClient;
 
   renderPage(client);
 
-  expect(
-    await screen.findByRole("heading", { name: "建立第一本模拟账本" }),
-  ).toBeVisible();
-  expect(screen.getByText(/不会向券商发送委托/)).toBeVisible();
-  expect(screen.getByRole("button", { name: "创建模拟账户" })).toBeEnabled();
+  expect(await screen.findByText("100,240.50")).toBeVisible();
+  expect(client.ensureDefaultPaperAccount).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText("建立第一本模拟账本")).not.toBeInTheDocument();
 });
 
 test("account workspace shows real portfolio metrics and holdings", async () => {
   const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
     listPaperAccounts: vi.fn().mockResolvedValue([summary]),
     getPaperAccount: vi.fn().mockResolvedValue(detail),
     listPaperOrders: vi.fn().mockResolvedValue([]),
@@ -93,26 +97,24 @@ test("account workspace shows real portfolio metrics and holdings", async () => 
   expect(screen.getByText("真实行情盯市")).toBeVisible();
 });
 
-test("creating an account sends the user-entered cash baseline", async () => {
-  const createPaperAccount = vi.fn().mockResolvedValue(detail);
+test("account discovery does not poll or replace the workspace with onboarding", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
   const client = {
-    listPaperAccounts: vi.fn().mockResolvedValue([]),
-    createPaperAccount,
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
   } as unknown as ApiClient;
   renderPage(client);
-  const user = userEvent.setup();
 
-  await user.clear(await screen.findByLabelText("账户名称"));
-  await user.type(screen.getByLabelText("账户名称"), "ETF 研究账户");
-  await user.clear(screen.getByLabelText("初始现金"));
-  await user.type(screen.getByLabelText("初始现金"), "200000");
-  await user.click(screen.getByRole("button", { name: "创建模拟账户" }));
+  expect(await screen.findByText("100,240.50")).toBeVisible();
+  await vi.advanceTimersByTimeAsync(10_000);
 
-  expect(createPaperAccount).toHaveBeenCalledWith({
-    name: "ETF 研究账户",
-    mode: "PAPER",
-    initial_cash: "200000",
-  });
+  expect(client.listPaperAccounts).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("100,240.50")).toBeVisible();
+  vi.useRealTimers();
 });
 
 test("strategy console runs baseline in advisory mode and renders the audit result", async () => {
@@ -141,6 +143,7 @@ test("strategy console runs baseline in advisory mode and renders the audit resu
     fill: null,
   });
   const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
     listPaperAccounts: vi.fn().mockResolvedValue([summary]),
     getPaperAccount: vi.fn().mockResolvedValue(detail),
     listPaperOrders: vi.fn().mockResolvedValue([]),

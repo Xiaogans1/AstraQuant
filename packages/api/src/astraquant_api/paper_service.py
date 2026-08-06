@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
+from threading import Lock
 
 from astraquant_api.market_service import MarketDataService
 from astraquant_api.paper_repository import PaperRepository
-from astraquant_domain import InstrumentId, LiveQuote, OrderSide, PaperAccount
+from astraquant_domain import AccountMode, InstrumentId, LiveQuote, OrderSide, PaperAccount
 from astraquant_paper import ExecutionResult, LedgerState, PaperLedger
 
 
@@ -27,6 +28,7 @@ class PaperService:
         self._market_service = market_service
         self._ledger = ledger or PaperLedger()
         self._started = False
+        self._account_creation_lock = Lock()
 
     def start(self) -> None:
         if self._started:
@@ -53,6 +55,25 @@ class PaperService:
     def create_account(self, account: PaperAccount) -> LedgerState:
         self._repository.create_account(account)
         return self._repository.load_state(account.account_id)
+
+    def ensure_default_account(self) -> LedgerState:
+        """Return the primary local ledger, creating it once when none exists."""
+        with self._account_creation_lock:
+            accounts = self._repository.list_accounts()
+            if accounts:
+                return self._repository.load_state(accounts[0].account_id)
+            now = datetime.now(UTC)
+            account = PaperAccount(
+                account_id="default-paper-account",
+                name="主模拟账户",
+                mode=AccountMode.PAPER,
+                initial_cash=Decimal("100000"),
+                cash=Decimal("100000"),
+                created_at=now,
+                updated_at=now,
+            )
+            self._repository.create_account(account)
+            return self._repository.load_state(account.account_id)
 
     def add_opening_position(
         self,
