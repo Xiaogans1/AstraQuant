@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 from typing import Final
 
@@ -28,6 +29,44 @@ def label_future_return(
     if change >= threshold:
         return 1
     return 0
+
+
+def build_training_rows(
+    bars: list[MarketBar],
+    *,
+    horizon: int,
+    threshold: Decimal,
+) -> list[dict[str, float | int]]:
+    """Build labeled training rows, resetting feature windows at day boundaries.
+
+    Rolling features never span across trading days: each calendar day is
+    processed independently so overnight gaps cannot pollute intraday
+    statistics. Rows without enough completed future bars are dropped.
+    """
+    by_day: dict[date, list[MarketBar]] = {}
+    for bar in bars:
+        by_day.setdefault(bar.timestamp.date(), []).append(bar)
+    rows: list[dict[str, float | int]] = []
+    for day in sorted(by_day):
+        day_bars = sorted(by_day[day], key=lambda item: item.timestamp)
+        features = build_feature_rows(day_bars)
+        for offset, feature in enumerate(features):
+            index = offset + _WINDOW
+            label = label_future_return(
+                day_bars,
+                index=index,
+                horizon=horizon,
+                threshold=threshold,
+            )
+            if label < 0:
+                continue
+            future = (
+                float((day_bars[index + 1].close - day_bars[index].close) / day_bars[index].close)
+                if index + 1 < len(day_bars)
+                else 0.0
+            )
+            rows.append({**feature, "label": label, "future_return": future})
+    return rows
 
 
 def build_feature_rows(bars: list[MarketBar]) -> list[dict[str, float | int]]:
