@@ -541,6 +541,61 @@ test("fee config editor persists a commission schedule without minimum", async (
   });
 });
 
+test("strategy badge shows the strategy version of the latest run", async () => {
+  const persisted = [
+    {
+      outcome: "HOLD",
+      proposed_side: null,
+      proposed_quantity: 0,
+      risk_reason: null,
+      decision_id: "decision-model-1",
+      advisory_checks: ["MARKET_LIVE", "MODEL_APPROVED"],
+      signal: {
+        signal_id: "signal-model-1",
+        instrument_id: "159516.SZSE",
+        action: "HOLD",
+        state: "ACTIVE",
+        reference_price: "0.714",
+        confidence: "0.72",
+        strategy_id: "microstructure-lgbm",
+        strategy_version: "lgbm-v1",
+        feature_version: "minute-v1",
+        reason_codes: ["model lgbm-v1 up-probability 0.72"],
+        event_time: "2026-08-06T06:31:00Z",
+        decision_time: "2026-08-06T06:31:00Z",
+        expires_at: "2026-08-06T06:32:00Z",
+      },
+      order: null,
+      fill: null,
+    },
+  ];
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue(persisted),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 5,
+      last_scan_at: null,
+    }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
+    }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
+  } as unknown as ApiClient;
+  renderPage(client);
+
+  expect(await screen.findByText("lgbm-v1")).toBeVisible();
+  expect(screen.getByText(/ML 引擎驱动/)).toBeVisible();
+});
+
 test("opening position form searches the real catalog and requires a selected instrument", async () => {
   const addPaperOpeningPosition = vi.fn().mockResolvedValue(detail);
   const client = {

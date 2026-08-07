@@ -342,19 +342,20 @@ function StrategyConsole({
   const autoScanLabel = status.data?.loop_enabled === true
     ? `盘中每 ${status.data.loop_interval_seconds} 秒自动检查${status.data.last_scan_at === null ? "" : ` · 上次 ${formatTime(status.data.last_scan_at)}`}`
     : "自动检查未开启";
+  const strategyVersion = results?.[0]?.signal.strategy_version ?? "等待首次检查";
   return (
     <Panel
       title="量化策略"
       eyebrow="STRATEGY / ACCOUNT CONTEXT"
       className="paper-strategy"
-      action={<span className="paper-strategy__version">baseline-v1</span>}
+      action={<span className="paper-strategy__version">{strategyVersion}</span>}
     >
       <div className="paper-strategy__layout">
         <div className="paper-strategy__controls">
           <div className="paper-strategy__scope">
             <span>当前检查范围</span>
             <strong>{positions.length === 0 ? "等待录入持仓" : `全部持仓 · ${positions.length} 只（并发检查）`}</strong>
-            <small className="paper-strategy__brief">baseline-v1 日内动量 + 量能突破：买入需 5 分钟涨幅 ≥ 0.3% 且均线多头排列且量比 ≥ 1.5；卖出需 5 分钟跌幅 ≥ 0.3% 且均线走弱。特征不足 20 根 1 分钟 K 线时只观察不出手。</small>
+            <small className="paper-strategy__brief">已批准模型发布后由 ML 引擎驱动（分钟特征 + LightGBM 推理）；模型未批准或工件缺失时回退规则策略只观察不出手。信号经目标仓位与风控层后才会模拟成交。</small>
             <small className="paper-strategy__auto">{autoScanLabel}</small>
           </div>
           <button
