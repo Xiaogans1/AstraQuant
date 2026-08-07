@@ -218,6 +218,14 @@ function ReplayResultView({
         <Metric label="夏普" value={result.sharpe.toFixed(2)} trend={result.sharpe} />
         <Metric label="盈亏比" value={result.profit_factor >= 99 ? "∞" : result.profit_factor.toFixed(2)} trend={result.profit_factor - 1} />
       </div>
+      <p className="strategy-lab__report">
+        <button
+          type="button"
+          onClick={() => downloadReport(result)}
+        >
+          导出实验报告（Markdown）
+        </button>
+      </p>
 
       <Panel
         title={`${result.instrument_id} · K 线与买卖点`}
@@ -454,6 +462,53 @@ function TrainTab({ client }: { client: ApiClient }) {
       <p className="strategy-lab__note">训练完成后模型以草稿注册（模型列表可见），可先回放验证再批准上线。</p>
     </Panel>
   );
+}
+
+function downloadReport(result: ReplayResult) {
+  const lines = [
+    `# 回放实验报告 — ${result.instrument_id}`,
+    "",
+    `- 生成时间：${new Date().toLocaleString("zh-CN")}`,
+    `- 回放区间：${formatTime(result.start)} ~ ${formatTime(result.end)}（分钟级，${result.bars_count} 根）`,
+    `- 模型：${result.model_id}（${result.model_status}）`,
+    `- 初始资金：${formatMoney(result.initial_cash)}${result.initial_equity > result.initial_cash ? `（含期初持仓，初始权益 ${formatMoney(result.initial_equity)}）` : ""}`,
+    `- 期末资金：${formatMoney(result.final_cash)}（剩余持仓 ${result.position_remaining} 份）`,
+    "",
+    "## 绩效",
+    "",
+    `| 指标 | 数值 |`,
+    `| --- | --- |`,
+    `| 净收益 | ${result.net_return_percent >= 0 ? "+" : ""}${result.net_return_percent.toFixed(2)}% |`,
+    `| 胜率 | ${(result.win_rate * 100).toFixed(1)}% |`,
+    `| 交易 | 买入 ${result.buys} / 卖出 ${result.sells} |`,
+    `| 最大回撤 | ${result.max_drawdown_percent.toFixed(2)}% |`,
+    `| 夏普 | ${result.sharpe.toFixed(2)} |`,
+    `| 盈亏比 | ${result.profit_factor >= 99 ? "∞" : result.profit_factor.toFixed(2)} |`,
+    `| 已实现盈亏 | ${formatSignedMoney(result.realized_pnl)} |`,
+    "",
+    "## 交易明细",
+    "",
+    "| 时间 | 方向 | 价格 | 数量 | 盈亏 | 上涨概率 |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...result.trades.map(
+      (trade) =>
+        `| ${formatTime(trade.timestamp)} | ${trade.side === "BUY" ? "买入" : "卖出"} | ${trade.price} | ${trade.quantity} | ${formatSignedMoney(trade.pnl)} | ${(trade.proba * 100).toFixed(0)}% |`,
+    ),
+    "",
+    "## 边界说明",
+    "",
+    "- 确定性回放，同输入同输出；费用口径佣金万 2.5 + 过户费（双边），未含滑点。",
+    "- 未模拟涨跌停与停牌；信号基于已完成 1 分钟 K 线，无未来函数。",
+    "- 回放区间可能与模型训练区间重叠，结果偏乐观；样本外以模拟盘验证为准。",
+    "",
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `replay-report-${result.instrument_id}-${Date.now()}.md`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function RunList({ runs }: { runs: PaperStrategyRun[] }) {
