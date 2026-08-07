@@ -129,8 +129,8 @@ class PaperRepository:
                     initial_cash=str(account.initial_cash),
                     initial_equity=str(account.initial_cash),
                     cash=str(account.cash),
-                    created_at=account.created_at,
-                    updated_at=account.updated_at,
+                    created_at=_utc(account.created_at),
+                    updated_at=_utc(account.updated_at),
                 )
             )
 
@@ -198,7 +198,7 @@ class PaperRepository:
                 .values(
                     cash=str(state.account.cash),
                     initial_equity=str(state.initial_equity),
-                    updated_at=state.account.updated_at,
+                    updated_at=_utc(state.account.updated_at),
                 )
             )
             if result.rowcount != 1:
@@ -239,7 +239,7 @@ class PaperRepository:
             "available_quantity": item.available_quantity,
             "average_cost": str(item.average_cost),
             "last_price": None if item.last_price is None else str(item.last_price),
-            "marked_at": item.marked_at,
+            "marked_at": None if item.marked_at is None else _utc(item.marked_at),
         }
 
     @staticmethod
@@ -252,8 +252,8 @@ class PaperRepository:
             "side": item.side.value,
             "quantity": item.quantity,
             "status": item.status.value,
-            "submitted_at": item.submitted_at,
-            "updated_at": item.updated_at,
+            "submitted_at": _utc(item.submitted_at),
+            "updated_at": _utc(item.updated_at),
             "reject_reason": item.reject_reason,
         }
 
@@ -271,7 +271,7 @@ class PaperRepository:
             "commission": str(item.commission),
             "stamp_duty": str(item.stamp_duty),
             "transfer_fee": str(item.transfer_fee),
-            "occurred_at": item.occurred_at,
+            "occurred_at": _utc(item.occurred_at),
         }
 
     @staticmethod
@@ -287,7 +287,7 @@ class PaperRepository:
             "total_pnl_percent": (
                 None if item.total_pnl_percent is None else str(item.total_pnl_percent)
             ),
-            "as_of": item.as_of,
+            "as_of": _utc(item.as_of),
         }
 
     @staticmethod
