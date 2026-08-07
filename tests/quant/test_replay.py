@@ -173,7 +173,6 @@ def test_replay_top_up_buys_are_frozen_until_next_day() -> None:
     ]
     bars = [*_bars(closes), *day_two]
     instrument = InstrumentId.parse("159516.SZSE")
-    seen: list[int] = []
 
     def predict(_completed: list[MarketBar]) -> float:
         return 0.1  # sell signal; day boundary unlocks the frozen top-up

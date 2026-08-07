@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Callable
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -341,11 +342,8 @@ def _save_experiment(
         ),
         created_at=now,
     )
-    try:
+    with contextlib.suppress(Exception):
         models.save_experiment(record)
-    except Exception:
-        # experiment persistence must never break the replay response
-        pass
 
 
 async def _fetch_bars(
@@ -355,7 +353,7 @@ async def _fetch_bars(
     end_date: date | None,
 ) -> list[MarketBar]:
     if market_service is None:
-        raise ApiProblem(409, "replay_unavailable", "行情服务不可用，无法回放")
+        raise ApiProblem(409, "replay_unavailable", "market service unavailable")
     days = 30
     if start_date is not None and end_date is not None:
         days = max((end_date - start_date).days + 2, 1)

@@ -156,7 +156,6 @@ def _attach_bars_provider(
 
     from astraquant_data.live_providers import ProviderHealth
     from astraquant_data.market_bars import MarketPeriod
-    from astraquant_domain import InstrumentId
 
     class FakeBarsProvider:
         def __init__(self, rows: list[MarketBar]) -> None:
