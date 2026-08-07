@@ -91,6 +91,7 @@ test("first visit creates and opens the default local paper account", async () =
       stamp_duty_rate: "0.0005",
       transfer_fee_rate: "0.00001",
     }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
   } as unknown as ApiClient;
 
   renderPage(client);
@@ -120,6 +121,7 @@ test("account workspace shows real portfolio metrics and holdings", async () => 
       stamp_duty_rate: "0.0005",
       transfer_fee_rate: "0.00001",
     }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
   } as unknown as ApiClient;
 
   renderPage(client);
@@ -156,6 +158,7 @@ test("account discovery does not poll or replace the workspace with onboarding",
       stamp_duty_rate: "0.0005",
       transfer_fee_rate: "0.00001",
     }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
   } as unknown as ApiClient;
   renderPage(client);
 
@@ -192,6 +195,7 @@ test("cash editor persists the remaining cash outside current holdings", async (
       stamp_duty_rate: "0.0005",
       transfer_fee_rate: "0.00001",
     }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -334,6 +338,7 @@ test("strategy console scans all holdings concurrently and hides engineering par
       stamp_duty_rate: "0.0005",
       transfer_fee_rate: "0.00001",
     }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -448,12 +453,46 @@ test("account rail shows today's pnl from last close for historical cost holding
       stamp_duty_rate: "0.0005",
       transfer_fee_rate: "0.00001",
     }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
   } as unknown as ApiClient;
   renderPage(client);
 
   expect(await screen.findByText("当日盈亏")).toBeVisible();
   expect(screen.getByText("+20.00")).toBeVisible();
   expect(screen.getByText(/今日 \+2\.86%（相对昨收）/)).toBeVisible();
+});
+
+test("reset account clears ledger and rebuilds the default account", async () => {
+  const resetPaperAccount = vi.fn().mockResolvedValue(detail);
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 5,
+      last_scan_at: null,
+    }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
+    }),
+    resetPaperAccount,
+  } as unknown as ApiClient;
+  const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+  renderPage(client);
+  const user = userEvent.setup();
+
+  await user.click(await screen.findByRole("button", { name: "重置模拟账户" }));
+
+  expect(resetPaperAccount).toHaveBeenCalledWith("account-1");
+  confirmSpy.mockRestore();
 });
 
 test("fee config editor persists a commission schedule without minimum", async () => {
@@ -528,6 +567,7 @@ test("opening position form searches the real catalog and requires a selected in
       stamp_duty_rate: "0.0005",
       transfer_fee_rate: "0.00001",
     }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -594,6 +634,7 @@ test("opening position form resets after save and supports continuous additions"
       stamp_duty_rate: "0.0005",
       transfer_fee_rate: "0.00001",
     }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -646,6 +687,7 @@ test("opening position form explains duplicate holdings in Chinese", async () =>
       stamp_duty_rate: "0.0005",
       transfer_fee_rate: "0.00001",
     }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();

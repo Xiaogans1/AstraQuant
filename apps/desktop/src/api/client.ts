@@ -208,6 +208,13 @@ export class ApiClient {
     return this.request("/v1/paper/accounts/default", { method: "PUT" });
   }
 
+  resetPaperAccount(accountId: string): Promise<PaperAccountDetail> {
+    return this.request(
+      `/v1/paper/accounts/${encodeURIComponent(accountId)}`,
+      { method: "DELETE" },
+    );
+  }
+
   createPaperAccount(request: CreatePaperAccountRequest): Promise<PaperAccountDetail> {
     return this.request("/v1/paper/accounts", {
       method: "POST",

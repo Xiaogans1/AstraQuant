@@ -65,6 +65,25 @@ export function useDefaultPaperAccountQuery(client: ApiClient) {
   });
 }
 
+export function useResetPaperAccountMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (accountId: string) => client.resetPaperAccount(accountId),
+    onSuccess: async (detail) => {
+      const accountId = detail.account.account_id;
+      queryClient.setQueryData(queryKeys.paperAccount(accountId), detail);
+      queryClient.setQueryData(queryKeys.paperDefaultAccount, detail);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperAccounts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperOrders(accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperFills(accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperEquity(accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperStrategyRuns(accountId) }),
+      ]);
+    },
+  });
+}
+
 export function usePaperAccountsQuery(client: ApiClient, enabled = true) {
   return useQuery({
     queryKey: queryKeys.paperAccounts,

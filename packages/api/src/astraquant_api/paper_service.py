@@ -80,6 +80,11 @@ class PaperService:
             self._repository.create_account(account)
             return self._repository.load_state(account.account_id)
 
+    def reset_account(self, account_id: str) -> LedgerState:
+        """Delete the account ledger so a fresh position setup can begin."""
+        self._repository.delete_account(account_id)
+        return self.ensure_default_account()
+
     def add_opening_position(
         self,
         account_id: str,

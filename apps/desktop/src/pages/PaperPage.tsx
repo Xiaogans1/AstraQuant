@@ -13,6 +13,7 @@ import {
   usePaperOrdersQuery,
   usePaperStrategyRunsQuery,
   usePaperStrategyStatusQuery,
+  useResetPaperAccountMutation,
   useRunPaperStrategyScanMutation,
   useUpdatePaperCashMutation,
   useUpdatePaperFeeConfigMutation,
@@ -109,6 +110,7 @@ function AccountWorkspace({
   const cash = equity?.cash ?? detail?.account.cash ?? selectedSummary.cash;
   const positions = detail?.positions ?? [];
   const dayPnl = useMemo(() => calculateDayPnl(positions), [positions]);
+  const resetAccount = useResetPaperAccountMutation(client);
   const [selectedInstrumentId, setSelectedInstrumentId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -163,6 +165,18 @@ function AccountWorkspace({
           <span className="paper-virtual-badge">仅虚拟成交</span>
         </div>
         <CashEditor client={client} accountId={accountId} cash={cash} />
+        <button
+          type="button"
+          className="paper-reset-button"
+          disabled={resetAccount.isPending}
+          onClick={() => {
+            if (window.confirm("重置将删除全部订单、成交、持仓和策略记录并重建模拟账户。确定继续？")) {
+              resetAccount.mutate(accountId);
+            }
+          }}
+        >
+          {resetAccount.isPending ? "重置中…" : "重置模拟账户"}
+        </button>
       </div>
 
       <section className="paper-equity-rail" aria-label="账户权益摘要">

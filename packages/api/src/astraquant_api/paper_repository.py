@@ -177,6 +177,14 @@ class PaperRepository:
             ).mappings()
             return [_account_from_row(row) for row in rows]
 
+    def delete_account(self, account_id: str) -> None:
+        with self.engine.begin() as connection:
+            result = connection.execute(
+                sa.delete(paper_accounts).where(paper_accounts.c.account_id == account_id)
+            )
+            if result.rowcount != 1:
+                raise KeyError(account_id)
+
     def load_state(self, account_id: str) -> LedgerState:
         with self.engine.connect() as connection:
             account_row = (

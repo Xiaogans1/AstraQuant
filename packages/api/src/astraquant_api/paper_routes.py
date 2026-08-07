@@ -138,6 +138,14 @@ def build_paper_router(
     def ensure_default_account() -> AccountDetailView:
         return _detail_view(service, service.ensure_default_account())
 
+    @router.delete("/accounts/{account_id}", response_model=AccountDetailView)
+    def reset_account(account_id: str) -> AccountDetailView:
+        try:
+            state = service.reset_account(account_id)
+        except KeyError:
+            raise ApiProblem(404, "paper_account_not_found", "未找到模拟账户") from None
+        return _detail_view(service, state)
+
     @router.get("/accounts/{account_id}", response_model=AccountDetailView)
     def get_account(account_id: str) -> AccountDetailView:
         return _detail_view(service, _state_or_404(service, account_id))
