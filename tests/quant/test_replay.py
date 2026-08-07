@@ -242,3 +242,41 @@ def test_replay_default_starts_cash_only() -> None:
 
     assert result.position_remaining > 0
     assert result.initial_equity == result.initial_cash
+
+
+def test_replay_fully_invested_holds_through_sell_signals_until_next_day() -> None:
+    # Day 1: sell signal every bar but T+1 freezes the invested position.
+    day_one = _bars(["10"] * 40)
+    day_two = [
+        MarketBar(
+            timestamp=bar.timestamp + timedelta(days=1),
+            open=bar.open,
+            high=bar.high,
+            low=bar.low,
+            close=bar.close,
+            volume=bar.volume,
+            turnover=bar.turnover,
+            previous_close=bar.previous_close,
+        )
+        for bar in _bars(["9.8"] * 30)
+    ]
+    bars = [*day_one, *day_two]
+    instrument = InstrumentId.parse("159516.SZSE")
+
+    def predict(_completed: list[MarketBar]) -> float:
+        return 0.1  # persistent sell signal
+
+    result = replay_bars(
+        bars,
+        instrument_id=instrument,
+        predict=predict,
+        buy_threshold=0.5,
+        sell_threshold=0.4,
+        fee_rate=Decimal("0.00025"),
+        initial_cash=Decimal("100000"),
+        fully_invested=True,
+    )
+
+    assert result.position_remaining == 0  # sold after the day boundary unlocked it
+    assert len([trade for trade in result.trades if trade.side is OrderSide.SELL]) >= 1
+    assert result.net_return_percent < 0  # sold at 9.8 after buying at 10

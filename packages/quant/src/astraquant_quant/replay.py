@@ -169,7 +169,7 @@ def replay_bars(
         if quantity >= lot_size:
             cash -= quantity * first_price * (Decimal("1") + fee_rate)
             position_qty += quantity
-            available_qty = quantity
+            available_qty = 0  # T+1: bought today, cannot sell until tomorrow
             entry_price = first_price
     trades: list[ReplayTrade] = []
     equity_points: list[tuple[datetime, Decimal]] = []

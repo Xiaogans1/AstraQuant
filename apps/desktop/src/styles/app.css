@@ -1,4 +1,4 @@
-* {
+﻿* {
   box-sizing: border-box;
 }
 
@@ -3481,7 +3481,7 @@ code {
 
 .strategy-lab__overview-svg {
   width: 100%;
-  height: 260px;
+  height: 380px;
   background: color-mix(in srgb, var(--surface-1) 40%, transparent);
   border-radius: 8px;
 }
@@ -3524,5 +3524,5 @@ code {
 }
 
 .strategy-lab__equity--value {
-  height: 120px;
+  height: 220px;
 }

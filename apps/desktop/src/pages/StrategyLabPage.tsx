@@ -164,7 +164,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
               checked={fullyInvested}
               onChange={(event) => setFullyInvested(event.target.checked)}
             />
-            起始即全仓买入（默认，与"买入持有不操作"对比）
+            起始即全仓买入（默认，T+1：当日冻结不可卖，次日按模型信号交易，与"买入持有不操作"对比）
           </label>
           <button type="button" disabled={replay.isPending || instruments.length === 0 || modelId === ""} onClick={run}>
             {replay.isPending ? "批量回放中（N 只 × 分钟级推理，约几十秒）…" : `批量运行 ${instruments.length} 只`}
@@ -352,6 +352,7 @@ function ReplayResultView({
         <p className="strategy-lab__note">
           青色 = 策略实际权益；灰色 = 同样资金全仓买入持有不动（{result.buy_hold_return_percent >= 0 ? "+" : ""}{result.buy_hold_return_percent.toFixed(2)}%）。
           超额 {result.excess_return_percent >= 0 ? "+" : ""}{result.excess_return_percent.toFixed(2)}%。
+          全仓起步当日冻结（T+1），之后完全按模型信号交易——模型信号弱时策略与持有曲线一致。
         </p>
       </Panel>
 
