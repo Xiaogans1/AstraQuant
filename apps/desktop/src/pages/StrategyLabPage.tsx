@@ -706,19 +706,19 @@ function DualEquityCurve({
   const min = Math.min(...all);
   const max = Math.max(...all);
   const range = Math.max(max - min, 1);
-  const width = 100;
-  const height = 40;
+  const width = 1200;
+  const height = 400;
   const project = (points: Array<readonly [number, number]>) =>
     points.map(([, value], index) => {
       const x = (index / (points.length - 1)) * width;
-      const y = height - ((value - min) / range) * (height - 4) - 2;
+      const y = height - ((value - min) / range) * (height - 40) - 20;
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     });
   return (
     <svg className="strategy-lab__equity" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="策略权益与买入持有基准对比曲线">
       <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="var(--border)" />
-      <polyline points={project(buyHold).join(" ")} fill="none" stroke="var(--text-muted)" strokeWidth="0.9" strokeDasharray="1.5 1.5" />
-      <polyline points={project(strategy).join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.4" />
+      <polyline points={project(buyHold).join(" ")} fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeDasharray="5 5" />
+      <polyline points={project(strategy).join(" ")} fill="none" stroke="var(--accent)" strokeWidth="3" />
     </svg>
   );
 }
@@ -744,11 +744,11 @@ function PositionValueCurve({
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = Math.max(max - min, 1);
-  const width = 100;
-  const height = 40;
-  const coords = parsed.map(([timestamp, value], index) => {
+  const width = 1200;
+  const height = 400;
+  const coords = parsed.map(([, value], index) => {
     const x = (index / (parsed.length - 1)) * width;
-    const y = height - ((value - min) / range) * (height - 4) - 2;
+    const y = height - ((value - min) / range) * (height - 40) - 20;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   });
   const markers = trades
@@ -757,20 +757,20 @@ function PositionValueCurve({
       const barIndex = parsed.findIndex(([timestamp]) => timestamp === time);
       if (barIndex < 0) return null;
       const x = (barIndex / (parsed.length - 1)) * width;
-      const y = height - ((parsed[barIndex][1] - min) / range) * (height - 4) - 2;
+      const y = height - ((parsed[barIndex][1] - min) / range) * (height - 40) - 20;
       return { trade, x, y };
     })
     .filter((item): item is { trade: ReplayTrade; x: number; y: number } => item !== null);
   return (
     <svg className="strategy-lab__equity strategy-lab__equity--value" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="持仓市值曲线">
       <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="var(--border)" />
-      <polyline points={coords.join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.2" />
+      <polyline points={coords.join(" ")} fill="none" stroke="var(--accent)" strokeWidth="2.5" />
       {markers.map(({ trade, x, y }) => (
         <circle
           key={`${trade.index}-${trade.side}`}
           cx={x}
           cy={y}
-          r="1.6"
+          r="5"
           fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
         >
           <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（${formatTime(trade.timestamp)}）`}</title>
@@ -788,17 +788,17 @@ function EquityCurve({ points, initial }: { points: Array<readonly [number, numb
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = Math.max(max - min, 1);
-  const width = 100;
-  const height = 40;
+  const width = 1200;
+  const height = 400;
   const coords = points.map(([timestamp, value], index) => {
     const x = (index / (points.length - 1)) * width;
-    const y = height - ((value - min) / range) * (height - 4) - 2;
+    const y = height - ((value - min) / range) * (height - 40) - 20;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   });
   return (
     <svg className="strategy-lab__equity" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="回放权益曲线">
       <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="var(--border)" />
-      <polyline points={coords.join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.2" />
+      <polyline points={coords.join(" ")} fill="none" stroke="var(--accent)" strokeWidth="2.5" />
     </svg>
   );
 }
