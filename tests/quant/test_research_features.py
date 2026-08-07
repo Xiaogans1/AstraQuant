@@ -49,3 +49,18 @@ def test_label_returns_minus_one_without_enough_future_bars() -> None:
     rows = _bars(["10"] * 5)
     label = label_future_return(rows, index=len(rows) - 1, horizon=1, threshold=Decimal("0.01"))
     assert label == -1
+
+
+def test_zero_volume_windows_produce_safe_values() -> None:
+    rows = _bars(["10"] * 35, volumes=["0"] * 35)
+    features = build_feature_rows(rows)
+    assert len(features) == 5
+    for row in features:
+        assert row["volume_ratio"] == 0.0
+        assert row["vwap_deviation"] == 0.0
+
+
+def test_label_rejects_invalid_horizon_and_index() -> None:
+    rows = _bars(["10"] * 5)
+    assert label_future_return(rows, index=2, horizon=0, threshold=Decimal("0.01")) == -1
+    assert label_future_return(rows, index=-1, horizon=1, threshold=Decimal("0.01")) == -1
