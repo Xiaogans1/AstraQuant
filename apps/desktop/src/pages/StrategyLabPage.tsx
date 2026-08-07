@@ -228,13 +228,24 @@ function ReplayResultView({
       </p>
 
       <Panel
-        title={`${result.instrument_id} · K 线与买卖点`}
-        eyebrow="PRICE / TRADES"
+        title={`${result.instrument_id} · 区间全览（${result.bars_count} 根 1 分钟线）`}
+        eyebrow="OVERVIEW / SELECTED WINDOW"
         action={
           <span className="paper-strategy__version">
             {model?.strategy_version ?? result.model_id}{result.model_status === "DRAFT" ? "（草稿）" : ""}
           </span>
         }
+      >
+        <ReplayOverview result={result} />
+        <p className="strategy-lab__note">
+          全览展示所选区间完整走势与全部买卖点：红色 B = 模型买入，绿色 S = 模型卖出（悬停查看时间与上涨概率）。
+          数据实际覆盖 {formatTime(result.start)} ~ {formatTime(result.end)}（东财分钟线，历史深度以数据源为准）。
+        </p>
+      </Panel>
+
+      <Panel
+        title={`${result.instrument_id} · 1 分钟 K 线与买卖点`}
+        eyebrow="PRICE / TRADES"
       >
         <ProfessionalMarketChart
           instrumentId={result.instrument_id}
@@ -246,7 +257,8 @@ function ReplayResultView({
           signals={signals}
         />
         <p className="strategy-lab__note">
-          买卖点显示触发时模型上涨概率（悬停标记查看）；起点 {result.initial_cash} 现金
+          主图默认显示区间末尾，可拖动/缩放查看全部；买卖点悬停显示概率。
+          起点 {result.initial_cash} 现金
           {result.initial_equity > result.initial_cash ? ` + 期初持仓（初始权益 ${formatMoney(result.initial_equity)}）` : ""}
           ，期末资金 {formatMoney(result.final_cash)}，剩余持仓 {result.position_remaining} 份。
         </p>
@@ -461,6 +473,84 @@ function TrainTab({ client }: { client: ApiClient }) {
       )}
       <p className="strategy-lab__note">训练完成后模型以草稿注册（模型列表可见），可先回放验证再批准上线。</p>
     </Panel>
+  );
+}
+
+function ReplayOverview({ result }: { result: ReplayResult }) {
+  const points = useMemo(() => {
+    const closes = result.bars.map((bar) => Number(bar.close));
+    if (closes.length < 2) return null;
+    const min = Math.min(...closes);
+    const max = Math.max(...closes);
+    const range = Math.max(max - min, 1e-9);
+    const width = 100;
+    const height = 100;
+    const step = width / (closes.length - 1);
+    return {
+      line: closes.map((close, index) => {
+        const x = index * step;
+        const y = height - ((close - min) / range) * (height - 8) - 4;
+        return `${x.toFixed(3)},${y.toFixed(3)}`;
+      }),
+      trades: result.trades.map((trade) => {
+        const index = Math.min(trade.index, closes.length - 1);
+        const x = index * step;
+        const y = height - ((closes[index] - min) / range) * (height - 8) - 4;
+        return { ...trade, x, y };
+      }),
+      min,
+      max,
+    };
+  }, [result]);
+
+  if (points === null) {
+    return <p className="strategy-lab__empty">数据不足，无法绘制全览。</p>;
+  }
+  return (
+    <div className="strategy-lab__overview">
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="区间全览：完整走势与买卖点"
+        className="strategy-lab__overview-svg"
+      >
+        <line x1="0" y1="50" x2="100" y2="50" stroke="var(--border)" strokeDasharray="2 2" />
+        <polyline
+          points={points.line.join(" ")}
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth="0.7"
+        />
+        {points.trades.map((trade) => (
+          <g key={`${trade.index}-${trade.side}`}>
+            <circle
+              cx={trade.x}
+              cy={trade.y}
+              r={trade.side === "BUY" ? 1.6 : 1.6}
+              fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
+            >
+              <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（上涨概率 ${(trade.proba * 100).toFixed(0)}%，${formatTime(trade.timestamp)}）`}</title>
+            </circle>
+            <text
+              x={trade.x}
+              y={trade.side === "BUY" ? trade.y - 3.2 : trade.y + 4.6}
+              textAnchor="middle"
+              fontSize="4"
+              fontWeight="bold"
+              fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
+            >
+              {trade.side === "BUY" ? "B" : "S"}
+            </text>
+          </g>
+        ))}
+      </svg>
+      <div className="strategy-lab__overview-legend">
+        <span>区间 {formatTime(result.start)} ~ {formatTime(result.end)}</span>
+        <span>区间最高 {points.max.toFixed(4)} / 最低 {points.min.toFixed(4)}</span>
+        <span>共 {result.trades.length} 笔真实信号（B {result.buys} / S {result.sells}）</span>
+      </div>
+    </div>
   );
 }
 

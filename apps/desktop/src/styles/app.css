@@ -3366,3 +3366,43 @@ code {
 .strategy-lab__trades li[data-outcome="executed"] strong {
   color: var(--accent);
 }
+
+
+.strategy-lab__overview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.strategy-lab__overview-svg {
+  width: 100%;
+  height: 150px;
+  background: color-mix(in srgb, var(--surface-1) 40%, transparent);
+  border-radius: 8px;
+}
+
+.strategy-lab__overview-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.strategy-lab__report {
+  margin: 10px 0 0;
+}
+
+.strategy-lab__report button {
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.strategy-lab__report button:hover {
+  border-color: var(--accent);
+}
