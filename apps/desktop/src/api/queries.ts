@@ -297,6 +297,35 @@ export function useResearchReplayMutation(client: ApiClient) {
   });
 }
 
+export function useResearchExperimentsQuery(client: ApiClient) {
+  return useQuery({
+    queryKey: ["research", "experiments"],
+    queryFn: () => client.listResearchExperiments(),
+    staleTime: 30_000,
+  });
+}
+
+export function useDailySummaryQuery(client: ApiClient, accountId: string | null) {
+  return useQuery({
+    queryKey: ["paper", "accounts", accountId ?? "none", "daily"],
+    queryFn: () => client.listDailySummary(requireId(accountId, "Paper account")),
+    enabled: accountId !== null,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useStrategyRunsOnDateQuery(
+  client: ApiClient,
+  accountId: string | null,
+  onDate: string | null,
+) {
+  return useQuery({
+    queryKey: ["paper", "accounts", accountId ?? "none", "runs", onDate ?? "none"],
+    queryFn: () => client.listStrategyRunsOnDate(requireId(accountId, "Paper account"), requireId(onDate, "Date")),
+    enabled: accountId !== null && onDate !== null,
+  });
+}
+
 export function usePaperFeeConfigQuery(client: ApiClient) {
   return useQuery({
     queryKey: queryKeys.paperFeeConfig,

@@ -25,9 +25,14 @@ import type {
   RealtimeQuantDecision,
 } from "./market-contracts";
 import type {
+  DailySummaryRow,
+  ExperimentDetail,
+  ExperimentSummary,
   ReplayRequest,
   ReplayResult,
   ResearchDatasetSummary,
+  TrainRequest,
+  TrainResult,
 } from "./research-contracts";
 import type {
   CreatePaperAccountRequest,
@@ -329,11 +334,43 @@ export class ApiClient {
     return this.request("/v1/research/datasets");
   }
 
-  runResearchReplay(request: ReplayRequest): Promise<ReplayResult> {
+  runResearchReplay(request: ReplayRequest): Promise<ReplayResult[]> {
     return this.request("/v1/research/replay", {
       method: "POST",
       body: JSON.stringify(request),
     });
+  }
+
+  trainResearchModel(request: TrainRequest): Promise<TrainResult> {
+    return this.request("/v1/research/train", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  }
+
+  listResearchExperiments(): Promise<ExperimentSummary[]> {
+    return this.request("/v1/research/experiments");
+  }
+
+  getResearchExperiment(experimentId: string): Promise<ExperimentDetail> {
+    return this.request(
+      `/v1/research/experiments/${encodeURIComponent(experimentId)}`,
+    );
+  }
+
+  listDailySummary(accountId: string): Promise<DailySummaryRow[]> {
+    return this.request(
+      `/v1/paper/accounts/${encodeURIComponent(accountId)}/strategy/daily`,
+    );
+  }
+
+  listStrategyRunsOnDate(
+    accountId: string,
+    onDate: string,
+  ): Promise<PaperStrategyRun[]> {
+    return this.request(
+      `/v1/paper/accounts/${encodeURIComponent(accountId)}/strategy/runs?on_date=${encodeURIComponent(onDate)}`,
+    );
   }
 
   updateSettings(settings: Settings): Promise<Settings> {

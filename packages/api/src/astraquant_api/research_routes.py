@@ -105,7 +105,7 @@ def build_research_router(
         )
 
     @router.post("/train", response_model=TrainResult)
-    def train(request: TrainRequest) -> TrainResult:
+    async def train(request: TrainRequest) -> TrainResult:
         import json as _json
 
         import lightgbm as lgb
@@ -113,6 +113,27 @@ def build_research_router(
         rows: list[dict[str, float | int]] = []
         for dataset_id in request.dataset_ids:
             bars, _instrument_id = load_dataset_bars(data_root, dataset_id)
+            rows.extend(
+                build_training_rows(
+                    bars,
+                    horizon=request.horizon,
+                    threshold=request.threshold,
+                )
+            )
+        for item in request.instruments:
+            try:
+                instrument_id = InstrumentId.parse(item.instrument_id)
+            except ValueError as error:
+                raise ApiProblem(422, "invalid_instrument_id", str(error)) from None
+            start_date = None if item.start_date is None else date.fromisoformat(item.start_date)
+            end_date = None if item.end_date is None else date.fromisoformat(item.end_date)
+            bars = await _fetch_bars(market_service, instrument_id, start_date, end_date)
+            if not bars:
+                raise ApiProblem(
+                    422,
+                    "empty_training_window",
+                    "所选时间段内没有数据",
+                )
             rows.extend(
                 build_training_rows(
                     bars,

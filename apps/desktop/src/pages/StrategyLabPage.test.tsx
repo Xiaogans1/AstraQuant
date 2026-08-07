@@ -13,13 +13,17 @@ vi.mock("../components/ProfessionalMarketChart", () => ({
   ),
 }));
 
-const dataset = {
-  dataset_id: "cn-equity-159516-szse-1m-none",
-  instrument_id: "159516.SZSE",
-  bar_count: 5000,
-  start: "2026-07-09T01:30:00Z",
-  end: "2026-08-07T07:00:00Z",
-};
+vi.mock("../components/InstrumentSearchPicker", () => ({
+  InstrumentSearchPicker: ({ onChange }: { onChange: (value: { instrument_id: string; name: string } | null) => void }) => (
+    <button
+      type="button"
+      data-testid="pick-instrument"
+      onClick={() => onChange({ instrument_id: "159516.SZSE", name: "半导体设备ETF" })}
+    >
+      pick-instrument
+    </button>
+  ),
+}));
 
 const model = {
   model_id: "lgbm-minute-001",
@@ -35,6 +39,40 @@ const model = {
   approved_at: "2026-08-07T00:00:00Z",
 };
 
+const result = {
+  instrument_id: "159516.SZSE",
+  model_id: "lgbm-minute-001",
+  model_status: "APPROVED",
+  start: "2026-07-09T01:30:00Z",
+  end: "2026-08-07T07:00:00Z",
+  bars_count: 5000,
+  initial_cash: "100000",
+  initial_equity: "100000",
+  final_cash: "113616",
+  realized_pnl: "15915.24",
+  net_return_percent: 13.616,
+  max_drawdown_percent: 3.2,
+  sharpe: 1.8,
+  profit_factor: 1.6,
+  buys: 43,
+  sells: 43,
+  win_rate: 0.6279,
+  position_remaining: 0,
+  trades: [
+    {
+      index: 35,
+      timestamp: "2026-07-09T02:05:00Z",
+      side: "BUY",
+      price: "0.71",
+      quantity: 100,
+      pnl: "0",
+      proba: 0.61,
+    },
+  ],
+  bars: [],
+  equity_points: [],
+};
+
 function renderLab(client: ApiClient) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -46,74 +84,56 @@ function renderLab(client: ApiClient) {
   );
 }
 
-test("strategy lab lists datasets and approved models", async () => {
-  const client = {
-    listResearchDatasets: vi.fn().mockResolvedValue([dataset]),
+function baseClient() {
+  return {
+    listResearchDatasets: vi.fn().mockResolvedValue([]),
     listPaperModels: vi.fn().mockResolvedValue([model]),
     runResearchReplay: vi.fn(),
+    listResearchExperiments: vi.fn().mockResolvedValue([]),
+    listPaperAccounts: vi.fn().mockResolvedValue([]),
+    listDailySummary: vi.fn().mockResolvedValue([]),
+    listStrategyRunsOnDate: vi.fn().mockResolvedValue([]),
+    listPaperPositions: vi.fn().mockResolvedValue([]),
+    searchInstruments: vi.fn(),
   } as unknown as ApiClient;
+}
+
+test("strategy lab loads approved models and disables batch run without picks", async () => {
+  const client = baseClient();
   renderLab(client);
   expect(await screen.findByRole("heading", { name: "策略实验室" })).toBeVisible();
-  await screen.findByText(/159516.SZSE · 5000 根/);
-  expect(screen.getByText(/lgbm-minute-001 · lgbm-v1/)).toBeVisible();
-  expect(screen.getByRole("button", { name: "运行历史回放" })).toBeDisabled();
+  await screen.findByText(/lgbm-minute-001 · lgbm-v1/);
+  expect(screen.getByRole("button", { name: /批量运行 0 只/ })).toBeDisabled();
 });
 
-test("running replay submits dataset, model and window", async () => {
-  const runResearchReplay = vi.fn().mockResolvedValue({
-    dataset_id: "cn-equity-159516-szse-1m-none",
-    model_id: "lgbm-minute-001",
-    instrument_id: "159516.SZSE",
-    start: "2026-07-09T01:30:00Z",
-    end: "2026-08-07T07:00:00Z",
-    bars_count: 5000,
-    initial_cash: "100000",
-    final_cash: "113616",
-    realized_pnl: "15915.24",
-    net_return_percent: 13.616,
-    buys: 43,
-    sells: 43,
-    win_rate: 0.6279,
-    trades: [
-      {
-        index: 35,
-        timestamp: "2026-07-09T02:05:00Z",
-        side: "BUY",
-        price: "0.71",
-        quantity: 100,
-        pnl: "0",
-      },
-    ],
-    bars: [],
-    equity_points: [],
-  });
-  const client = {
-    listResearchDatasets: vi.fn().mockResolvedValue([dataset]),
-    listPaperModels: vi.fn().mockResolvedValue([model]),
-    runResearchReplay,
-  } as unknown as ApiClient;
+test("running batch replay submits instruments, model and window", async () => {
+  const runResearchReplay = vi.fn().mockResolvedValue([result]);
+  const client = baseClient();
+  client.runResearchReplay = runResearchReplay;
   renderLab(client);
   const user = userEvent.setup();
 
-  await screen.findByText(/159516.SZSE · 5000 根/);
+  await screen.findByText(/lgbm-minute-001 · lgbm-v1/);
+  await user.click(screen.getByTestId("pick-instrument"));
   await user.selectOptions(
-    screen.getByRole("combobox", { name: "数据集（已录制真实分钟线）" }),
-    "cn-equity-159516-szse-1m-none",
-  );
-  await user.selectOptions(
-    screen.getByRole("combobox", { name: "模型（仅已批准）" }),
+    screen.getByRole("combobox", { name: "模型" }),
     "lgbm-minute-001",
   );
-  await user.click(screen.getByRole("button", { name: "运行历史回放" }));
+  await user.click(screen.getByRole("button", { name: "批量运行 1 只" }));
 
   expect(runResearchReplay).toHaveBeenCalledWith({
-    dataset_id: "cn-equity-159516-szse-1m-none",
+    instruments: [
+      {
+        instrument_id: "159516.SZSE",
+        start_date: null,
+        end_date: null,
+      },
+    ],
     model_id: "lgbm-minute-001",
-    start_date: null,
-    end_date: null,
     initial_cash: "100000",
   });
-  expect(await screen.findByText(/\+13.62%/)).toBeVisible();
+  expect((await screen.findAllByText(/\+13.62%/)).length).toBeGreaterThan(0);
   expect(screen.getByText(/43 \/ 43/)).toBeVisible();
   expect(screen.getByText(/买入 100 份 @ 0.71/)).toBeVisible();
+  expect(screen.getByText(/61%/)).toBeVisible();
 });

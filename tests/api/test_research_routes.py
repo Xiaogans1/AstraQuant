@@ -326,3 +326,30 @@ def test_research_replay_supports_multiple_instruments_and_opening_position(
     payload = response.json()
     assert [item["instrument_id"] for item in payload] == ["159516.SZSE", "159599.SZSE"]
     assert payload[1]["initial_equity"] > payload[1]["initial_cash"]
+
+
+def test_research_train_accepts_live_instruments(tmp_path: Path) -> None:
+    client, market = build_client(tmp_path)
+    _attach_bars_provider(client, market, _market_bars(600))
+
+    response = client.post(
+        "/v1/research/train",
+        json={
+            "dataset_ids": [],
+            "instruments": [{"instrument_id": "159516.SZSE"}],
+            "model_id": "live-train-001",
+            "horizon": 5,
+            "threshold": "0.005",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model_id"] == "live-train-001"
+    assert payload["status"] == "DRAFT"
+    assert payload["rows"] > 100
+    assert "auc" in payload
+    assert "recommended_buy" in payload
+
+    registered = client.get("/v1/paper/models").json()
+    assert any(item["model_id"] == "live-train-001" for item in registered)

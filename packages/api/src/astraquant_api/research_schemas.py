@@ -95,7 +95,8 @@ class RecordDatasetResult(BaseModel):
 
 
 class TrainRequest(BaseModel):
-    dataset_ids: list[str] = Field(min_length=1, max_length=8)
+    dataset_ids: list[str] = Field(default_factory=list, max_length=8)
+    instruments: list[ReplayInstrumentInput] = Field(default_factory=list, max_length=8)
     model_id: str = Field(min_length=1, max_length=64)
     horizon: int = Field(default=5, ge=1, le=30)
     threshold: Decimal = Field(default=Decimal("0.005"), gt=0, le=Decimal("0.1"))
