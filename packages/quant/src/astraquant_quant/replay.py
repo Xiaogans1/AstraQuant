@@ -41,8 +41,16 @@ class ReplayResult:
     final_cash: Decimal
     trades: tuple[ReplayTrade, ...]
     equity_points: tuple[tuple[datetime, Decimal], ...]
-    realized_pnl: Decimal
+    position_value_points: tuple[tuple[datetime, Decimal], ...] = ()
+    buy_hold_equity_points: tuple[tuple[datetime, Decimal], ...] = ()
+    buy_hold_return_percent: float = 0.0
+    realized_pnl: Decimal = Decimal("0")
     position_remaining: int = 0
+
+    @property
+    def excess_return_percent(self) -> float:
+        """Strategy return minus the buy-and-hold benchmark."""
+        return self.net_return_percent - self.buy_hold_return_percent
 
     @property
     def buys(self) -> int:
@@ -133,6 +141,7 @@ def replay_bars(
     initial_cash: Decimal,
     lot_size: int = 100,
     opening: OpeningPosition | None = None,
+    fully_invested: bool = False,
 ) -> ReplayResult:
     """Replay the signal over completed bars with a single-position paper book.
 
@@ -141,17 +150,30 @@ def replay_bars(
     the available quantity (T+1, unlocked at each new trading day), and BUY
     signals add to the position when cash allows (no artificial cash
     injections).
+
+    ``fully_invested`` buys as much of the initial cash as lot sizes allow at
+    the first bar's close, so that doing nothing equals a buy-and-hold
+    benchmark. The benchmark curve is always computed.
     """
     if initial_cash <= 0:
         raise ValueError("initial_cash must be positive")
     if not 0 < buy_threshold <= 1 or not 0 <= sell_threshold < 1:
         raise ValueError("thresholds must be probabilities in [0, 1]")
+    first_price = bars[min(_WINDOW, len(bars) - 1)].close
     cash = initial_cash
     position_qty = 0 if opening is None else opening.quantity
     available_qty = 0 if opening is None else opening.available_quantity
     entry_price: Decimal | None = None if opening is None else opening.average_cost
+    if fully_invested:
+        quantity = int(cash / first_price / lot_size) * lot_size
+        if quantity >= lot_size:
+            cash -= quantity * first_price * (Decimal("1") + fee_rate)
+            position_qty += quantity
+            available_qty = quantity
+            entry_price = first_price
     trades: list[ReplayTrade] = []
     equity_points: list[tuple[datetime, Decimal]] = []
+    position_value_points: list[tuple[datetime, Decimal]] = []
     prev_date = None
     for index in range(_WINDOW, len(bars)):
         bar = bars[index]
@@ -227,6 +249,7 @@ def replay_bars(
                 entry_price = None
         market_value = price * position_qty
         equity_points.append((bar.timestamp, cash + market_value))
+        position_value_points.append((bar.timestamp, market_value))
     opening_value = (
         Decimal("0")
         if opening is None or not bars
@@ -240,6 +263,16 @@ def replay_bars(
         last_price = bars[-1].close
         gross = (last_price - entry_price) * position_qty
         final_cash += last_price * position_qty * (Decimal("1") - fee_rate)
+    # buy-and-hold benchmark: invest the full initial equity at the first bar
+    bh_qty = int(initial_equity / first_price / lot_size) * lot_size
+    bh_cash = initial_equity - bh_qty * first_price * (Decimal("1") + fee_rate)
+    buy_hold_points: list[tuple[datetime, Decimal]] = []
+    for bar in bars[min(_WINDOW, len(bars) - 1) :]:
+        buy_hold_points.append((bar.timestamp, bh_cash + bh_qty * bar.close))
+    bh_final = bh_cash + bh_qty * bars[-1].close * (Decimal("1") - fee_rate)
+    buy_hold_return = (
+        float((bh_final - initial_equity) / initial_equity * 100) if initial_equity > 0 else 0.0
+    )
     return ReplayResult(
         instrument_id=str(instrument_id),
         start=bars[0].timestamp,
@@ -250,6 +283,9 @@ def replay_bars(
         final_cash=final_cash,
         trades=tuple(trades),
         equity_points=tuple(equity_points),
+        position_value_points=tuple(position_value_points),
+        buy_hold_equity_points=tuple(buy_hold_points),
+        buy_hold_return_percent=buy_hold_return,
         realized_pnl=sum((trade.pnl for trade in trades), start=Decimal("0")),
         position_remaining=position_qty,
     )

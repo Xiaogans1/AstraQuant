@@ -271,6 +271,7 @@ def build_research_router(
                 fee_rate=fee_rate,
                 initial_cash=request.initial_cash,
                 opening=opening,
+                fully_invested=request.fully_invested,
             )
             return ReplayView(
                 instrument_id=result.instrument_id,
@@ -284,6 +285,8 @@ def build_research_router(
                 final_cash=result.final_cash,
                 realized_pnl=result.realized_pnl,
                 net_return_percent=result.net_return_percent,
+                buy_hold_return_percent=result.buy_hold_return_percent,
+                excess_return_percent=result.excess_return_percent,
                 max_drawdown_percent=result.max_drawdown_percent,
                 sharpe=result.sharpe,
                 profit_factor=result.profit_factor,
@@ -315,6 +318,12 @@ def build_research_router(
                     for bar in bars
                 ],
                 equity_points=[[timestamp, equity] for timestamp, equity in result.equity_points],
+                position_value_points=[
+                    [timestamp, value] for timestamp, value in result.position_value_points
+                ],
+                buy_hold_equity_points=[
+                    [timestamp, value] for timestamp, value in result.buy_hold_equity_points
+                ],
             )
 
         results = list(await asyncio.gather(*(run_one(item) for item in request.instruments)))

@@ -194,3 +194,51 @@ def test_replay_top_up_buys_are_frozen_until_next_day() -> None:
 
     sell_trades = [trade for trade in result.trades if trade.side is OrderSide.SELL]
     assert sum(trade.quantity for trade in sell_trades) == 1000
+
+
+def test_replay_fully_invested_starts_with_position_and_buy_hold_benchmark() -> None:
+    bars = _bars(["10"] * 35 + ["11"] * 30)
+    instrument = InstrumentId.parse("159516.SZSE")
+
+    def predict(_completed: list[MarketBar]) -> float:
+        return 0.6  # neutral: neither buy nor sell, hold the invested position
+
+    result = replay_bars(
+        bars,
+        instrument_id=instrument,
+        predict=predict,
+        buy_threshold=0.5,
+        sell_threshold=0.4,
+        fee_rate=Decimal("0.00025"),
+        initial_cash=Decimal("100000"),
+        fully_invested=True,
+    )
+
+    assert result.position_remaining > 0
+    assert result.buy_hold_return_percent > 0
+    assert result.buy_hold_equity_points
+    assert abs(result.buy_hold_return_percent - result.net_return_percent) < 2.0
+    assert (
+        result.excess_return_percent == result.net_return_percent - result.buy_hold_return_percent
+    )
+
+
+def test_replay_default_starts_cash_only() -> None:
+    bars = _bars(["10"] * 35 + ["11"] * 30)
+    instrument = InstrumentId.parse("159516.SZSE")
+
+    def predict(_completed: list[MarketBar]) -> float:
+        return 0.9  # buy signal, but position opens on first signal
+
+    result = replay_bars(
+        bars,
+        instrument_id=instrument,
+        predict=predict,
+        buy_threshold=0.5,
+        sell_threshold=0.4,
+        fee_rate=Decimal("0.00025"),
+        initial_cash=Decimal("100000"),
+    )
+
+    assert result.position_remaining > 0
+    assert result.initial_equity == result.initial_cash

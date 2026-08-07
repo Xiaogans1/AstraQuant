@@ -24,6 +24,7 @@ export interface ReplayRequest {
   instruments: ReplayInstrumentInput[];
   model_id: string;
   initial_cash: string;
+  fully_invested: boolean;
 }
 
 export interface ReplayTrade {
@@ -57,6 +58,8 @@ export interface ReplayResult {
   final_cash: string;
   realized_pnl: string;
   net_return_percent: number;
+  buy_hold_return_percent: number;
+  excess_return_percent: number;
   max_drawdown_percent: number;
   sharpe: number;
   profit_factor: number;
@@ -67,6 +70,8 @@ export interface ReplayResult {
   trades: ReplayTrade[];
   bars: ReplayBar[];
   equity_points: Array<[string, string]>;
+  position_value_points: Array<[string, string]>;
+  buy_hold_equity_points: Array<[string, string]>;
 }
 
 export interface TrainRequest {

@@ -71,6 +71,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
   const [endDate, setEndDate] = useState("");
   const [modelId, setModelId] = useState("");
   const [cash, setCash] = useState("100000");
+  const [fullyInvested, setFullyInvested] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const seededRef = useRef(false);
   const models = modelsQuery.data ?? [];
@@ -102,6 +103,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
       })),
       model_id: modelId,
       initial_cash: cash,
+      fully_invested: fullyInvested,
     });
   };
 
@@ -156,6 +158,14 @@ function ReplayTab({ client }: { client: ApiClient }) {
             </select>
           </label>
           <label>初始资金<input type="number" min="0" step="10000" value={cash} onChange={(event) => setCash(event.target.value)} /></label>
+          <label className="strategy-lab__mode">
+            <input
+              type="checkbox"
+              checked={fullyInvested}
+              onChange={(event) => setFullyInvested(event.target.checked)}
+            />
+            起始即全仓买入（默认，与"买入持有不操作"对比）
+          </label>
           <button type="button" disabled={replay.isPending || instruments.length === 0 || modelId === ""} onClick={run}>
             {replay.isPending ? "批量回放中（N 只 × 分钟级推理，约几十秒）…" : `批量运行 ${instruments.length} 只`}
           </button>
@@ -255,7 +265,9 @@ function ReplayResultView({
         <div className="strategy-lab__warn">未批准模型回放，仅供参考，不代表可上线。</div>
       ) : null}
       <div className="strategy-lab__metrics">
-        <Metric label="净收益" value={`${result.net_return_percent >= 0 ? "+" : ""}${result.net_return_percent.toFixed(2)}%`} trend={result.net_return_percent} />
+        <Metric label="策略净收益" value={`${result.net_return_percent >= 0 ? "+" : ""}${result.net_return_percent.toFixed(2)}%`} trend={result.net_return_percent} />
+        <Metric label="买入持有基准" value={`${result.buy_hold_return_percent >= 0 ? "+" : ""}${result.buy_hold_return_percent.toFixed(2)}%`} trend={result.buy_hold_return_percent} />
+        <Metric label="超额收益（策略−持有）" value={`${result.excess_return_percent >= 0 ? "+" : ""}${result.excess_return_percent.toFixed(2)}%`} trend={result.excess_return_percent} />
         <Metric label="胜率" value={`${(result.win_rate * 100).toFixed(0)}%`} trend={result.win_rate - 0.5} />
         <Metric label="买卖" value={`${result.buys} / ${result.sells}`} trend={0} />
         <Metric label="最大回撤" value={`${result.max_drawdown_percent.toFixed(2)}%`} trend={-result.max_drawdown_percent} />
@@ -329,13 +341,23 @@ function ReplayResultView({
         )}
       </Panel>
 
-      <Panel title="权益曲线" eyebrow="EQUITY / REPLAY">
-        <EquityCurve points={equity} initial={Number(result.initial_equity)} />
+      <Panel title="权益曲线：策略 vs 买入持有" eyebrow="EQUITY / VS BUY & HOLD">
+        <DualEquityCurve
+          strategy={equity}
+          buyHold={result.buy_hold_equity_points
+            .filter(([timestamp]) => Number.isFinite(Date.parse(timestamp)))
+            .map(([timestamp, value]) => [Date.parse(timestamp), Number(value)] as const)}
+          initial={Number(result.initial_equity)}
+        />
+        <p className="strategy-lab__note">
+          青色 = 策略实际权益；灰色 = 同样资金全仓买入持有不动（{result.buy_hold_return_percent >= 0 ? "+" : ""}{result.buy_hold_return_percent.toFixed(2)}%）。
+          超额 {result.excess_return_percent >= 0 ? "+" : ""}{result.excess_return_percent.toFixed(2)}%。
+        </p>
       </Panel>
 
       <div className="strategy-lab__grid">
-        <Panel title="交易明细" eyebrow="TRADES / AUDIT">
-          <TradeList trades={result.trades} />
+        <Panel title="交易盈亏对比" eyebrow="TRADES / PAIRED PNL">
+          <TradePairsTable trades={result.trades} />
         </Panel>
         <Panel title="说明" eyebrow="NOTES / HONESTY">
           <ul className="strategy-lab__notes">
@@ -346,6 +368,16 @@ function ReplayResultView({
           </ul>
         </Panel>
       </div>
+
+      <Panel title="持仓金额曲线" eyebrow="POSITION VALUE / REPLAY">
+        <PositionValueCurve
+          points={result.position_value_points}
+          trades={result.trades}
+        />
+        <p className="strategy-lab__note">
+          每分钟持仓市值（数量 × 收盘价）；B 点后市值抬升表示建仓/加仓，S 点后回落表示卖出。
+        </p>
+      </Panel>
     </>
   );
 }
@@ -542,6 +574,8 @@ function TrainTab({ client }: { client: ApiClient }) {
 }
 
 function ReplayOverview({ result }: { result: ReplayResult }) {
+  const [selectedTrade, setSelectedTrade] = useState<ReplayTrade | null>(null);
+  const pairs = useMemo(() => tradePairs(result.trades), [result.trades]);
   const points = useMemo(() => {
     const closes = result.bars.map((bar) => Number(bar.close));
     if (closes.length < 2) return null;
@@ -557,12 +591,8 @@ function ReplayOverview({ result }: { result: ReplayResult }) {
         const y = height - ((close - min) / range) * (height - 8) - 4;
         return `${x.toFixed(3)},${y.toFixed(3)}`;
       }),
-      trades: result.trades.map((trade) => {
-        const index = Math.min(trade.index, closes.length - 1);
-        const x = index * step;
-        const y = height - ((closes[index] - min) / range) * (height - 8) - 4;
-        return { ...trade, x, y };
-      }),
+      xOf: (index: number) => Math.min(index, closes.length - 1) * step,
+      yOf: (close: number) => height - ((close - min) / range) * (height - 8) - 4,
       min,
       max,
     };
@@ -571,13 +601,16 @@ function ReplayOverview({ result }: { result: ReplayResult }) {
   if (points === null) {
     return <p className="strategy-lab__empty">数据不足，无法绘制全览。</p>;
   }
+  const selectedPair = selectedTrade === null
+    ? null
+    : pairs.find((pair) => pair.sell?.index === selectedTrade.index) ?? null;
   return (
     <div className="strategy-lab__overview">
       <svg
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
         role="img"
-        aria-label="区间全览：完整走势与买卖点"
+        aria-label="区间全览：完整走势与买卖配对"
         className="strategy-lab__overview-svg"
       >
         <line x1="0" y1="50" x2="100" y2="50" stroke="var(--border)" strokeDasharray="2 2" />
@@ -585,38 +618,168 @@ function ReplayOverview({ result }: { result: ReplayResult }) {
           points={points.line.join(" ")}
           fill="none"
           stroke="var(--accent)"
-          strokeWidth="0.7"
+          strokeWidth="0.55"
         />
-        {points.trades.map((trade) => (
-          <g key={`${trade.index}-${trade.side}`}>
-            <circle
-              cx={trade.x}
-              cy={trade.y}
-              r={trade.side === "BUY" ? 1.6 : 1.6}
-              fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
+        {pairs.map((pair) => {
+          if (pair.sell === null) return null;
+          return (
+            <line
+              key={`pair-${pair.buyIndex}`}
+              x1={points.xOf(pair.buyIndex)}
+              y1={points.yOf(pair.buyPrice)}
+              x2={points.xOf(pair.sell.index)}
+              y2={points.yOf(Number(pair.sell.price))}
+              stroke={pair.pnl >= 0 ? "#21ad76" : "#ef5b5b"}
+              strokeWidth="0.35"
+              strokeDasharray="1.2 1.2"
+              opacity="0.75"
             >
-              <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（上涨概率 ${(trade.proba * 100).toFixed(0)}%，${formatTime(trade.timestamp)}）`}</title>
-            </circle>
-            <text
-              x={trade.x}
-              y={trade.side === "BUY" ? trade.y - 3.2 : trade.y + 4.6}
-              textAnchor="middle"
-              fontSize="4"
-              fontWeight="bold"
-              fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
-            >
-              {trade.side === "BUY" ? "B" : "S"}
-            </text>
-          </g>
-        ))}
+              <title>{`盈亏 ${formatSignedMoney(String(pair.pnl))}（${pair.pnlPercent.toFixed(1)}%）`}</title>
+            </line>
+          );
+        })}
+        {result.trades.map((trade) => {
+          const x = points.xOf(trade.index);
+          const y = points.yOf(Number(trade.price));
+          const isSelected = selectedPair !== null && selectedPair.sell?.index === trade.index;
+          return (
+            <g key={`${trade.index}-${trade.side}`} className="strategy-lab__overview-point">
+              <circle
+                cx={x}
+                cy={y}
+                r={isSelected ? 2.6 : 2.0}
+                fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
+                stroke={isSelected ? "#fff" : "none"}
+                strokeWidth="0.4"
+              >
+                <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（上涨概率 ${(trade.proba * 100).toFixed(0)}%，${formatTime(trade.timestamp)}）`}</title>
+              </circle>
+              <text
+                x={x}
+                y={trade.side === "BUY" ? y - 4.2 : y + 5.6}
+                textAnchor="middle"
+                fontSize="4.6"
+                fontWeight="bold"
+                fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
+              >
+                {trade.side === "BUY" ? "B" : "S"}
+              </text>
+              <text
+                x={x}
+                y={y - (trade.side === "BUY" ? 7.4 : -8.2)}
+                textAnchor="middle"
+                fontSize="3.4"
+                fill="var(--text-muted)"
+              >
+                {trade.quantity / 100}手
+              </text>
+              <rect
+                x={x - 3}
+                y={y - 3}
+                width="6"
+                height="6"
+                fill="transparent"
+                role="presentation"
+                onClick={() => setSelectedTrade(selectedTrade?.index === trade.index ? null : trade)}
+              >
+                <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（上涨概率 ${(trade.proba * 100).toFixed(0)}%，${formatTime(trade.timestamp)}）`}</title>
+              </rect>
+            </g>
+          );
+        })}
       </svg>
-      <div className="strategy-lab__overview-legend">
-        <span>区间 {formatTime(result.start)} ~ {formatTime(result.end)}</span>
-        <span>区间最高 {points.max.toFixed(4)} / 最低 {points.min.toFixed(4)}</span>
-        <span>共 {result.trades.length} 笔真实信号（B {result.buys} / S {result.sells}）</span>
-      </div>
+      {selectedPair === null ? (
+        <div className="strategy-lab__overview-legend">
+          <span>区间 {formatTime(result.start)} ~ {formatTime(result.end)}</span>
+          <span>最高 {points.max.toFixed(4)} / 最低 {points.min.toFixed(4)}</span>
+          <span>{result.trades.length} 笔信号（B {result.buys} / S {result.sells}），点击任意点查看买卖配对盈亏</span>
+        </div>
+      ) : (
+        <div
+          className="strategy-lab__overview-detail"
+          data-pnl={selectedPair.pnl >= 0 ? "up" : "down"}
+        >
+          <strong>
+            买入 {selectedPair.quantity} 份 @ {selectedPair.buyPrice.toFixed(4)}（{formatTime(selectedPair.buyTime)}）
+          </strong>
+          <span>
+            {selectedPair.sell === null ? (
+              "持仓中（未卖出）"
+            ) : (
+              <>卖出 {selectedPair.sell.quantity} 份 @ {selectedPair.sell.price}（{formatTime(selectedPair.sell.timestamp)}） · 盈亏 <b>{formatSignedMoney(String(selectedPair.pnl))}（{selectedPair.pnlPercent.toFixed(1)}%）</b></>
+            )}
+          </span>
+        </div>
+      )}
+      <p className="strategy-lab__note">
+        虚线为买入→卖出配对（绿=盈利，红=亏损）；"x手"为买入/卖出数量；悬停或点击查看数量、价格与盈亏。
+      </p>
     </div>
   );
+}
+
+function tradePairs(trades: ReplayTrade[]): Array<{
+  buyIndex: number;
+  buyTime: string;
+  buyPrice: number;
+  quantity: number;
+  sell: ReplayTrade | null;
+  pnl: number;
+  pnlPercent: number;
+}> {
+  const rows: Array<{
+    buyIndex: number;
+    buyTime: string;
+    buyPrice: number;
+    quantity: number;
+    sell: ReplayTrade | null;
+    pnl: number;
+    pnlPercent: number;
+  }> = [];
+  let openQty = 0;
+  let openCost = 0;
+  let openIndex = -1;
+  let openTime = "";
+  for (const trade of trades) {
+    if (trade.side === "BUY") {
+      openCost = (openCost * openQty + Number(trade.price) * trade.quantity) / (openQty + trade.quantity);
+      openQty += trade.quantity;
+      if (openIndex < 0) {
+        openIndex = trade.index;
+        openTime = trade.timestamp;
+      }
+    } else {
+      const buyCost = openQty > 0 ? openCost * trade.quantity : Number(trade.price) * trade.quantity;
+      const pnl = Number(trade.pnl);
+      rows.push({
+        buyIndex: openIndex,
+        buyTime: openTime,
+        buyPrice: openCost,
+        quantity: trade.quantity,
+        sell: trade,
+        pnl,
+        pnlPercent: buyCost > 0 ? (pnl / buyCost) * 100 : 0,
+      });
+      openQty = Math.max(openQty - trade.quantity, 0);
+      if (openQty === 0) {
+        openCost = 0;
+        openIndex = -1;
+        openTime = "";
+      }
+    }
+  }
+  if (openQty > 0) {
+    rows.push({
+      buyIndex: openIndex,
+      buyTime: openTime,
+      buyPrice: openCost,
+      quantity: openQty,
+      sell: null,
+      pnl: 0,
+      pnlPercent: 0,
+    });
+  }
+  return rows;
 }
 
 function downloadReport(result: ReplayResult) {
@@ -702,6 +865,96 @@ function toChartBars(bars: ReplayBar[]): MarketBar[] {
   }));
 }
 
+function DualEquityCurve({
+  strategy,
+  buyHold,
+  initial,
+}: {
+  strategy: Array<readonly [number, number]>;
+  buyHold: Array<readonly [number, number]>;
+  initial: number;
+}) {
+  if (strategy.length < 2) {
+    return <p className="strategy-lab__empty">等待回放数据生成权益曲线</p>;
+  }
+  const all = [initial, ...strategy.map(([, value]) => value), ...buyHold.map(([, value]) => value)];
+  const min = Math.min(...all);
+  const max = Math.max(...all);
+  const range = Math.max(max - min, 1);
+  const width = 100;
+  const height = 40;
+  const project = (points: Array<readonly [number, number]>) =>
+    points.map(([, value], index) => {
+      const x = (index / (points.length - 1)) * width;
+      const y = height - ((value - min) / range) * (height - 4) - 2;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    });
+  return (
+    <svg className="strategy-lab__equity" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="策略权益与买入持有基准对比曲线">
+      <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="var(--border)" />
+      <polyline points={project(buyHold).join(" ")} fill="none" stroke="var(--text-muted)" strokeWidth="0.9" strokeDasharray="1.5 1.5" />
+      <polyline points={project(strategy).join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function PositionValueCurve({
+  points,
+  trades,
+}: {
+  points: Array<[string, string]>;
+  trades: ReplayTrade[];
+}) {
+  const parsed = useMemo(
+    () =>
+      points
+        .filter(([timestamp]) => Number.isFinite(Date.parse(timestamp)))
+        .map(([timestamp, value]) => [Date.parse(timestamp), Number(value)] as const),
+    [points],
+  );
+  if (parsed.length < 2) {
+    return <p className="strategy-lab__empty">等待回放数据生成持仓市值曲线</p>;
+  }
+  const values = parsed.map(([, value]) => value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(max - min, 1);
+  const width = 100;
+  const height = 40;
+  const coords = parsed.map(([timestamp, value], index) => {
+    const x = (index / (parsed.length - 1)) * width;
+    const y = height - ((value - min) / range) * (height - 4) - 2;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  });
+  const markers = trades
+    .map((trade) => {
+      const time = Date.parse(trade.timestamp);
+      const barIndex = parsed.findIndex(([timestamp]) => timestamp === time);
+      if (barIndex < 0) return null;
+      const x = (barIndex / (parsed.length - 1)) * width;
+      const y = height - ((parsed[barIndex][1] - min) / range) * (height - 4) - 2;
+      return { trade, x, y };
+    })
+    .filter((item): item is { trade: ReplayTrade; x: number; y: number } => item !== null);
+  return (
+    <svg className="strategy-lab__equity strategy-lab__equity--value" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="持仓市值曲线">
+      <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="var(--border)" />
+      <polyline points={coords.join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.2" />
+      {markers.map(({ trade, x, y }) => (
+        <circle
+          key={`${trade.index}-${trade.side}`}
+          cx={x}
+          cy={y}
+          r="1.6"
+          fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
+        >
+          <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（${formatTime(trade.timestamp)}）`}</title>
+        </circle>
+      ))}
+    </svg>
+  );
+}
+
 function EquityCurve({ points, initial }: { points: Array<readonly [number, number]>; initial: number }) {
   if (points.length < 2) {
     return <p className="strategy-lab__empty">等待回放数据生成权益曲线</p>;
@@ -722,6 +975,50 @@ function EquityCurve({ points, initial }: { points: Array<readonly [number, numb
       <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="var(--border)" />
       <polyline points={coords.join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.2" />
     </svg>
+  );
+}
+
+function TradePairsTable({ trades }: { trades: ReplayTrade[] }) {
+  const pairs = useMemo(() => tradePairs(trades), [trades]);
+  if (pairs.length === 0) {
+    return <p className="strategy-lab__empty">该时段没有触发交易。</p>;
+  }
+  return (
+    <table className="strategy-lab__pairs">
+      <thead>
+        <tr>
+          <th>买入时间</th>
+          <th>买入价</th>
+          <th>数量</th>
+          <th>卖出时间</th>
+          <th>卖出价</th>
+          <th>持有</th>
+          <th>盈亏</th>
+          <th>盈亏%</th>
+        </tr>
+      </thead>
+      <tbody>
+        {pairs.map((pair) => {
+          const holdMs = pair.sell === null
+            ? Date.now() - Date.parse(pair.buyTime)
+            : Date.parse(pair.sell.timestamp) - Date.parse(pair.buyTime);
+          const holdDays = Math.max(holdMs / 1000 / 60, 1);
+          const holdText = holdDays < 60 ? `${Math.round(holdDays)}分钟` : `${(holdDays / 60).toFixed(1)}小时`;
+          return (
+            <tr key={`${pair.buyIndex}-${pair.sell?.index ?? "open"}`} data-pnl={pair.sell === null ? "open" : pair.pnl >= 0 ? "up" : "down"}>
+              <td>{formatTime(pair.buyTime)}</td>
+              <td>{pair.buyPrice.toFixed(4)}</td>
+              <td>{pair.quantity}</td>
+              <td>{pair.sell === null ? "持仓中" : formatTime(pair.sell.timestamp)}</td>
+              <td>{pair.sell === null ? "—" : pair.sell.price}</td>
+              <td>{pair.sell === null ? "—" : holdText}</td>
+              <td>{pair.sell === null ? "—" : formatSignedMoney(String(pair.pnl))}</td>
+              <td>{pair.sell === null ? "—" : `${pair.pnlPercent >= 0 ? "+" : ""}${pair.pnlPercent.toFixed(2)}%`}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 

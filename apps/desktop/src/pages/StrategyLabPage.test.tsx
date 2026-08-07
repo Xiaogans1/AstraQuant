@@ -51,6 +51,8 @@ const result = {
   final_cash: "113616",
   realized_pnl: "15915.24",
   net_return_percent: 13.616,
+  buy_hold_return_percent: 4.5,
+  excess_return_percent: 9.116,
   max_drawdown_percent: 3.2,
   sharpe: 1.8,
   profit_factor: 1.6,
@@ -61,16 +63,27 @@ const result = {
   trades: [
     {
       index: 35,
-      timestamp: "2026-07-09T02:05:00Z",
+      timestamp: "2026-07-10T02:05:00Z",
       side: "BUY",
       price: "0.71",
       quantity: 100,
       pnl: "0",
       proba: 0.61,
     },
+    {
+      index: 120,
+      timestamp: "2026-07-10T04:30:00Z",
+      side: "SELL",
+      price: "0.75",
+      quantity: 100,
+      pnl: "3.56",
+      proba: 0.22,
+    },
   ],
   bars: [],
   equity_points: [],
+  position_value_points: [],
+  buy_hold_equity_points: [],
 };
 
 function renderLab(client: ApiClient) {
@@ -153,9 +166,13 @@ test("running batch replay submits instruments, model and window", async () => {
     ],
     model_id: "lgbm-minute-001",
     initial_cash: "100000",
+    fully_invested: true,
   });
   expect((await screen.findAllByText(/\+13.62%/)).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/\+4.50%/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/\+9.12%/).length).toBeGreaterThan(0);
   expect(screen.getByText(/43 \/ 43/)).toBeVisible();
-  expect(screen.getByText(/买入 100 份 @ 0.71/)).toBeVisible();
-  expect(screen.getByText(/61%/)).toBeVisible();
+  expect(screen.getByText(/0.7100/)).toBeVisible();
+  expect(screen.getByText(/\+3.56/)).toBeVisible();
+  expect(screen.getByText(/\+5.01%/)).toBeVisible();
 });

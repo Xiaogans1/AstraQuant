@@ -36,6 +36,7 @@ class ReplayRequest(BaseModel):
     instruments: list[ReplayInstrumentInput] = Field(min_length=1, max_length=20)
     model_id: str = Field(min_length=1, max_length=64)
     initial_cash: Decimal = Field(default=Decimal("100000"), gt=0)
+    fully_invested: bool = Field(default=True)
 
 
 class ReplayTradeView(BaseModel):
@@ -69,6 +70,8 @@ class ReplayView(BaseModel):
     final_cash: Decimal
     realized_pnl: Decimal
     net_return_percent: float
+    buy_hold_return_percent: float
+    excess_return_percent: float
     max_drawdown_percent: float
     sharpe: float
     profit_factor: float
@@ -79,6 +82,8 @@ class ReplayView(BaseModel):
     trades: list[ReplayTradeView]
     bars: list[ReplayBarView]
     equity_points: list[list[datetime | Decimal]]
+    position_value_points: list[list[datetime | Decimal]]
+    buy_hold_equity_points: list[list[datetime | Decimal]]
 
 
 class RecordDatasetRequest(BaseModel):
