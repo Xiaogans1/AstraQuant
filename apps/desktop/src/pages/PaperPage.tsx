@@ -11,6 +11,7 @@ import {
   usePaperFillsQuery,
   usePaperOrdersQuery,
   usePaperStrategyRunsQuery,
+  usePaperStrategyStatusQuery,
   useRunPaperStrategyScanMutation,
   useUpdatePaperCashMutation,
 } from "../api/queries";
@@ -314,12 +315,16 @@ function StrategyConsole({
 }) {
   const runScan = useRunPaperStrategyScanMutation(client);
   const persistedRuns = usePaperStrategyRunsQuery(client, accountId);
+  const status = usePaperStrategyStatusQuery(client);
   const results = runScan.data ?? persistedRuns.data;
   const strategyError = runScan.error instanceof Error
     ? runScan.error
     : persistedRuns.error instanceof Error
       ? persistedRuns.error
       : null;
+  const autoScanLabel = status.data?.loop_enabled === true
+    ? `盘中每 ${status.data.loop_interval_seconds} 秒自动检查${status.data.last_scan_at === null ? "" : ` · 上次 ${formatTime(status.data.last_scan_at)}`}`
+    : "自动检查未开启";
   return (
     <Panel
       title="量化策略"
@@ -333,6 +338,7 @@ function StrategyConsole({
             <span>当前检查范围</span>
             <strong>{positions.length === 0 ? "等待录入持仓" : `全部持仓 · ${positions.length} 只（并发检查）`}</strong>
             <small className="paper-strategy__brief">baseline-v1 日内动量 + 量能突破：买入需 5 分钟涨幅 ≥ 0.3% 且均线多头排列且量比 ≥ 1.5；卖出需 5 分钟跌幅 ≥ 0.3% 且均线走弱。特征不足 20 根 1 分钟 K 线时只观察不出手。</small>
+            <small className="paper-strategy__auto">{autoScanLabel}</small>
           </div>
           <button
             type="button"

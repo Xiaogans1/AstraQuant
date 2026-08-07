@@ -37,6 +37,7 @@ import type {
   PaperOrderExecution,
   PaperStrategyRun,
   PaperStrategyRunRequest,
+  PaperStrategyStatus,
 } from "./paper-contracts";
 
 type Fetch = typeof fetch;
@@ -285,6 +286,10 @@ export class ApiClient {
     return this.request(
       `/v1/paper/accounts/${encodeURIComponent(accountId)}/strategy/runs`,
     );
+  }
+
+  getPaperStrategyStatus(): Promise<PaperStrategyStatus> {
+    return this.request("/v1/paper/strategy/status");
   }
 
   getSettings(): Promise<Settings> {

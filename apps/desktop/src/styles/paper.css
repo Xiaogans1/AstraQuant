@@ -369,6 +369,10 @@
   font-size: 11px;
 }
 
+.paper-strategy__auto {
+  color: var(--accent) !important;
+}
+
 .paper-strategy__scope strong {
   overflow: hidden;
   font-size: 15px;

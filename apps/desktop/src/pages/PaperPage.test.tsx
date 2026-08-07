@@ -80,6 +80,11 @@ test("first visit creates and opens the default local paper account", async () =
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
   } as unknown as ApiClient;
 
   renderPage(client);
@@ -98,6 +103,11 @@ test("account workspace shows real portfolio metrics and holdings", async () => 
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
   } as unknown as ApiClient;
 
   renderPage(client);
@@ -123,6 +133,11 @@ test("account discovery does not poll or replace the workspace with onboarding",
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
   } as unknown as ApiClient;
   renderPage(client);
 
@@ -148,6 +163,11 @@ test("cash editor persists the remaining cash outside current holdings", async (
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
     updatePaperCash,
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -160,6 +180,27 @@ test("cash editor persists the remaining cash outside current holdings", async (
   await user.click(screen.getByRole("button", { name: "保存资金" }));
 
   expect(updatePaperCash).toHaveBeenCalledWith("account-1", { cash: "80000" });
+});
+
+test("strategy panel shows automatic in-session scanning status", async () => {
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: "2026-08-07T02:20:00Z",
+    }),
+  } as unknown as ApiClient;
+  renderPage(client);
+
+  expect(await screen.findByText(/盘中每 60 秒自动检查/)).toBeVisible();
+  expect(screen.getByText(/上次 08\/07 \d{2}:\d{2}:\d{2}/)).toBeVisible();
 });
 
 test("strategy console scans all holdings concurrently and hides engineering parameters", async () => {
@@ -258,6 +299,11 @@ test("strategy console scans all holdings concurrently and hides engineering par
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
     runPaperStrategyScan,
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -361,6 +407,11 @@ test("account rail shows today's pnl from last close for historical cost holding
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
   } as unknown as ApiClient;
   renderPage(client);
 
@@ -384,6 +435,11 @@ test("opening position form searches the real catalog and requires a selected in
     ]),
     addPaperOpeningPosition,
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -439,6 +495,11 @@ test("opening position form resets after save and supports continuous additions"
     ]),
     addPaperOpeningPosition,
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -480,6 +541,11 @@ test("opening position form explains duplicate holdings in Chinese", async () =>
     ]),
     addPaperOpeningPosition,
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();

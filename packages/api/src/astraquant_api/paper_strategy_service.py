@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from uuid import uuid4
@@ -47,10 +47,55 @@ class PaperStrategyService:
         paper_service: PaperService,
         market_service: MarketDataService,
         repository: PaperRepository,
+        loop_interval_seconds: float = 60,
     ) -> None:
         self._paper_service = paper_service
         self._market_service = market_service
         self._repository = repository
+        self._loop_interval_seconds = loop_interval_seconds
+        self._scan_lock = asyncio.Lock()
+        self._last_scan_at: datetime | None = None
+
+    @property
+    def last_scan_at(self) -> datetime | None:
+        return self._last_scan_at
+
+    @property
+    def loop_interval_seconds(self) -> float:
+        return self._loop_interval_seconds
+
+    async def run_loop(self) -> None:
+        """Periodically scan every account while the market is live."""
+        while True:
+            try:
+                await self._run_loop_once()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                LOGGER.warning("strategy loop iteration failed", exc_info=True)
+            await asyncio.sleep(self._loop_interval_seconds)
+
+    async def _run_loop_once(self) -> None:
+        if self._scan_lock.locked():
+            return
+        if self._market_service.connection().state is not ConnectionState.LIVE:
+            return
+        accounts = self._paper_service.list_accounts()
+        if not accounts:
+            return
+        async with self._scan_lock:
+            for account in accounts:
+                state = self._paper_service.get_state(account.account_id)
+                if not state.positions:
+                    continue
+                await self.scan_account(
+                    account.account_id,
+                    quantity=100,
+                    auto_execute=True,
+                    max_position_percent=Decimal("20"),
+                    decision_time=datetime.now(UTC),
+                )
+            self._last_scan_at = datetime.now(UTC)
 
     async def run(
         self,

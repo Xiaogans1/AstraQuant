@@ -11,7 +11,7 @@ from astraquant_api.paper_repository import PaperRepository
 from astraquant_api.paper_service import PaperService
 from astraquant_api.paper_strategy_service import PaperStrategyService, StrategyOutcome
 from astraquant_api.secret_store import MemorySecretStore
-from astraquant_data.live_providers import ProviderHealth
+from astraquant_data.live_providers import ConnectionState, ProviderHealth
 from astraquant_data.market_bars import MarketBar, MarketPeriod
 from astraquant_data.subscriptions import SubscriptionBudget
 from astraquant_domain import AccountMode, InstrumentId, LiveQuote, PaperAccount
@@ -114,6 +114,96 @@ def build_service(
         ),
         repository,
     )
+
+
+def test_strategy_loop_scans_holdings_while_market_is_live(tmp_path: Path) -> None:
+    service, repository = build_service(tmp_path, bars(["10"] * 20))
+    service._paper_service.add_opening_position(
+        "account-1",
+        instrument_id=INSTRUMENT,
+        name="半导体设备ETF",
+        quantity=1000,
+        available_quantity=1000,
+        average_cost=Decimal("10"),
+    )
+
+    async def scenario() -> None:
+        market = service._market_service
+        assert market.connection().state is ConnectionState.LIVE
+
+        await service._run_loop_once()
+        assert service.last_scan_at is not None
+        batch = repository.latest_strategy_run_batch("account-1")
+        assert len(batch) == 1
+        assert batch[0].instrument_id == str(INSTRUMENT)
+
+    asyncio.run(scenario())
+
+
+def test_strategy_loop_skips_when_market_is_not_live(tmp_path: Path) -> None:
+    service, repository = build_service(tmp_path, bars(["10"] * 20))
+
+    async def scenario() -> None:
+        market = service._market_service
+        assert market.connection().state is ConnectionState.LIVE
+        market._connection = ProviderHealth(provider_id="eastmoney", state=ConnectionState.CLOSED)
+
+        await service._run_loop_once()
+
+        assert service.last_scan_at is None
+        assert repository.latest_strategy_run_batch("account-1") == ()
+
+    asyncio.run(scenario())
+
+
+def test_strategy_loop_skips_accounts_without_positions(tmp_path: Path) -> None:
+    service, repository = build_service(tmp_path, bars(["10"] * 20))
+
+    async def scenario() -> None:
+        market = service._market_service
+        market.record_quotes(
+            [
+                LiveQuote.minimum(
+                    INSTRUMENT,
+                    event_time=START + timedelta(hours=1),
+                    last_price=Decimal("10"),
+                    previous_close=Decimal("9.9"),
+                )
+            ]
+        )
+        service._paper_service.create_account(
+            PaperAccount(
+                account_id="empty-account",
+                name="空账户",
+                mode=AccountMode.PAPER,
+                initial_cash=Decimal("100000"),
+                cash=Decimal("100000"),
+                created_at=START,
+                updated_at=START,
+            )
+        )
+
+        await service._run_loop_once()
+
+        assert repository.latest_strategy_run_batch("empty-account") == ()
+        assert service.last_scan_at is not None
+
+    asyncio.run(scenario())
+
+
+def test_strategy_loop_does_not_overlap_running_scans(tmp_path: Path) -> None:
+    service, _ = build_service(tmp_path, bars(["10"] * 20))
+
+    async def scenario() -> None:
+        assert service._scan_lock.locked() is False
+        await service._scan_lock.acquire()
+        try:
+            await service._run_loop_once()
+        finally:
+            service._scan_lock.release()
+        assert service.last_scan_at is None
+
+    asyncio.run(scenario())
 
 
 def test_hold_signal_never_creates_an_order(tmp_path: Path) -> None:

@@ -26,6 +26,7 @@ from astraquant_api.paper_schemas import (
     StrategyRunRequest,
     StrategyRunView,
     StrategySignalView,
+    StrategyStatusView,
 )
 from astraquant_api.paper_service import PaperService, QuoteUnavailable
 from astraquant_api.paper_strategy_service import PaperStrategyService, StrategyRunResult
@@ -173,6 +174,14 @@ def build_paper_router(
         return [EquityView.from_domain(item) for item in state.snapshots]
 
     if strategy_service is not None:
+
+        @router.get("/strategy/status", response_model=StrategyStatusView)
+        def strategy_status() -> StrategyStatusView:
+            return StrategyStatusView(
+                loop_enabled=True,
+                loop_interval_seconds=int(strategy_service.loop_interval_seconds),
+                last_scan_at=strategy_service.last_scan_at,
+            )
 
         @router.get(
             "/accounts/{account_id}/strategy/runs",

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import secrets
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -85,13 +87,20 @@ class ApiProblem(Exception):
 def create_app(state: AppState) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        strategy_task: asyncio.Task[None] | None = None
         if state.market_service is not None:
             await state.market_service.start()
         if state.paper_service is not None:
             state.paper_service.start()
+        if state.paper_strategy_service is not None:
+            strategy_task = asyncio.create_task(state.paper_strategy_service.run_loop())
         try:
             yield
         finally:
+            if strategy_task is not None:
+                strategy_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await strategy_task
             if state.paper_service is not None:
                 state.paper_service.stop()
             if state.market_service is not None:

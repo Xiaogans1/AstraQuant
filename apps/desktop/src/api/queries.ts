@@ -46,6 +46,7 @@ export const queryKeys = {
   paperEquity: (accountId: string) => ["paper", "accounts", accountId, "equity"] as const,
   paperStrategyRuns: (accountId: string) =>
     ["paper", "accounts", accountId, "strategy-runs"] as const,
+  paperStrategyStatus: ["paper", "strategy", "status"] as const,
 };
 
 export function useDefaultPaperAccountQuery(client: ApiClient) {
@@ -232,6 +233,15 @@ export function usePaperStrategyRunsQuery(client: ApiClient, accountId: string |
     queryKey: queryKeys.paperStrategyRuns(accountId ?? "none"),
     queryFn: () => client.listPaperStrategyRuns(requireId(accountId, "Paper account")),
     enabled: accountId !== null,
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+  });
+}
+
+export function usePaperStrategyStatusQuery(client: ApiClient) {
+  return useQuery({
+    queryKey: queryKeys.paperStrategyStatus,
+    queryFn: () => client.getPaperStrategyStatus(),
     staleTime: 15_000,
     refetchInterval: 15_000,
   });

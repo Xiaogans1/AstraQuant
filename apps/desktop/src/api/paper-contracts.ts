@@ -141,3 +141,9 @@ export interface PaperStrategyRun {
   order: PaperOrder | null;
   fill: PaperFill | null;
 }
+
+export interface PaperStrategyStatus {
+  loop_enabled: boolean;
+  loop_interval_seconds: number;
+  last_scan_at: string | null;
+}

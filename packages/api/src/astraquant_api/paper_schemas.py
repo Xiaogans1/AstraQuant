@@ -265,3 +265,9 @@ class StrategyRunView(BaseModel):
     signal: StrategySignalView
     order: OrderView | None
     fill: FillView | None
+
+
+class StrategyStatusView(BaseModel):
+    loop_enabled: bool
+    loop_interval_seconds: int
+    last_scan_at: datetime | None
