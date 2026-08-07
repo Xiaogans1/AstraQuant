@@ -373,6 +373,15 @@ export class ApiClient {
     );
   }
 
+  getPaperDailyOpen(
+    accountId: string,
+    onDate: string,
+  ): Promise<{ cash: string; positions_json: string }> {
+    return this.request(
+      `/v1/paper/accounts/${encodeURIComponent(accountId)}/strategy/daily-open?on_date=${encodeURIComponent(onDate)}`,
+    );
+  }
+
   updateSettings(settings: Settings): Promise<Settings> {
     return this.request("/v1/settings", {
       method: "PATCH",

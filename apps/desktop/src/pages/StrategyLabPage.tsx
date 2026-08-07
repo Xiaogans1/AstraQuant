@@ -330,10 +330,62 @@ function DailyTab({ client }: { client: ApiClient }) {
   const defaultAccount = useDefaultPaperAccountQuery(client);
   const accountId = defaultAccount.data?.account.account_id ?? null;
   const daily = useDailySummaryQuery(client, accountId);
+  const modelsQuery = usePaperModelsQuery(client);
+  const approvedModel = modelsQuery.data?.find((item) => item.status === "APPROVED") ?? null;
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const runs = useStrategyRunsOnDateQuery(client, accountId, selectedDate);
   const rows = daily.data ?? [];
   const selected = rows.find((row) => row.trading_date === selectedDate);
+  const [recomputed, setRecomputed] = useState<{
+    date: string;
+    initialCash: string;
+    results: ReplayResult[];
+    error: string | null;
+  } | null>(null);
+  const [recomputing, setRecomputing] = useState(false);
+
+  const recompute = async (date: string) => {
+    if (accountId === null || approvedModel === null) return;
+    setRecomputing(true);
+    try {
+      const opening = await client.getPaperDailyOpen(accountId, date);
+      const positions = JSON.parse(opening.positions_json) as Array<{
+        instrument_id: string;
+        quantity: number;
+        available_quantity: number;
+        average_cost: string;
+      }>;
+      const results = await client.runResearchReplay({
+        instruments: positions.map((position) => ({
+          instrument_id: position.instrument_id,
+          start_date: date,
+          end_date: date,
+          opening: position,
+        })),
+        model_id: approvedModel.model_id,
+        initial_cash: opening.cash,
+        fully_invested: false,
+      });
+      setRecomputed({ date, initialCash: opening.cash, results, error: null });
+    } catch (caught) {
+      setRecomputed({
+        date,
+        initialCash: "",
+        results: [],
+        error: caught instanceof Error ? caught.message : "重算失败",
+      });
+    } finally {
+      setRecomputing(false);
+    }
+  };
+
+  const recomputeTotal = recomputed?.results.reduce(
+    (total, item) => total + Number(item.final_cash) - Number(item.initial_equity),
+    0,
+  ) ?? 0;
+  const recomputePercent = recomputed !== null && Number(recomputed.initialCash) > 0
+    ? (recomputeTotal / Number(recomputed.initialCash)) * 100
+    : 0;
 
   return (
     <>
@@ -362,14 +414,61 @@ function DailyTab({ client }: { client: ApiClient }) {
       </Panel>
 
       {selected === undefined ? null : (
-        <Panel title={`${selected.trading_date} · 当天实际`} eyebrow="DAILY / ACTUAL">
+        <Panel title={`${selected.trading_date} · 当天实际 vs 同起点重算`} eyebrow="DAILY / ACTUAL VS RECOMPUTE">
+          <div className="strategy-lab__recompute">
+            <div>
+              <strong>当天实际</strong>
+              <span className={trendClass(selected.strategy_pnl)}>
+                {selected.strategy_pnl_percent === null ? "—" : `${selected.strategy_pnl_percent >= 0 ? "+" : ""}${selected.strategy_pnl_percent.toFixed(2)}%`}
+                {selected.strategy_pnl === "0" ? "" : `（${formatSignedMoney(selected.strategy_pnl)}）`}
+              </span>
+              <small>已剔除入金/出金 {selected.external_flow === "0" ? "无" : formatSignedMoney(selected.external_flow)}</small>
+            </div>
+            <button
+              type="button"
+              disabled={recomputing || approvedModel === null}
+              onClick={() => void recompute(selected.trading_date)}
+            >
+              {recomputing ? "重算中…" : "以日初持仓同起点重算"}
+            </button>
+          </div>
+          {approvedModel === null ? (
+            <p className="strategy-lab__note">需要先批准一个模型才能重算。</p>
+          ) : null}
           {!selected.has_daily_open ? (
-            <p className="strategy-lab__warn">该日无日初存档：当天"重新回放"将使用纯现金起点，收益不可与当天实际直接对比（仅对比信号行为）。</p>
+            <p className="strategy-lab__warn">该日无日初存档：重算使用纯现金起点，收益不可与当天实际直接对比（仅对比信号行为）。</p>
+          ) : null}
+          {recomputed !== null && recomputed.date === selected.trading_date ? (
+            recomputed.error !== null ? (
+              <p className="strategy-lab__error" role="alert">{recomputed.error}</p>
+            ) : (
+              <>
+                <div className="strategy-lab__recompute-result" data-trend={recomputePercent >= 0 ? "up" : "down"}>
+                  <strong>同起点重算收益</strong>
+                  <span>{recomputePercent >= 0 ? "+" : ""}{recomputePercent.toFixed(2)}%（{formatSignedMoney(String(recomputeTotal))}）</span>
+                  <small>
+                    实际 {selected.strategy_pnl_percent === null ? "—" : `${selected.strategy_pnl_percent >= 0 ? "+" : ""}${selected.strategy_pnl_percent.toFixed(2)}%`}
+                    {selected.strategy_pnl_percent === null ? "" : ` vs 重算 ${recomputePercent >= 0 ? "+" : ""}${recomputePercent.toFixed(2)}% → 差值 ${recomputePercent - (selected.strategy_pnl_percent ?? 0) >= 0 ? "+" : ""}${(recomputePercent - (selected.strategy_pnl_percent ?? 0)).toFixed(2)}%`}
+                  </small>
+                </div>
+                <ul className="strategy-lab__recompute-list">
+                  {recomputed.results.map((item) => (
+                    <li key={item.instrument_id} data-trend={item.net_return_percent >= 0 ? "up" : "down"}>
+                      <strong>{item.instrument_id}</strong>
+                      <span>收益 {item.net_return_percent >= 0 ? "+" : ""}{item.net_return_percent.toFixed(2)}% · {item.buys}/{item.sells} 笔 · 期初持仓 {item.initial_equity > item.initial_cash ? "含持仓" : "无"}</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )
           ) : null}
           {runs.data === undefined || runs.data.length === 0 ? (
             <p className="strategy-lab__empty">当天没有策略决策记录。</p>
           ) : (
-            <RunList runs={runs.data} />
+            <>
+              <h3 className="strategy-lab__subtitle">当天实际决策</h3>
+              <RunList runs={runs.data} />
+            </>
           )}
         </Panel>
       )}
