@@ -231,6 +231,12 @@ function ReplayResultView({
     return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
   }, [bars, signals]);
   const [selectedDay, setSelectedDay] = useState<string>(days.at(-1)?.[0] ?? "");
+  useEffect(() => {
+    setSelectedDay((current) => {
+      if (current !== "" && days.some(([day]) => day === current)) return current;
+      return days.at(-1)?.[0] ?? "";
+    });
+  }, [days]);
   const selected = days.find(([day]) => day === selectedDay);
   const dayBars = selected?.[1].bars ?? [];
   const daySignals = selected?.[1].signals ?? [];
@@ -304,15 +310,17 @@ function ReplayResultView({
           <p className="strategy-lab__empty">该日没有分钟数据（可能为节假日或数据源缺失）。</p>
         ) : (
           <>
-            <ProfessionalMarketChart
-              instrumentId={result.instrument_id}
-              period="intraday"
-              mainIndicator="MA"
-              secondaryIndicator="VOL"
-              showQuantSignals
-              bars={dayBars}
-              signals={daySignals}
-            />
+            <div className="strategy-lab__intraday">
+              <ProfessionalMarketChart
+                instrumentId={result.instrument_id}
+                period="intraday"
+                mainIndicator="MA"
+                secondaryIndicator="VOL"
+                showQuantSignals
+                bars={dayBars}
+                signals={daySignals}
+              />
+            </div>
             <p className="strategy-lab__note">
               与首页一致的分时图：默认展示区间最后一天，可点击上方日期切换任意交易日；
               红 B / 绿 S 为该日真实模型信号（悬停查看时间与上涨概率）。共 {result.trades.length} 笔信号。

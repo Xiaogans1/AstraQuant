@@ -3430,3 +3430,11 @@ code {
   color: var(--accent);
   font-weight: 600;
 }
+
+
+.strategy-lab__intraday {
+  position: relative;
+  min-height: 380px;
+  height: clamp(380px, 46vh, 560px);
+  background: color-mix(in srgb, var(--panel) 97%, var(--canvas));
+}
