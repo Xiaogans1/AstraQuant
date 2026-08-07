@@ -105,7 +105,7 @@ function AccountWorkspace({
   const marketValue = equity?.market_value ?? "0";
   const cash = equity?.cash ?? detail?.account.cash ?? selectedSummary.cash;
   const positions = detail?.positions ?? [];
-  const dayPnl = useMemo(() => calculateDayPnl(equityQuery.data ?? []), [equityQuery.data]);
+  const dayPnl = useMemo(() => calculateDayPnl(positions), [positions]);
   const [selectedInstrumentId, setSelectedInstrumentId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -168,7 +168,7 @@ function AccountWorkspace({
           label="当日盈亏"
           value={dayPnl === null ? "—" : formatSignedMoney(dayPnl.pnl.toFixed(2))}
           trend={dayPnl?.pnl ?? 0}
-          sub={dayPnl === null ? "等待今日首笔行情快照" : `今日 ${formatSignedPercent(dayPnl.pct)}`}
+          sub={dayPnl === null ? "等待今日真实行情" : `今日 ${formatSignedPercent(dayPnl.pct)}（相对昨收）`}
         />
         <Metric label="累计盈亏" value={formatSignedMoney(totalPnl)} trend={Number(totalPnl)} sub={`权益基线 ${formatMoney(selectedSummary.initial_equity)}`} />
         <Metric label="持仓市值" value={formatMoney(marketValue)} />
@@ -546,24 +546,19 @@ function Metric({ label, value, primary = false, trend, sub }: { label: string; 
   );
 }
 
-function calculateDayPnl(equity: PaperEquity[]): { pnl: number; pct: number } | null {
-  if (equity.length < 2) return null;
-  const today = shanghaiDayKey(Date.now());
-  const todaySnapshots = equity.filter((item) => shanghaiDayKey(Date.parse(item.as_of)) === today);
-  if (todaySnapshots.length < 2) return null;
-  const first = Number(todaySnapshots[0].total_equity);
-  const last = Number(todaySnapshots[todaySnapshots.length - 1].total_equity);
-  if (!Number.isFinite(first) || !Number.isFinite(last) || first <= 0) return null;
-  return { pnl: last - first, pct: ((last - first) / first) * 100 };
-}
-
-function shanghaiDayKey(value: number): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(value));
+function calculateDayPnl(positions: PaperPosition[]): { pnl: number; pct: number } | null {
+  let numerator = 0;
+  let denominator = 0;
+  for (const position of positions) {
+    const last = position.last_price === null ? null : Number(position.last_price);
+    const previous = position.previous_close === null ? null : Number(position.previous_close);
+    if (last === null || previous === null) continue;
+    if (!Number.isFinite(last) || !Number.isFinite(previous) || previous <= 0) continue;
+    numerator += (last - previous) * position.quantity;
+    denominator += previous * position.quantity;
+  }
+  if (denominator <= 0) return null;
+  return { pnl: numerator, pct: (numerator / denominator) * 100 };
 }
 
 function EquityPulse({ equity, baseline }: { equity: PaperEquity[]; baseline: string }) {

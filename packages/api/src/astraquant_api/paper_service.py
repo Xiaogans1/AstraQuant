@@ -139,6 +139,15 @@ class PaperService:
         self._repository.save_state(result.state)
         return result
 
+    def previous_close_map(self, account_id: str) -> dict[str, Decimal]:
+        state = self._repository.load_state(account_id)
+        return {
+            str(position.instrument_id): quote.previous_close
+            for position in state.positions
+            if (quote := self._market_service.latest_quote(str(position.instrument_id))) is not None
+            and quote.previous_close is not None
+        }
+
     def on_quotes(self, quotes: tuple[LiveQuote, ...]) -> None:
         if not quotes:
             return

@@ -144,6 +144,36 @@ def test_create_account_and_add_opening_position(tmp_path: Path) -> None:
     assert client.get("/v1/paper/accounts").json()[0]["account_id"] == account_id
 
 
+def test_account_positions_expose_previous_close_from_real_quote(tmp_path: Path) -> None:
+    client, market = build_client(tmp_path)
+    account_id = create_account(client)
+    client.post(
+        f"/v1/paper/accounts/{account_id}/positions/opening",
+        json={
+            "instrument_id": "159516.SZSE",
+            "name": "半导体设备ETF",
+            "quantity": 1000,
+            "available_quantity": 800,
+            "average_cost": "0.6800",
+        },
+    )
+    market.request_quote("159516.SZSE")
+    market.record_quotes(
+        [
+            LiveQuote.minimum(
+                InstrumentId.parse("159516.SZSE"),
+                event_time=NOW,
+                last_price=Decimal("0.714"),
+                previous_close=Decimal("0.701"),
+            )
+        ]
+    )
+
+    payload = client.get(f"/v1/paper/accounts/{account_id}").json()
+
+    assert payload["positions"][0]["previous_close"] == "0.701"
+
+
 def test_update_cash_balance_persists_external_capital_without_fake_profit(
     tmp_path: Path,
 ) -> None:

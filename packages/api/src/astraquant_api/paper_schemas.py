@@ -121,6 +121,7 @@ class PositionView(BaseModel):
     available_quantity: int
     average_cost: Decimal
     last_price: Decimal | None
+    previous_close: Decimal | None = None
     market_value: Decimal
     unrealized_pnl: Decimal
     unrealized_pnl_percent: Decimal | None
@@ -233,6 +234,19 @@ class AccountDetailView(BaseModel):
                 None if not state.snapshots else EquityView.from_domain(state.snapshots[-1])
             ),
         )
+
+    @classmethod
+    def from_state_with_previous_close(
+        cls,
+        state: LedgerState,
+        previous_close: dict[str, Decimal],
+    ) -> AccountDetailView:
+        view = cls.from_state(state)
+        positions = [
+            item.model_copy(update={"previous_close": previous_close.get(item.instrument_id)})
+            for item in view.positions
+        ]
+        return view.model_copy(update={"positions": positions})
 
 
 class OrderExecutionView(BaseModel):

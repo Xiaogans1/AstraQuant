@@ -25,6 +25,7 @@ export interface PaperPosition {
   available_quantity: number;
   average_cost: string;
   last_price: string | null;
+  previous_close: string | null;
   market_value: string;
   unrealized_pnl: string;
   unrealized_pnl_percent: string | null;

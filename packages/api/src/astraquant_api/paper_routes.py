@@ -56,7 +56,7 @@ def build_paper_router(
                 updated_at=now,
             )
         )
-        return AccountDetailView.from_state(state)
+        return _detail_view(service, state)
 
     @router.get("/accounts", response_model=list[AccountSummaryView])
     def list_accounts() -> list[AccountSummaryView]:
@@ -84,11 +84,11 @@ def build_paper_router(
 
     @router.put("/accounts/default", response_model=AccountDetailView)
     def ensure_default_account() -> AccountDetailView:
-        return AccountDetailView.from_state(service.ensure_default_account())
+        return _detail_view(service, service.ensure_default_account())
 
     @router.get("/accounts/{account_id}", response_model=AccountDetailView)
     def get_account(account_id: str) -> AccountDetailView:
-        return AccountDetailView.from_state(_state_or_404(service, account_id))
+        return _detail_view(service, _state_or_404(service, account_id))
 
     @router.patch("/accounts/{account_id}/cash", response_model=AccountDetailView)
     def update_cash_balance(
@@ -101,7 +101,7 @@ def build_paper_router(
             raise ApiProblem(404, "paper_account_not_found", "未找到模拟账户") from None
         except ValueError as error:
             raise ApiProblem(409, "cash_balance_conflict", str(error)) from None
-        return AccountDetailView.from_state(state)
+        return _detail_view(service, state)
 
     @router.post(
         "/accounts/{account_id}/positions/opening",
@@ -124,7 +124,7 @@ def build_paper_router(
             raise ApiProblem(404, "paper_account_not_found", "未找到模拟账户") from None
         except ValueError as error:
             raise ApiProblem(409, "opening_position_conflict", str(error)) from None
-        return AccountDetailView.from_state(state)
+        return _detail_view(service, state)
 
     @router.post(
         "/accounts/{account_id}/orders",
@@ -154,7 +154,7 @@ def build_paper_router(
         return OrderExecutionView(
             order=OrderView.from_domain(result.order),
             fill=None if result.fill is None else FillView.from_domain(result.fill),
-            portfolio=AccountDetailView.from_state(result.state),
+            portfolio=_detail_view(service, result.state),
         )
 
     @router.get("/accounts/{account_id}/orders", response_model=list[OrderView])
@@ -273,3 +273,11 @@ def _state_or_404(service: PaperService, account_id: str) -> LedgerState:
         return service.get_state(account_id)
     except KeyError:
         raise ApiProblem(404, "paper_account_not_found", "未找到模拟账户") from None
+
+
+def _detail_view(service: PaperService, state: LedgerState) -> AccountDetailView:
+    try:
+        previous_close = service.previous_close_map(state.account.account_id)
+    except KeyError:
+        previous_close = {}
+    return AccountDetailView.from_state_with_previous_close(state, previous_close)

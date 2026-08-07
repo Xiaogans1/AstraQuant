@@ -41,6 +41,7 @@ const detail: PaperAccountDetail = {
       available_quantity: 800,
       average_cost: "0.6800",
       last_price: "0.7140",
+      previous_close: "0.7010",
       market_value: "714.00",
       unrealized_pnl: "34.00",
       unrealized_pnl_percent: "5.0000",
@@ -327,49 +328,45 @@ test("strategy panel restores the latest persisted scan after refresh", async ()
   expect(client.listPaperStrategyRuns).toHaveBeenCalledWith("account-1");
 });
 
-test("account rail shows today's pnl percentage from intraday snapshots", async () => {
-  const todayKey = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  const dayEquity = [
-    {
-      snapshot_id: "s1",
-      cash: "99279.99",
-      market_value: "960.51",
-      total_equity: "100240.50",
-      initial_equity: "100000",
-      total_pnl: "240.50",
-      total_pnl_percent: "0.2405",
-      as_of: `${todayKey}T01:30:00Z`,
-    },
-    {
-      snapshot_id: "s2",
-      cash: "99279.99",
-      market_value: "1050.51",
-      total_equity: "100330.50",
-      initial_equity: "100000",
-      total_pnl: "330.50",
-      total_pnl_percent: "0.3305",
-      as_of: `${todayKey}T02:00:00Z`,
-    },
-  ];
+test("account rail shows today's pnl from last close for historical cost holdings", async () => {
   const client = {
-    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue({
+      ...detail,
+      positions: [
+        {
+          ...detail.positions[0],
+          last_price: "0.7200",
+          previous_close: "0.7000",
+          market_value: "720.00",
+          unrealized_pnl: "40.00",
+          unrealized_pnl_percent: "5.8824",
+        },
+      ],
+    }),
     listPaperAccounts: vi.fn().mockResolvedValue([summary]),
-    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    getPaperAccount: vi.fn().mockResolvedValue({
+      ...detail,
+      positions: [
+        {
+          ...detail.positions[0],
+          last_price: "0.7200",
+          previous_close: "0.7000",
+          market_value: "720.00",
+          unrealized_pnl: "40.00",
+          unrealized_pnl_percent: "5.8824",
+        },
+      ],
+    }),
     listPaperOrders: vi.fn().mockResolvedValue([]),
     listPaperFills: vi.fn().mockResolvedValue([]),
-    listPaperEquity: vi.fn().mockResolvedValue(dayEquity),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
     listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
   } as unknown as ApiClient;
   renderPage(client);
 
   expect(await screen.findByText("当日盈亏")).toBeVisible();
-  expect(screen.getByText("+90.00")).toBeVisible();
-  expect(screen.getByText(/今日 \+0\.09%/)).toBeVisible();
+  expect(screen.getByText("+20.00")).toBeVisible();
+  expect(screen.getByText(/今日 \+2\.86%（相对昨收）/)).toBeVisible();
 });
 
 test("opening position form searches the real catalog and requires a selected instrument", async () => {
