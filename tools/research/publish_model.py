@@ -26,6 +26,8 @@ def register_approved_model(
     feature_version: str,
     artifact_path: str,
     metrics: dict[str, float],
+    params: dict[str, object] | None = None,
+    force: bool = False,
 ) -> str:
     auc = float(metrics.get("auc", 0.0))
     net_return = float(metrics.get("net_return", 0.0))
@@ -44,8 +46,8 @@ def register_approved_model(
     migrate_database(database_url)
     repository = PaperRepository(create_database(database_url))
     existing = repository.get_model(model_id)
-    if existing is not None:
-        raise ValueError(f"model {model_id} already registered")
+    if existing is not None and not force:
+        raise ValueError(f"model {model_id} already registered (use --force to update)")
     now = datetime.now(UTC)
     repository.save_model(
         ModelRegistryRecord(
@@ -55,8 +57,9 @@ def register_approved_model(
             feature_version=feature_version,
             artifact_path=str(artifact.resolve()),
             metrics_json=json.dumps(metrics),
+            params_json=json.dumps(params or {}),
             status="APPROVED",
-            created_at=now,
+            created_at=now if existing is None else existing.created_at,
             updated_at=now,
             approved_at=now,
         )
@@ -72,9 +75,16 @@ def main() -> int:
     parser.add_argument("--feature-version", default="minute-v1")
     parser.add_argument("--artifact", required=True, help="LightGBM model file path")
     parser.add_argument("--metrics", required=True, help="metrics JSON file path")
+    parser.add_argument("--params", default=None, help="inference params JSON file path")
+    parser.add_argument("--force", action="store_true", help="overwrite an existing model")
     args = parser.parse_args()
     try:
         metrics = json.loads(Path(args.metrics).read_text(encoding="utf-8"))
+        params = (
+            None
+            if args.params is None
+            else json.loads(Path(args.params).read_text(encoding="utf-8"))
+        )
         model_id = register_approved_model(
             model_id=args.model_id,
             strategy_id=args.strategy_id,
@@ -82,6 +92,8 @@ def main() -> int:
             feature_version=args.feature_version,
             artifact_path=args.artifact,
             metrics=metrics,
+            params=params,
+            force=args.force,
         )
     except (ValueError, OSError) as error:
         print(f"publish failed: {error}", file=sys.stderr)

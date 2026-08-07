@@ -312,25 +312,6 @@ class PaperStrategyService:
                 proposed_side=None,
                 proposed_quantity=quantity if quantity is not None else 0,
             )
-        decision_id = decision.decision_record.decision_id
-        if auto_execute and self._decision_already_executed(account_id, decision_id):
-            execution = self._paper_service.submit_market_order(
-                account_id,
-                instrument_id=instrument_id,
-                side=side,
-                quantity=100,
-                idempotency_key=f"strategy-{decision_id}",
-                now=decision_time,
-                stamp_duty_exempt=instrument_id.symbol.startswith(("1", "5")),
-            )
-            return StrategyRunResult(
-                decision=decision,
-                outcome=StrategyOutcome.EXECUTED,
-                proposed_side=side,
-                proposed_quantity=(execution.fill.quantity if execution.fill is not None else 100),
-                order=execution.order,
-                fill=execution.fill,
-            )
         suggested = self._suggested_quantity(
             account_id,
             instrument_id=instrument_id,
@@ -345,61 +326,13 @@ class PaperStrategyService:
                 proposed_quantity=0,
                 risk_reason="当前无可卖数量或买入预算不足 等待行情变化",
             )
-        if self._same_direction_already_executed(
-            account_id,
-            instrument_id=instrument_id,
-            side=side,
-            decision_time=decision_time,
-            current_decision_id=decision.decision_record.decision_id,
-        ):
-            return StrategyRunResult(
-                decision=decision,
-                outcome=StrategyOutcome.HOLD,
-                proposed_side=side,
-                proposed_quantity=suggested,
-                risk_reason="同方向信号今日已执行 等待信号反转后再操作",
-            )
-        if not auto_execute:
-            return StrategyRunResult(
-                decision=decision,
-                outcome=StrategyOutcome.SUGGESTED,
-                proposed_side=side,
-                proposed_quantity=suggested,
-            )
-        risk_reason = self._risk_reason(
-            account_id,
-            instrument_id=instrument_id,
-            side=side,
-            quantity=suggested,
-            max_position_percent=max_position_percent,
-        )
-        if risk_reason is not None:
-            return StrategyRunResult(
-                decision=decision,
-                outcome=StrategyOutcome.BLOCKED,
-                proposed_side=side,
-                proposed_quantity=suggested,
-                risk_reason=risk_reason,
-            )
-        execution = self._paper_service.submit_market_order(
-            account_id,
-            instrument_id=instrument_id,
-            side=side,
-            quantity=suggested,
-            idempotency_key=f"strategy-{decision.decision_record.decision_id}",
-            now=decision_time,
-            stamp_duty_exempt=instrument_id.symbol.startswith(("1", "5")),
-        )
-        result = StrategyRunResult(
+        return StrategyRunResult(
             decision=decision,
-            outcome=StrategyOutcome.EXECUTED,
+            outcome=StrategyOutcome.SUGGESTED,
             proposed_side=side,
             proposed_quantity=suggested,
-            order=execution.order,
-            fill=execution.fill,
+            risk_reason="rule fallback observes only (loss-making on real data)",
         )
-        self._persist_run(account_id, result, batch_id=str(uuid4()))
-        return result
 
     async def _model_decision(
         self,
@@ -432,11 +365,17 @@ class PaperStrategyService:
         except Exception:
             LOGGER.warning("model inference failed, falling back", exc_info=True)
             return None
+        try:
+            params = json.loads(model.params_json)
+        except (TypeError, ValueError):
+            params = {}
+        buy_threshold = float(params.get("buy_threshold", 0.6))
+        sell_threshold = float(params.get("sell_threshold", 0.4))
         action = (
             SignalAction.BUY
-            if proba >= 0.6
+            if proba >= buy_threshold
             else SignalAction.SELL
-            if proba <= 0.4
+            if proba <= sell_threshold
             else SignalAction.HOLD
         )
         confidence = Decimal(str(proba)) if action is not SignalAction.HOLD else Decimal("0")

@@ -119,6 +119,7 @@ model_registry = sa.Table(
     sa.Column("feature_version", sa.String(64), nullable=False),
     sa.Column("artifact_path", sa.String(400), nullable=False),
     sa.Column("metrics_json", sa.Text(), nullable=False),
+    sa.Column("params_json", sa.Text(), nullable=False),
     sa.Column("status", sa.String(16), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -138,6 +139,7 @@ class ModelRegistryRecord:
     created_at: datetime
     updated_at: datetime
     approved_at: datetime | None
+    params_json: str = "{}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +177,7 @@ def _model_record(row: RowMapping) -> ModelRegistryRecord:
         feature_version=row["feature_version"],
         artifact_path=row["artifact_path"],
         metrics_json=row["metrics_json"],
+        params_json=row["params_json"],
         status=row["status"],
         created_at=_utc(row["created_at"]),
         updated_at=_utc(row["updated_at"]),
@@ -396,6 +399,7 @@ class PaperRepository:
                     feature_version=record.feature_version,
                     artifact_path=record.artifact_path,
                     metrics_json=record.metrics_json,
+                    params_json=record.params_json,
                     status=record.status,
                     created_at=_utc(record.created_at),
                     updated_at=_utc(record.updated_at),
@@ -409,6 +413,7 @@ class PaperRepository:
                         "feature_version": record.feature_version,
                         "artifact_path": record.artifact_path,
                         "metrics_json": record.metrics_json,
+                        "params_json": record.params_json,
                         "status": record.status,
                         "updated_at": _utc(record.updated_at),
                         "approved_at": (

@@ -430,10 +430,10 @@ def test_sell_uses_available_quantity_and_does_not_repeat(tmp_path: Path) -> Non
             decision_time=decision_time,
         )
     )
-    assert first.outcome is StrategyOutcome.EXECUTED
-    assert first.fill is not None
-    assert first.fill.quantity == 1000
-    assert repository.load_state("account-1").positions == ()
+    assert first.outcome is StrategyOutcome.SUGGESTED
+    assert first.proposed_quantity == 1000
+    assert first.risk_reason is not None
+    assert repository.load_state("account-1").positions[0].available_quantity == 1000
 
     second = asyncio.run(
         service.run(
@@ -445,9 +445,8 @@ def test_sell_uses_available_quantity_and_does_not_repeat(tmp_path: Path) -> Non
             decision_time=decision_time + timedelta(minutes=1),
         )
     )
-    assert second.outcome is StrategyOutcome.HOLD
-    assert second.risk_reason == "当前无可卖数量或买入预算不足 等待行情变化"
-    assert len(repository.load_state("account-1").orders) == 1
+    assert second.outcome is StrategyOutcome.SUGGESTED
+    assert len(repository.load_state("account-1").orders) == 0
 
 
 def test_same_direction_dedup_recognizes_previous_execution(tmp_path: Path) -> None:
@@ -459,70 +458,79 @@ def test_same_direction_dedup_recognizes_previous_execution(tmp_path: Path) -> N
     )
     service, _ = build_service(tmp_path, market_bars)
     decision_time = market_bars[-1].timestamp + timedelta(minutes=1)
-
-    first = asyncio.run(
-        service.run(
-            "account-1",
-            instrument_id=INSTRUMENT,
-            quantity=100,
-            auto_execute=True,
-            max_position_percent=Decimal("100"),
-            decision_time=decision_time,
-        )
-    )
-    assert first.outcome is StrategyOutcome.EXECUTED
-
-    later = decision_time + timedelta(minutes=1)
     decision = evaluate_intraday_signal(
         INSTRUMENT,
         market_bars,
-        later,
+        decision_time,
         market_live=True,
     )
+    from astraquant_api.paper_repository import StrategyRunRecord
+
+    executed = StrategyRunRecord(
+        decision_id="decision-executed-1",
+        batch_id="batch-1",
+        account_id="account-1",
+        instrument_id=str(INSTRUMENT),
+        outcome="EXECUTED",
+        proposed_side="BUY",
+        proposed_quantity=100,
+        risk_reason=None,
+        signal_json='{"action": "BUY"}',
+        advisory_checks=(),
+        order_json='{"order_id": "order-1"}',
+        fill_json=None,
+        decision_time=decision_time,
+    )
+    service._repository.save_strategy_runs((executed,))
+
     assert (
         service._same_direction_already_executed(
             "account-1",
             instrument_id=INSTRUMENT,
             side=OrderSide.BUY,
-            decision_time=later,
+            decision_time=decision_time,
             current_decision_id=decision.decision_record.decision_id,
         )
         is True
     )
-
-
-def test_auto_execution_is_idempotent_for_the_same_decision(tmp_path: Path) -> None:
-    market_bars = bars(
-        ["10"] * 15 + ["10.01", "10.02", "10.03", "10.04", "10.05"],
-        last_volume="400",
-    )
-    service, repository = build_service(tmp_path, market_bars)
-    decision_time = market_bars[-1].timestamp + timedelta(minutes=1)
-
-    first = asyncio.run(
-        service.run(
+    assert (
+        service._same_direction_already_executed(
             "account-1",
             instrument_id=INSTRUMENT,
-            quantity=100,
-            auto_execute=True,
-            max_position_percent=Decimal("20"),
+            side=OrderSide.SELL,
             decision_time=decision_time,
+            current_decision_id=decision.decision_record.decision_id,
         )
+        is False
     )
-    second = asyncio.run(
-        service.run(
-            "account-1",
-            instrument_id=INSTRUMENT,
-            quantity=100,
-            auto_execute=True,
-            max_position_percent=Decimal("20"),
-            decision_time=decision_time,
+
+
+def test_decision_replay_detection(tmp_path: Path) -> None:
+    from astraquant_api.paper_repository import StrategyRunRecord
+
+    service, _ = build_service(tmp_path, bars(["10"] * 20))
+    service._repository.save_strategy_runs(
+        (
+            StrategyRunRecord(
+                decision_id="decision-replay-1",
+                batch_id="batch-1",
+                account_id="account-1",
+                instrument_id=str(INSTRUMENT),
+                outcome="EXECUTED",
+                proposed_side="BUY",
+                proposed_quantity=100,
+                risk_reason=None,
+                signal_json='{"action": "BUY"}',
+                advisory_checks=(),
+                order_json='{"order_id": "order-1"}',
+                fill_json=None,
+                decision_time=START,
+            ),
         )
     )
 
-    assert first.outcome is StrategyOutcome.EXECUTED
-    assert second.order == first.order
-    assert len(repository.load_state("account-1").orders) == 1
+    assert service._decision_already_executed("account-1", "decision-replay-1") is True
+    assert service._decision_already_executed("account-1", "decision-other") is False
 
 
 def test_run_uses_approved_model_signal_when_available(tmp_path: Path) -> None:

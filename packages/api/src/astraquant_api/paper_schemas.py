@@ -304,6 +304,7 @@ class ModelRegistryView(BaseModel):
     feature_version: str
     artifact_path: str
     metrics_json: str
+    params_json: str
     status: str
     created_at: datetime
     updated_at: datetime
@@ -317,3 +318,4 @@ class ModelRegisterRequest(BaseModel):
     feature_version: str = Field(min_length=1, max_length=64)
     artifact_path: str = Field(min_length=1, max_length=400)
     metrics_json: str = Field(min_length=2, max_length=10_000)
+    params_json: str = Field(default="{}", min_length=2, max_length=10_000)
