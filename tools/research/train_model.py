@@ -9,18 +9,7 @@ from pathlib import Path
 
 import lightgbm as lgb
 
-_FEATURE_COLUMNS = [
-    "return_1",
-    "return_3",
-    "return_5",
-    "return_10",
-    "volatility_5",
-    "vwap_deviation",
-    "volume_ratio",
-    "day_high_position",
-    "ma5_gap",
-    "ma20_gap",
-]
+from astraquant_quant.strategy_layer import MODEL_FEATURE_COLUMNS as _FEATURE_COLUMNS
 
 
 def purged_train_test_split(

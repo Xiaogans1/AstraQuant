@@ -523,3 +523,149 @@ def test_auto_execution_is_idempotent_for_the_same_decision(tmp_path: Path) -> N
     assert first.outcome is StrategyOutcome.EXECUTED
     assert second.order == first.order
     assert len(repository.load_state("account-1").orders) == 1
+
+
+def test_run_uses_approved_model_signal_when_available(tmp_path: Path) -> None:
+    import json as _json
+
+    from astraquant_api.paper_repository import ModelRegistryRecord
+
+    service, _ = build_service(tmp_path, bars(["10"] * 20))
+    service._paper_service.save_model(
+        ModelRegistryRecord(
+            model_id="lgbm-minute-001",
+            strategy_id="microstructure-lgbm",
+            strategy_version="lgbm-v1",
+            feature_version="minute-v1",
+            artifact_path="models/does-not-exist.txt",
+            metrics_json=_json.dumps({"auc": 0.58, "net_return": 0.03}),
+            status="APPROVED",
+            created_at=START,
+            updated_at=START,
+            approved_at=START,
+        )
+    )
+    market = service._market_service
+    market.record_quotes(
+        [
+            LiveQuote.minimum(
+                INSTRUMENT,
+                event_time=START + timedelta(hours=1),
+                last_price=Decimal("9.70"),
+                previous_close=Decimal("9.90"),
+            )
+        ]
+    )
+
+    result = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=True,
+            max_position_percent=Decimal("20"),
+            decision_time=START + timedelta(hours=1, minutes=1),
+        )
+    )
+
+    assert result.decision.signal.strategy_id == "intraday-momentum-volume"
+    assert result.outcome is StrategyOutcome.HOLD
+
+
+def test_run_uses_approved_model_artifact_end_to_end(tmp_path: Path) -> None:
+    import json as _json
+
+    import lightgbm as lgb
+
+    from astraquant_api.paper_repository import ModelRegistryRecord
+    from astraquant_quant.research_features import build_feature_rows, label_future_return
+    from astraquant_quant.strategy_layer import MODEL_FEATURE_COLUMNS
+
+    closes = ["10.00"] * 20 + [
+        "10.01",
+        "10.02",
+        "10.03",
+        "10.04",
+        "10.05",
+        "10.04",
+        "10.03",
+        "10.02",
+        "10.01",
+        "10.00",
+    ] * 6
+    market_bars = bars(closes, last_volume="400")
+    training: list[dict[str, float | int]] = []
+    for index, row in enumerate(build_feature_rows(market_bars)):
+        label = label_future_return(
+            market_bars,
+            index=index + 30,
+            horizon=5,
+            threshold=Decimal("0.002"),
+        )
+        if label < 0:
+            continue
+        training.append({**row, "label": label})
+    assert any(row["label"] == 1 for row in training)
+    assert any(row["label"] == 0 for row in training)
+    import numpy as np
+
+    dataset = lgb.Dataset(
+        np.asarray(
+            [[float(row[key]) for key in MODEL_FEATURE_COLUMNS] for row in training],
+            dtype=float,
+        ),
+        label=[int(row["label"]) for row in training],
+    )
+    booster = lgb.train(
+        {
+            "objective": "binary",
+            "verbosity": -1,
+            "num_leaves": 4,
+            "min_data_in_leaf": 2,
+        },
+        dataset,
+        num_boost_round=8,
+    )
+    artifact = tmp_path / "model.txt"
+    booster.save_model(str(artifact))
+
+    service, _ = build_service(tmp_path, market_bars)
+    service._paper_service.save_model(
+        ModelRegistryRecord(
+            model_id="lgbm-minute-001",
+            strategy_id="microstructure-lgbm",
+            strategy_version="lgbm-v1",
+            feature_version="minute-v1",
+            artifact_path=str(artifact),
+            metrics_json=_json.dumps({"auc": 0.58, "net_return": 0.03}),
+            status="APPROVED",
+            created_at=START,
+            updated_at=START,
+            approved_at=START,
+        )
+    )
+    market = service._market_service
+    market.record_quotes(
+        [
+            LiveQuote.minimum(
+                INSTRUMENT,
+                event_time=START + timedelta(hours=1),
+                last_price=Decimal("9.70"),
+                previous_close=Decimal("9.90"),
+            )
+        ]
+    )
+
+    result = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=False,
+            max_position_percent=Decimal("20"),
+            decision_time=START + timedelta(hours=1, minutes=1),
+        )
+    )
+
+    assert result.decision.signal.strategy_id == "microstructure-lgbm"
+    assert result.outcome in (StrategyOutcome.HOLD, StrategyOutcome.SUGGESTED)

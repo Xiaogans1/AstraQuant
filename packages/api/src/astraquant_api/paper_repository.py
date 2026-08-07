@@ -371,6 +371,20 @@ class PaperRepository:
             )
         return None if row is None else _model_record(row)
 
+    def latest_approved_model(self) -> ModelRegistryRecord | None:
+        with self.engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(model_registry)
+                    .where(model_registry.c.status == "APPROVED")
+                    .order_by(model_registry.c.approved_at.desc())
+                    .limit(1)
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _model_record(row)
+
     def save_model(self, record: ModelRegistryRecord) -> None:
         with self.engine.begin() as connection:
             connection.execute(

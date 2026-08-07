@@ -9,16 +9,20 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
+from pathlib import Path
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+import lightgbm as lgb
+
 from astraquant_api.market_service import MarketDataService
-from astraquant_api.paper_repository import PaperRepository, StrategyRunRecord
+from astraquant_api.paper_repository import ModelRegistryRecord, PaperRepository, StrategyRunRecord
 from astraquant_api.paper_service import PaperService
 from astraquant_data.live_providers import ConnectionState
 from astraquant_data.market_bars import MarketPeriod
 from astraquant_domain import (
     InstrumentId,
+    LiveQuote,
     OrderSide,
     PaperFill,
     PaperOrder,
@@ -26,6 +30,14 @@ from astraquant_domain import (
     SignalAction,
 )
 from astraquant_quant import QuantDecision, evaluate_intraday_signal
+from astraquant_quant.research_features import build_feature_rows
+from astraquant_quant.strategy_layer import (
+    MODEL_FEATURE_COLUMNS,
+    PortfolioConstructor,
+    RiskPolicy,
+    build_model_signal,
+    build_target_position,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -160,15 +172,127 @@ class PaperStrategyService:
         max_position_percent: Decimal,
         decision_time: datetime,
     ) -> StrategyRunResult:
-        """Run the baseline check; order size is always engine-computed.
+        """Run the approved-model signal first, falling back to the baseline rule engine.
 
         ``quantity`` is accepted for call-site compatibility but ignored: the
         engine decides how many shares to trade so trends cannot nibble 100
-        shares at a time and the same direction is executed at most once per
-        trading day until the signal reverses.
+        shares at a time. The rule fallback executes the same direction at most
+        once per trading day until the signal reverses; an approved model
+        re-decides on every new completed bar.
         """
         if not Decimal("0") < max_position_percent <= Decimal("100"):
             raise ValueError("max_position_percent must be between 0 and 100")
+        state = self._paper_service.get_state(account_id)
+        model = self._repository.latest_approved_model()
+        if model is not None and self._market_service.connection().state is ConnectionState.LIVE:
+            quote = self._market_service.latest_quote(str(instrument_id))
+            if quote is not None:
+                decision = await self._model_decision(
+                    model,
+                    instrument_id=instrument_id,
+                    quote=quote,
+                    decision_time=decision_time,
+                )
+                if decision is not None:
+                    side = self._side(decision.signal.action)
+                    if side is None:
+                        return StrategyRunResult(
+                            decision=decision,
+                            outcome=StrategyOutcome.HOLD,
+                            proposed_side=None,
+                            proposed_quantity=0,
+                            risk_reason="模型建议观望",
+                        )
+                    assert state.initial_equity is not None
+                    target = build_target_position(
+                        PortfolioConstructor(max_position_percent=max_position_percent),
+                        RiskPolicy(max_position_percent=max_position_percent),
+                        signal_strength=Decimal("1"),
+                        equity=state.initial_equity,
+                        price=quote.last_price,
+                    )
+                    if side is OrderSide.SELL:
+                        position = next(
+                            (
+                                item
+                                for item in state.positions
+                                if item.instrument_id == instrument_id
+                            ),
+                            None,
+                        )
+                        target = min(target, 0 if position is None else position.available_quantity)
+                    if target <= 0:
+                        return StrategyRunResult(
+                            decision=decision,
+                            outcome=StrategyOutcome.HOLD,
+                            proposed_side=side,
+                            proposed_quantity=0,
+                            risk_reason=(
+                                "无可卖数量" if side is OrderSide.SELL else "目标仓位不足一手"
+                            ),
+                        )
+                    decision_id = decision.decision_record.decision_id
+                    if auto_execute and self._decision_already_executed(account_id, decision_id):
+                        execution = self._paper_service.submit_market_order(
+                            account_id,
+                            instrument_id=instrument_id,
+                            side=side,
+                            quantity=100,
+                            idempotency_key=f"strategy-{decision_id}",
+                            now=decision_time,
+                            stamp_duty_exempt=instrument_id.symbol.startswith(("1", "5")),
+                        )
+                        return StrategyRunResult(
+                            decision=decision,
+                            outcome=StrategyOutcome.EXECUTED,
+                            proposed_side=side,
+                            proposed_quantity=(
+                                execution.fill.quantity if execution.fill is not None else 100
+                            ),
+                            order=execution.order,
+                            fill=execution.fill,
+                        )
+                    if not auto_execute:
+                        return StrategyRunResult(
+                            decision=decision,
+                            outcome=StrategyOutcome.SUGGESTED,
+                            proposed_side=side,
+                            proposed_quantity=target,
+                        )
+                    risk_reason = self._risk_reason(
+                        account_id,
+                        instrument_id=instrument_id,
+                        side=side,
+                        quantity=target,
+                        max_position_percent=max_position_percent,
+                    )
+                    if risk_reason is not None:
+                        return StrategyRunResult(
+                            decision=decision,
+                            outcome=StrategyOutcome.BLOCKED,
+                            proposed_side=side,
+                            proposed_quantity=target,
+                            risk_reason=risk_reason,
+                        )
+                    execution = self._paper_service.submit_market_order(
+                        account_id,
+                        instrument_id=instrument_id,
+                        side=side,
+                        quantity=target,
+                        idempotency_key=f"strategy-{decision_id}",
+                        now=decision_time,
+                        stamp_duty_exempt=instrument_id.symbol.startswith(("1", "5")),
+                    )
+                    result = StrategyRunResult(
+                        decision=decision,
+                        outcome=StrategyOutcome.EXECUTED,
+                        proposed_side=side,
+                        proposed_quantity=target,
+                        order=execution.order,
+                        fill=execution.fill,
+                    )
+                    self._persist_run(account_id, result, batch_id=str(uuid4()))
+                    return result
         rows = await self._market_service.bars(
             str(instrument_id),
             period=MarketPeriod.MINUTE_1,
@@ -276,6 +400,58 @@ class PaperStrategyService:
         )
         self._persist_run(account_id, result, batch_id=str(uuid4()))
         return result
+
+    async def _model_decision(
+        self,
+        model: ModelRegistryRecord,
+        *,
+        instrument_id: InstrumentId,
+        quote: LiveQuote,
+        decision_time: datetime,
+    ) -> QuantDecision | None:
+        """Run approved-model inference; None means inference unavailable (fall back)."""
+        artifact = Path(model.artifact_path)
+        if not artifact.exists():
+            return None
+        rows = await self._market_service.bars(
+            str(instrument_id),
+            period=MarketPeriod.MINUTE_1,
+            count=60,
+        )
+        if not rows:
+            return None
+        try:
+            features = build_feature_rows(rows)
+            if not features:
+                return None
+            latest = features[-1]
+            booster = lgb.Booster(model_file=str(artifact))
+            proba = float(
+                booster.predict([[float(latest[key]) for key in MODEL_FEATURE_COLUMNS]])[0]
+            )
+        except Exception:
+            LOGGER.warning("model inference failed, falling back", exc_info=True)
+            return None
+        action = (
+            SignalAction.BUY
+            if proba >= 0.6
+            else SignalAction.SELL
+            if proba <= 0.4
+            else SignalAction.HOLD
+        )
+        confidence = Decimal(str(proba)) if action is not SignalAction.HOLD else Decimal("0")
+        reason = f"model {model.strategy_version} up-probability {proba:.2f}"
+        return _model_decision_frame(
+            instrument_id=instrument_id,
+            action=action,
+            price=quote.last_price,
+            decision_time=decision_time,
+            strategy_id=model.strategy_id,
+            strategy_version=model.strategy_version,
+            feature_version=model.feature_version,
+            reason=reason,
+            confidence=confidence,
+        )
 
     def _decision_already_executed(self, account_id: str, decision_id: str) -> bool:
         batch = self._repository.latest_strategy_run_batch(account_id)
@@ -473,6 +649,36 @@ class PaperStrategyService:
         if action is SignalAction.SELL:
             return OrderSide.SELL
         return None
+
+
+def _model_decision_frame(
+    *,
+    instrument_id: InstrumentId,
+    action: SignalAction,
+    price: Decimal,
+    decision_time: datetime,
+    strategy_id: str,
+    strategy_version: str,
+    feature_version: str,
+    reason: str,
+    confidence: Decimal,
+) -> QuantDecision:
+    """Assemble the model decision via the shared strategy-layer helper.
+
+    The model signal has no online feature frame, so the snapshot is a
+    placeholder with zero completed bars.
+    """
+    return build_model_signal(
+        instrument_id=instrument_id,
+        action=action,
+        price=price,
+        decision_time=decision_time,
+        strategy_id=strategy_id,
+        strategy_version=strategy_version,
+        feature_version=feature_version,
+        reason=reason,
+        confidence=confidence,
+    )
 
 
 def _order_json(order: PaperOrder | None) -> str | None:
