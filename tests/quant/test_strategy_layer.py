@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from astraquant_data.market_bars import MarketBar
 from astraquant_domain import InstrumentId, OrderSide, SignalAction, SignalState
+from astraquant_quant import QuantDecision
 from astraquant_quant.features import RealtimeFeatureStatus
 from astraquant_quant.strategy_layer import (
     MODEL_FEATURE_COLUMNS,
@@ -126,18 +127,20 @@ def test_build_model_signal_hold_has_zero_confidence() -> None:
 
 
 def test_build_model_signal_is_deterministic() -> None:
-    kwargs = {
-        "instrument_id": InstrumentId.parse("159516.SZSE"),
-        "action": SignalAction.BUY,
-        "price": Decimal("9.70"),
-        "decision_time": datetime(2026, 8, 7, 2, 31, tzinfo=UTC),
-        "strategy_id": "microstructure-lgbm",
-        "strategy_version": "lgbm-v1",
-        "feature_version": "minute-v1",
-        "reason": "model lgbm-v1 up-probability 0.72",
-        "confidence": Decimal("0.72"),
-    }
-    first = build_model_signal(**kwargs)
-    second = build_model_signal(**kwargs)
+    def build() -> QuantDecision:
+        return build_model_signal(
+            instrument_id=InstrumentId.parse("159516.SZSE"),
+            action=SignalAction.BUY,
+            price=Decimal("9.70"),
+            decision_time=datetime(2026, 8, 7, 2, 31, tzinfo=UTC),
+            strategy_id="microstructure-lgbm",
+            strategy_version="lgbm-v1",
+            feature_version="minute-v1",
+            reason="model lgbm-v1 up-probability 0.72",
+            confidence=Decimal("0.72"),
+        )
+
+    first = build()
+    second = build()
     assert first.signal.signal_id == second.signal.signal_id
     assert first.decision_record.decision_id == second.decision_record.decision_id

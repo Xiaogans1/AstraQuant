@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from fastapi.testclient import TestClient
 from tests.api.test_paper_routes import build_client
@@ -17,7 +18,7 @@ def _model_body(model_id: str, metrics_json: str) -> dict[str, str]:
     }
 
 
-def _register(client: TestClient) -> dict[str, object]:
+def _register(client: TestClient) -> Any:
     return client.post(
         "/v1/paper/models",
         json=_model_body("lgbm-minute-001", '{"auc": 0.50, "net_return": 0.01}'),
