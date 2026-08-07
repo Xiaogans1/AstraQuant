@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
 from astraquant_data.arrow_schema import table_to_bars
 from astraquant_data.market_bars import MarketBar
-from astraquant_domain import Bar
+from astraquant_data.parquet_store import ParquetSnapshotStore
+from astraquant_domain import Adjustment, Bar, BarFrequency, InstrumentId
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +23,61 @@ class DatasetInfo:
     bar_count: int
     start: datetime
     end: datetime
+
+
+def dataset_id_for(instrument_id: InstrumentId) -> str:
+    return f"cn-equity-{str(instrument_id).lower().replace('.', '-')}-1m-none"
+
+
+def market_bars_to_domain(
+    instrument_id: InstrumentId,
+    rows: Sequence[MarketBar],
+) -> list[Bar]:
+    return [
+        Bar(
+            instrument_id=instrument_id,
+            frequency=BarFrequency.MINUTE,
+            trading_date=row.timestamp.date(),
+            event_time=row.timestamp,
+            available_time=row.timestamp + timedelta(minutes=1),
+            open=row.open,
+            high=row.high,
+            low=row.low,
+            close=row.close,
+            volume=row.volume,
+            turnover=row.turnover,
+            open_interest=None,
+            settlement=None,
+            adjustment=Adjustment.NONE,
+            availability_estimated=False,
+        )
+        for row in rows
+    ]
+
+
+def publish_dataset(
+    data_root: Path,
+    *,
+    instrument_id: InstrumentId,
+    bars: Sequence[Bar],
+    provider: dict[str, str],
+) -> DatasetInfo:
+    store = ParquetSnapshotStore(data_root)
+    dataset_id = dataset_id_for(instrument_id)
+    store.publish_bars(
+        dataset_id=dataset_id,
+        bars=list(bars),
+        provider=provider,
+        calendar_version="eastmoney",
+        availability_policy="bar_end",
+    )
+    return DatasetInfo(
+        dataset_id=dataset_id,
+        instrument_id=str(instrument_id),
+        bar_count=len(bars),
+        start=min(bar.event_time for bar in bars),
+        end=max(bar.event_time for bar in bars),
+    )
 
 
 def _to_market_bar(bar: Bar) -> MarketBar:

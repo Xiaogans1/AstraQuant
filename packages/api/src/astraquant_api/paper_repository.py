@@ -125,6 +125,24 @@ model_registry = sa.Table(
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("approved_at", sa.DateTime(timezone=True)),
 )
+research_experiments = sa.Table(
+    "research_experiments",
+    metadata,
+    sa.Column("experiment_id", sa.String(36), primary_key=True),
+    sa.Column("request_json", sa.Text(), nullable=False),
+    sa.Column("summary_json", sa.Text(), nullable=False),
+    sa.Column("results_json", sa.Text(), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ExperimentRecord:
+    experiment_id: str
+    request_json: str
+    summary_json: str
+    results_json: str
+    created_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +200,16 @@ def _model_record(row: RowMapping) -> ModelRegistryRecord:
         created_at=_utc(row["created_at"]),
         updated_at=_utc(row["updated_at"]),
         approved_at=None if row["approved_at"] is None else _utc(row["approved_at"]),
+    )
+
+
+def _experiment_record(row: RowMapping) -> ExperimentRecord:
+    return ExperimentRecord(
+        experiment_id=row["experiment_id"],
+        request_json=row["request_json"],
+        summary_json=row["summary_json"],
+        results_json=row["results_json"],
+        created_at=_utc(row["created_at"]),
     )
 
 
@@ -420,6 +448,40 @@ class PaperRepository:
                             None if record.approved_at is None else _utc(record.approved_at)
                         ),
                     },
+                )
+            )
+
+    def list_experiments(self, limit: int = 50) -> list[ExperimentRecord]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                sa.select(research_experiments)
+                .order_by(research_experiments.c.created_at.desc())
+                .limit(limit)
+            ).mappings()
+            return [_experiment_record(row) for row in rows]
+
+    def get_experiment(self, experiment_id: str) -> ExperimentRecord | None:
+        with self.engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(research_experiments).where(
+                        research_experiments.c.experiment_id == experiment_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _experiment_record(row)
+
+    def save_experiment(self, record: ExperimentRecord) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                research_experiments.insert().values(
+                    experiment_id=record.experiment_id,
+                    request_json=record.request_json,
+                    summary_json=record.summary_json,
+                    results_json=record.results_json,
+                    created_at=_utc(record.created_at),
                 )
             )
 

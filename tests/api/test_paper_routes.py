@@ -68,6 +68,7 @@ def build_client(tmp_path: Path) -> tuple[TestClient, MarketDataService]:
         activity=ActivityBuffer(),
         session_token=TOKEN,
         state_dir=tmp_path,
+        market_service=market,
         paper_service=paper,
         paper_strategy_service=PaperStrategyService(
             paper_service=paper,

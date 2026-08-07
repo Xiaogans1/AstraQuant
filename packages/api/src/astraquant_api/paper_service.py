@@ -7,7 +7,7 @@ from decimal import Decimal
 from threading import Lock
 
 from astraquant_api.market_service import MarketDataService
-from astraquant_api.paper_repository import ModelRegistryRecord, PaperRepository
+from astraquant_api.paper_repository import ExperimentRecord, ModelRegistryRecord, PaperRepository
 from astraquant_domain import AccountMode, InstrumentId, LiveQuote, OrderSide, PaperAccount
 from astraquant_paper import ExecutionResult, FeeSchedule, LedgerState, PaperLedger
 
@@ -62,6 +62,15 @@ class PaperService:
 
     def list_models(self) -> list[ModelRegistryRecord]:
         return self._repository.list_models()
+
+    def save_experiment(self, record: ExperimentRecord) -> None:
+        self._repository.save_experiment(record)
+
+    def list_experiments(self, limit: int = 50) -> list[ExperimentRecord]:
+        return self._repository.list_experiments(limit=limit)
+
+    def get_experiment(self, experiment_id: str) -> ExperimentRecord | None:
+        return self._repository.get_experiment(experiment_id)
 
     def get_state(self, account_id: str) -> LedgerState:
         return self._repository.load_state(account_id)

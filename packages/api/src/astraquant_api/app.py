@@ -296,6 +296,7 @@ def create_app(state: AppState) -> FastAPI:
                 data_root=state.state_dir / "data",
                 models=paper_service,
                 authenticated=authenticated,
+                market_service=state.market_service,
             )
         )
     return app
