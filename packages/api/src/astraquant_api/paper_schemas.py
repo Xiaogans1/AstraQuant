@@ -295,3 +295,25 @@ class FeeConfigView(BaseModel):
             stamp_duty_rate=self.stamp_duty_rate,
             transfer_fee_rate=self.transfer_fee_rate,
         )
+
+
+class ModelRegistryView(BaseModel):
+    model_id: str
+    strategy_id: str
+    strategy_version: str
+    feature_version: str
+    artifact_path: str
+    metrics_json: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    approved_at: datetime | None
+
+
+class ModelRegisterRequest(BaseModel):
+    model_id: str = Field(min_length=1, max_length=64)
+    strategy_id: str = Field(min_length=1, max_length=64)
+    strategy_version: str = Field(min_length=1, max_length=64)
+    feature_version: str = Field(min_length=1, max_length=64)
+    artifact_path: str = Field(min_length=1, max_length=400)
+    metrics_json: str = Field(min_length=2, max_length=10_000)

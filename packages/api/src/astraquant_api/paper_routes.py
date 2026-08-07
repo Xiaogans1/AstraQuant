@@ -12,7 +12,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Header
 
 from astraquant_api.app import ApiProblem
-from astraquant_api.paper_repository import StrategyRunRecord
+from astraquant_api.paper_repository import ModelRegistryRecord, StrategyRunRecord
 from astraquant_api.paper_schemas import (
     AccountCreateRequest,
     AccountDetailView,
@@ -22,6 +22,8 @@ from astraquant_api.paper_schemas import (
     FeeConfigView,
     FillView,
     MarketOrderRequest,
+    ModelRegisterRequest,
+    ModelRegistryView,
     OpeningPositionRequest,
     OrderExecutionView,
     OrderView,
@@ -133,6 +135,84 @@ def build_paper_router(
                 )
             )
         return summaries
+
+    @router.post("/models", response_model=ModelRegistryView, status_code=201)
+    def register_model(request: ModelRegisterRequest) -> ModelRegistryView:
+        now = datetime.now(UTC)
+        record = ModelRegistryRecord(
+            model_id=request.model_id,
+            strategy_id=request.strategy_id,
+            strategy_version=request.strategy_version,
+            feature_version=request.feature_version,
+            artifact_path=request.artifact_path,
+            metrics_json=request.metrics_json,
+            status="DRAFT",
+            created_at=now,
+            updated_at=now,
+            approved_at=None,
+        )
+        service.save_model(record)
+        return _model_view(record)
+
+    @router.get("/models", response_model=list[ModelRegistryView])
+    def list_models() -> list[ModelRegistryView]:
+        return [_model_view(record) for record in service.list_models()]
+
+    @router.patch("/models/{model_id}", response_model=ModelRegistryView)
+    def update_model_metrics(model_id: str, request: ModelRegisterRequest) -> ModelRegistryView:
+        current = service.get_model(model_id)
+        if current is None:
+            raise ApiProblem(404, "model_not_found", "未找到模型")
+        if current.status == "APPROVED":
+            raise ApiProblem(409, "model_immutable", "已批准模型不可修改")
+        now = datetime.now(UTC)
+        updated = ModelRegistryRecord(
+            model_id=current.model_id,
+            strategy_id=request.strategy_id,
+            strategy_version=request.strategy_version,
+            feature_version=request.feature_version,
+            artifact_path=request.artifact_path,
+            metrics_json=request.metrics_json,
+            status=current.status,
+            created_at=current.created_at,
+            updated_at=now,
+            approved_at=None,
+        )
+        service.save_model(updated)
+        return _model_view(updated)
+
+    @router.post("/models/{model_id}/approve", response_model=ModelRegistryView)
+    def approve_model(model_id: str) -> ModelRegistryView:
+        current = service.get_model(model_id)
+        if current is None:
+            raise ApiProblem(404, "model_not_found", "未找到模型")
+        try:
+            metrics = json.loads(current.metrics_json)
+        except (TypeError, ValueError):
+            raise ApiProblem(409, "model_publish_gate_failed", "模型指标无法解析") from None
+        auc = float(metrics.get("auc", 0.0))
+        net_return = float(metrics.get("net_return", 0.0))
+        if auc <= 0.55 or net_return <= 0.0:
+            raise ApiProblem(
+                409,
+                "model_publish_gate_failed",
+                "样本外 AUC 需 > 0.55 且含费用净收益需 > 0",
+            )
+        now = datetime.now(UTC)
+        approved = ModelRegistryRecord(
+            model_id=current.model_id,
+            strategy_id=current.strategy_id,
+            strategy_version=current.strategy_version,
+            feature_version=current.feature_version,
+            artifact_path=current.artifact_path,
+            metrics_json=current.metrics_json,
+            status="APPROVED",
+            created_at=current.created_at,
+            updated_at=now,
+            approved_at=now,
+        )
+        service.save_model(approved)
+        return _model_view(approved)
 
     @router.put("/accounts/default", response_model=AccountDetailView)
     def ensure_default_account() -> AccountDetailView:
@@ -311,6 +391,21 @@ def _strategy_view(result: StrategyRunResult) -> StrategyRunView:
         signal=StrategySignalView.from_domain(result.decision.signal),
         order=None if result.order is None else OrderView.from_domain(result.order),
         fill=None if result.fill is None else FillView.from_domain(result.fill),
+    )
+
+
+def _model_view(record: ModelRegistryRecord) -> ModelRegistryView:
+    return ModelRegistryView(
+        model_id=record.model_id,
+        strategy_id=record.strategy_id,
+        strategy_version=record.strategy_version,
+        feature_version=record.feature_version,
+        artifact_path=record.artifact_path,
+        metrics_json=record.metrics_json,
+        status=record.status,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        approved_at=record.approved_at,
     )
 
 

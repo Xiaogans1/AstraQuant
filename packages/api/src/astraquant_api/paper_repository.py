@@ -110,6 +110,34 @@ paper_strategy_runs = sa.Table(
     sa.Column("fill_json", sa.Text()),
     sa.Column("decision_time", sa.DateTime(timezone=True), nullable=False),
 )
+model_registry = sa.Table(
+    "model_registry",
+    metadata,
+    sa.Column("model_id", sa.String(64), primary_key=True),
+    sa.Column("strategy_id", sa.String(64), nullable=False),
+    sa.Column("strategy_version", sa.String(64), nullable=False),
+    sa.Column("feature_version", sa.String(64), nullable=False),
+    sa.Column("artifact_path", sa.String(400), nullable=False),
+    sa.Column("metrics_json", sa.Text(), nullable=False),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("approved_at", sa.DateTime(timezone=True)),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ModelRegistryRecord:
+    model_id: str
+    strategy_id: str
+    strategy_version: str
+    feature_version: str
+    artifact_path: str
+    metrics_json: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    approved_at: datetime | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,6 +165,21 @@ def _utc(value: datetime) -> datetime:
 
 def _decimal(value: object) -> Decimal:
     return Decimal(str(value))
+
+
+def _model_record(row: RowMapping) -> ModelRegistryRecord:
+    return ModelRegistryRecord(
+        model_id=row["model_id"],
+        strategy_id=row["strategy_id"],
+        strategy_version=row["strategy_version"],
+        feature_version=row["feature_version"],
+        artifact_path=row["artifact_path"],
+        metrics_json=row["metrics_json"],
+        status=row["status"],
+        created_at=_utc(row["created_at"]),
+        updated_at=_utc(row["updated_at"]),
+        approved_at=None if row["approved_at"] is None else _utc(row["approved_at"]),
+    )
 
 
 def _account_from_row(row: RowMapping) -> PaperAccount:
@@ -309,6 +352,57 @@ class PaperRepository:
             self._strategy_run(row)
             for row in sorted(batch_rows, key=lambda item: str(item["instrument_id"]))
         )
+
+    def list_models(self) -> list[ModelRegistryRecord]:
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                sa.select(model_registry).order_by(model_registry.c.created_at.desc())
+            ).mappings()
+            return [_model_record(row) for row in rows]
+
+    def get_model(self, model_id: str) -> ModelRegistryRecord | None:
+        with self.engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(model_registry).where(model_registry.c.model_id == model_id)
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return None if row is None else _model_record(row)
+
+    def save_model(self, record: ModelRegistryRecord) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                sqlite_insert(model_registry)
+                .values(
+                    model_id=record.model_id,
+                    strategy_id=record.strategy_id,
+                    strategy_version=record.strategy_version,
+                    feature_version=record.feature_version,
+                    artifact_path=record.artifact_path,
+                    metrics_json=record.metrics_json,
+                    status=record.status,
+                    created_at=_utc(record.created_at),
+                    updated_at=_utc(record.updated_at),
+                    approved_at=None if record.approved_at is None else _utc(record.approved_at),
+                )
+                .on_conflict_do_update(
+                    index_elements=[model_registry.c.model_id],
+                    set_={
+                        "strategy_id": record.strategy_id,
+                        "strategy_version": record.strategy_version,
+                        "feature_version": record.feature_version,
+                        "artifact_path": record.artifact_path,
+                        "metrics_json": record.metrics_json,
+                        "status": record.status,
+                        "updated_at": _utc(record.updated_at),
+                        "approved_at": (
+                            None if record.approved_at is None else _utc(record.approved_at)
+                        ),
+                    },
+                )
+            )
 
     @staticmethod
     def _strategy_run_values(item: StrategyRunRecord) -> dict[str, object]:
