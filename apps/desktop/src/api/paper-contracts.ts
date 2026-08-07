@@ -115,6 +115,7 @@ export interface PaperStrategyRunRequest {
 
 export interface PaperStrategySignal {
   signal_id: string;
+  instrument_id: string;
   action: "BUY" | "SELL" | "HOLD";
   state: "ACTIVE" | "SUPPRESSED" | "WARMING_UP";
   reference_price: string | null;

@@ -26,7 +26,7 @@ from astraquant_api.paper_schemas import (
     StrategySignalView,
 )
 from astraquant_api.paper_service import PaperService, QuoteUnavailable
-from astraquant_api.paper_strategy_service import PaperStrategyService
+from astraquant_api.paper_strategy_service import PaperStrategyService, StrategyRunResult
 from astraquant_domain import InstrumentId, PaperAccount
 from astraquant_paper import LedgerState
 
@@ -193,20 +193,46 @@ def build_paper_router(
                 raise ApiProblem(404, "paper_account_not_found", "未找到模拟账户") from None
             except ValueError as error:
                 raise ApiProblem(422, "invalid_strategy_request", str(error)) from None
-            decision = result.decision.decision_record
-            return StrategyRunView(
-                outcome=result.outcome,
-                proposed_side=result.proposed_side,
-                proposed_quantity=result.proposed_quantity,
-                risk_reason=result.risk_reason,
-                decision_id=decision.decision_id,
-                advisory_checks=list(decision.advisory_checks),
-                signal=StrategySignalView.from_domain(result.decision.signal),
-                order=None if result.order is None else OrderView.from_domain(result.order),
-                fill=None if result.fill is None else FillView.from_domain(result.fill),
-            )
+            return _strategy_view(result)
+
+        @router.post(
+            "/accounts/{account_id}/strategy/scan",
+            response_model=list[StrategyRunView],
+        )
+        async def scan_strategy(
+            account_id: str,
+            request: StrategyRunRequest,
+        ) -> list[StrategyRunView]:
+            try:
+                results = await strategy_service.scan_account(
+                    account_id,
+                    quantity=request.quantity,
+                    auto_execute=request.auto_execute,
+                    max_position_percent=request.max_position_percent,
+                    decision_time=datetime.now(UTC),
+                )
+            except KeyError:
+                raise ApiProblem(404, "paper_account_not_found", "未找到模拟账户") from None
+            except ValueError as error:
+                raise ApiProblem(422, "invalid_strategy_request", str(error)) from None
+            return [_strategy_view(result) for result in results]
 
     return router
+
+
+def _strategy_view(result: StrategyRunResult) -> StrategyRunView:
+    decision = result.decision.decision_record
+    return StrategyRunView(
+        outcome=result.outcome,
+        proposed_side=result.proposed_side,
+        proposed_quantity=result.proposed_quantity,
+        risk_reason=result.risk_reason,
+        decision_id=decision.decision_id,
+        advisory_checks=list(decision.advisory_checks),
+        signal=StrategySignalView.from_domain(result.decision.signal),
+        order=None if result.order is None else OrderView.from_domain(result.order),
+        fill=None if result.fill is None else FillView.from_domain(result.fill),
+    )
 
 
 def _state_or_404(service: PaperService, account_id: str) -> LedgerState:

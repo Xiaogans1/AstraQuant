@@ -10,7 +10,7 @@ import {
   usePaperEquityQuery,
   usePaperFillsQuery,
   usePaperOrdersQuery,
-  useRunPaperStrategyMutation,
+  useRunPaperStrategyScanMutation,
   useUpdatePaperCashMutation,
 } from "../api/queries";
 import type {
@@ -187,14 +187,14 @@ function AccountWorkspace({
             <div className="paper-table-wrap">
               <table className="paper-table">
                 <thead>
-                  <tr><th>证券</th><th>数量 / 可用</th><th>成本 / 最新</th><th>市值</th><th>浮动盈亏</th><th /></tr>
+                  <tr><th>证券</th><th>数量 / 可用</th><th>最新 / 成本</th><th>市值</th><th>浮动盈亏</th><th /></tr>
                 </thead>
                 <tbody>
                   {detail.positions.map((position) => (
                     <tr key={position.instrument_id} data-selected={position.instrument_id === selectedPosition?.instrument_id}>
                       <td><strong>{position.name ?? position.instrument_id}</strong><small>{position.instrument_id}</small></td>
                       <td>{position.quantity.toLocaleString()}<small>可用 {position.available_quantity.toLocaleString()}</small></td>
-                      <td>{position.average_cost}<small>{position.last_price ?? "等待行情"}</small></td>
+                      <td>{position.last_price ?? "等待行情"}<small>成本 {position.average_cost}</small></td>
                       <td>{formatMoney(position.market_value)}</td>
                       <td className={trendClass(Number(position.unrealized_pnl))}>{formatSignedMoney(position.unrealized_pnl)}<small>{formatPercent(position.unrealized_pnl_percent)}</small></td>
                       <td><button type="button" className="paper-table__chart-action" onClick={() => setSelectedInstrumentId(position.instrument_id)}>查看策略图</button></td>
@@ -211,8 +211,8 @@ function AccountWorkspace({
       <StrategyConsole
         client={client}
         accountId={accountId}
-        instrument={selectedPosition?.instrument_id ?? null}
-        instrumentName={selectedPosition?.name ?? null}
+        positions={positions}
+        selectedPosition={selectedPosition ?? null}
       />
 
       {selectedQuote === null ? (
@@ -263,16 +263,16 @@ function AccountWorkspace({
 function StrategyConsole({
   client,
   accountId,
-  instrument,
-  instrumentName,
+  positions,
+  selectedPosition,
 }: {
   client: ApiClient;
   accountId: string;
-  instrument: string | null;
-  instrumentName: string | null;
+  positions: PaperPosition[];
+  selectedPosition: PaperPosition | null;
 }) {
-  const runStrategy = useRunPaperStrategyMutation(client);
-  const result = runStrategy.data;
+  const runScan = useRunPaperStrategyScanMutation(client);
+  const results = runScan.data;
   return (
     <Panel
       title="量化策略"
@@ -284,42 +284,71 @@ function StrategyConsole({
         <div className="paper-strategy__controls">
           <div className="paper-strategy__scope">
             <span>当前检查范围</span>
-            <strong>{instrument === null ? "等待录入持仓" : `${instrumentName ?? instrument} · ${instrument}`}</strong>
+            <strong>{positions.length === 0 ? "等待录入持仓" : `全部持仓 · ${positions.length} 只（并发检查）`}</strong>
             <small>建议数量和仓位限制由量化与风控引擎自动计算</small>
           </div>
           <button
             type="button"
-            disabled={runStrategy.isPending || instrument === null}
+            disabled={runScan.isPending || positions.length === 0}
             onClick={() => {
-              if (instrument === null) return;
-            runStrategy.mutate({
-              accountId,
-              request: {
-                instrument_id: instrument,
-                quantity: 100,
-                auto_execute: true,
-                max_position_percent: "20",
-              },
-            });
-          }}
-          >{runStrategy.isPending ? "正在检查真实行情…" : "运行一次检查"}</button>
+              if (positions.length === 0) return;
+              runScan.mutate({
+                accountId,
+                request: {
+                  instrument_id: selectedPosition?.instrument_id ?? positions[0].instrument_id,
+                  quantity: 100,
+                  auto_execute: true,
+                  max_position_percent: "20",
+                },
+              });
+            }}
+          >{runScan.isPending ? "正在并发检查真实行情…" : "检查全部持仓"}</button>
         </div>
         <div className="paper-strategy__result" aria-live="polite">
-          {result === undefined ? (
-            <><strong>策略由量化核心执行</strong><p>当前版本先进行单次检查；产生的信号、风控结果和虚拟成交都会进入本地审计记录。</p></>
+          {results === undefined ? (
+            <><strong>策略由量化核心执行</strong><p>一次并发检查全部持仓；产生的信号、风控结果和虚拟成交都会进入本地审计记录。</p></>
           ) : (
-            <>
-              <div className="paper-strategy__outcome" data-outcome={result.outcome}>{result.outcome} · {result.signal.state}</div>
-              <strong>{result.signal.action} · 置信度 {(Number(result.signal.confidence) * 100).toFixed(0)}%</strong>
-              <p>{result.risk_reason ?? result.signal.reason_codes.join(" · ")}</p>
-              <code>{result.decision_id}</code>
-              {result.fill !== null ? <small>已按真实快照价 {result.fill.price} 虚拟成交 {result.fill.quantity} 份</small> : null}
-            </>
+            <ScanResultList results={results} positions={positions} />
           )}
-          {runStrategy.error instanceof Error ? <p className="paper-form__error">{runStrategy.error.message}</p> : null}
+          {runScan.error instanceof Error ? <p className="paper-form__error">{runScan.error.message}</p> : null}
         </div>
       </div>
     </Panel>
+  );
+}
+
+function ScanResultList({
+  results,
+  positions,
+}: {
+  results: ReturnType<typeof useRunPaperStrategyScanMutation>["data"] extends infer T
+    ? NonNullable<T>
+    : never;
+  positions: PaperPosition[];
+}) {
+  const nameOf = (instrumentId: string): string =>
+    positions.find((item) => item.instrument_id === instrumentId)?.name
+    ?? instrumentId;
+  return (
+    <ul className="paper-scan">
+      {results.map((result) => (
+        <li key={result.decision_id} data-outcome={result.outcome.toLowerCase()}>
+          <span className="paper-scan__identity">
+            <strong>{nameOf(result.signal.instrument_id)}</strong>
+            <small>{result.signal.instrument_id} · {result.signal.state}</small>
+          </span>
+          <span className="paper-scan__signal">
+            <b>{result.outcome}</b>
+            <small>{result.signal.action} · 置信度 {(Number(result.signal.confidence) * 100).toFixed(0)}%</small>
+          </span>
+          <span className="paper-scan__detail">
+            <small>{result.risk_reason ?? result.signal.reason_codes.join(" · ")}</small>
+            {result.fill !== null ? <small>已按真实快照价 {result.fill.price} 虚拟成交 {result.fill.quantity} 份</small> : null}
+            <code>{result.decision_id}</code>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

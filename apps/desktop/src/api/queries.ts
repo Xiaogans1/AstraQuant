@@ -198,6 +198,29 @@ export function useRunPaperStrategyMutation(client: ApiClient) {
   });
 }
 
+export function useRunPaperStrategyScanMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      accountId,
+      request,
+    }: {
+      accountId: string;
+      request: PaperStrategyRunRequest;
+    }) => client.runPaperStrategyScan(accountId, request),
+    onSuccess: async (results, variables) => {
+      if (!results.some((result) => result.outcome === "EXECUTED")) return;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperAccounts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperAccount(variables.accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperOrders(variables.accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperFills(variables.accountId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperEquity(variables.accountId) }),
+      ]);
+    },
+  });
+}
+
 function marketRefetchInterval(state: ConnectionState | undefined) {
   if (state === "LIVE" || state === "CONNECTING" || state === "STALE") {
     return 3_000;

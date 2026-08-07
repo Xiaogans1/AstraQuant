@@ -64,6 +64,7 @@ class StrategyRunRequest(BaseModel):
 
 class StrategySignalView(BaseModel):
     signal_id: str
+    instrument_id: str
     action: str
     state: str
     reference_price: Decimal | None
@@ -80,6 +81,7 @@ class StrategySignalView(BaseModel):
     def from_domain(cls, item: SignalFrame) -> StrategySignalView:
         return cls(
             signal_id=item.signal_id,
+            instrument_id=str(item.instrument_id),
             action=item.action,
             state=item.state,
             reference_price=item.reference_price,

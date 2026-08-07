@@ -273,4 +273,61 @@ def test_strategy_run_returns_auditable_hold_without_warm_features(tmp_path: Pat
     assert response.status_code == 200
     assert response.json()["outcome"] == "HOLD"
     assert response.json()["signal"]["strategy_version"] == "baseline-v1"
+    assert response.json()["signal"]["instrument_id"] == "159516.SZSE"
     assert response.json()["decision_id"].startswith("decision-")
+
+
+def test_strategy_scan_concurrently_checks_every_holding(tmp_path: Path) -> None:
+    client, _ = build_client(tmp_path)
+    account_id = create_account(client)
+    for instrument_id, name in (
+        ("159516.SZSE", "半导体设备ETF"),
+        ("600000.SSE", "浦发银行"),
+    ):
+        client.post(
+            f"/v1/paper/accounts/{account_id}/positions/opening",
+            json={
+                "instrument_id": instrument_id,
+                "name": name,
+                "quantity": 1000,
+                "available_quantity": 1000,
+                "average_cost": "0.7",
+            },
+        )
+
+    response = client.post(
+        f"/v1/paper/accounts/{account_id}/strategy/scan",
+        json={
+            "instrument_id": "159516.SZSE",
+            "quantity": 100,
+            "auto_execute": False,
+            "max_position_percent": "20",
+        },
+    )
+
+    assert response.status_code == 200
+    results = response.json()
+    assert [item["signal"]["instrument_id"] for item in results] == [
+        "159516.SZSE",
+        "600000.SSE",
+    ]
+    assert all(item["signal"]["strategy_version"] == "baseline-v1" for item in results)
+    assert all(item["decision_id"].startswith("decision-") for item in results)
+
+
+def test_strategy_scan_on_empty_account_returns_empty_list(tmp_path: Path) -> None:
+    client, _ = build_client(tmp_path)
+    account_id = create_account(client)
+
+    response = client.post(
+        f"/v1/paper/accounts/{account_id}/strategy/scan",
+        json={
+            "instrument_id": "159516.SZSE",
+            "quantity": 100,
+            "auto_execute": False,
+            "max_position_percent": "20",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []

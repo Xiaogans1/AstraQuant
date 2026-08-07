@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -115,6 +116,34 @@ class PaperStrategyService:
             order=execution.order,
             fill=execution.fill,
         )
+
+    async def scan_account(
+        self,
+        account_id: str,
+        *,
+        quantity: int,
+        auto_execute: bool,
+        max_position_percent: Decimal,
+        decision_time: datetime,
+    ) -> list[StrategyRunResult]:
+        """Concurrently run the baseline check for every current holding."""
+        state = self._paper_service.get_state(account_id)
+        if not state.positions:
+            return []
+        results = await asyncio.gather(
+            *(
+                self.run(
+                    account_id,
+                    instrument_id=position.instrument_id,
+                    quantity=quantity,
+                    auto_execute=auto_execute,
+                    max_position_percent=max_position_percent,
+                    decision_time=decision_time,
+                )
+                for position in state.positions
+            )
+        )
+        return list(results)
 
     def _risk_reason(
         self,

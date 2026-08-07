@@ -157,46 +157,109 @@ test("cash editor persists the remaining cash outside current holdings", async (
   expect(updatePaperCash).toHaveBeenCalledWith("account-1", { cash: "80000" });
 });
 
-test("strategy console hides engineering parameters and runs one visible check", async () => {
-  const runPaperStrategy = vi.fn().mockResolvedValue({
-    outcome: "HOLD",
-    proposed_side: null,
-    proposed_quantity: 100,
-    risk_reason: null,
-    decision_id: "decision-audit-1",
-    advisory_checks: ["MARKET_LIVE", "FEATURES_WARMING_UP"],
-    signal: {
-      signal_id: "signal-audit-1",
-      action: "HOLD",
-      state: "WARMING_UP",
-      reference_price: null,
-      confidence: "0",
-      strategy_id: "intraday-momentum-volume",
-      strategy_version: "baseline-v1",
-      feature_version: "realtime-v1",
-      reason_codes: ["INSUFFICIENT_COMPLETED_BARS"],
-      event_time: "2026-08-06T06:31:00Z",
-      decision_time: "2026-08-06T06:31:00Z",
-      expires_at: "2026-08-06T06:32:00Z",
+test("strategy console scans all holdings concurrently and hides engineering parameters", async () => {
+  const runPaperStrategyScan = vi.fn().mockResolvedValue([
+    {
+      outcome: "HOLD",
+      proposed_side: null,
+      proposed_quantity: 100,
+      risk_reason: null,
+      decision_id: "decision-audit-1",
+      advisory_checks: ["MARKET_LIVE", "FEATURES_WARMING_UP"],
+      signal: {
+        signal_id: "signal-audit-1",
+        instrument_id: "159516.SZSE",
+        action: "HOLD",
+        state: "WARMING_UP",
+        reference_price: null,
+        confidence: "0",
+        strategy_id: "intraday-momentum-volume",
+        strategy_version: "baseline-v1",
+        feature_version: "realtime-v1",
+        reason_codes: ["INSUFFICIENT_COMPLETED_BARS"],
+        event_time: "2026-08-06T06:31:00Z",
+        decision_time: "2026-08-06T06:31:00Z",
+        expires_at: "2026-08-06T06:32:00Z",
+      },
+      order: null,
+      fill: null,
     },
-    order: null,
-    fill: null,
-  });
+    {
+      outcome: "BLOCKED",
+      proposed_side: "BUY",
+      proposed_quantity: 100,
+      risk_reason: "max_position_value_exceeded",
+      decision_id: "decision-audit-2",
+      advisory_checks: ["MARKET_LIVE"],
+      signal: {
+        signal_id: "signal-audit-2",
+        instrument_id: "600000.SSE",
+        action: "BUY",
+        state: "ACTIVE",
+        reference_price: "9.26",
+        confidence: "0.62",
+        strategy_id: "intraday-momentum-volume",
+        strategy_version: "baseline-v1",
+        feature_version: "realtime-v1",
+        reason_codes: ["MOMENTUM_UP"],
+        event_time: "2026-08-06T06:31:00Z",
+        decision_time: "2026-08-06T06:31:00Z",
+        expires_at: "2026-08-06T06:32:00Z",
+      },
+      order: null,
+      fill: null,
+    },
+  ]);
   const client = {
-    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue({
+      ...detail,
+      positions: [
+        ...detail.positions,
+        {
+          instrument_id: "600000.SSE",
+          name: "浦发银行",
+          quantity: 500,
+          available_quantity: 500,
+          average_cost: "9.00",
+          last_price: "9.26",
+          market_value: "4630.00",
+          unrealized_pnl: "130.00",
+          unrealized_pnl_percent: "2.8889",
+          marked_at: "2026-08-06T06:31:00Z",
+        },
+      ],
+    }),
     listPaperAccounts: vi.fn().mockResolvedValue([summary]),
-    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    getPaperAccount: vi.fn().mockResolvedValue({
+      ...detail,
+      positions: [
+        ...detail.positions,
+        {
+          instrument_id: "600000.SSE",
+          name: "浦发银行",
+          quantity: 500,
+          available_quantity: 500,
+          average_cost: "9.00",
+          last_price: "9.26",
+          market_value: "4630.00",
+          unrealized_pnl: "130.00",
+          unrealized_pnl_percent: "2.8889",
+          marked_at: "2026-08-06T06:31:00Z",
+        },
+      ],
+    }),
     listPaperOrders: vi.fn().mockResolvedValue([]),
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
-    runPaperStrategy,
+    runPaperStrategyScan,
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
 
-  await user.click(await screen.findByRole("button", { name: "运行一次检查" }));
+  expect(await screen.findByText("全部持仓 · 2 只（并发检查）")).toBeVisible();
+  await user.click(await screen.findByRole("button", { name: "检查全部持仓" }));
 
-  expect(runPaperStrategy).toHaveBeenCalledWith("account-1", {
+  expect(runPaperStrategyScan).toHaveBeenCalledWith("account-1", {
     instrument_id: "159516.SZSE",
     quantity: 100,
     auto_execute: true,
@@ -205,9 +268,13 @@ test("strategy console hides engineering parameters and runs one visible check",
   expect(screen.queryByText("建议数量")).not.toBeInTheDocument();
   expect(screen.queryByText("单标的仓位上限")).not.toBeInTheDocument();
   expect(screen.queryByText("允许自动执行模拟成交")).not.toBeInTheDocument();
-  expect(await screen.findByText("HOLD · WARMING_UP")).toBeVisible();
-  expect(screen.getByText("INSUFFICIENT_COMPLETED_BARS")).toBeVisible();
+  expect(await screen.findByText("HOLD")).toBeVisible();
+  expect(screen.getByText("BLOCKED")).toBeVisible();
+  expect(screen.getAllByText("半导体设备ETF").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("浦发银行").length).toBeGreaterThan(0);
+  expect(screen.getByText("max_position_value_exceeded")).toBeVisible();
   expect(screen.getByText("decision-audit-1")).toBeVisible();
+  expect(screen.getByText("decision-audit-2")).toBeVisible();
 });
 
 test("opening position form searches the real catalog and requires a selected instrument", async () => {
