@@ -215,6 +215,25 @@ function ReplayResultView({
         .filter((item) => Number.isFinite(item.timestamp) && Number.isFinite(item.price)),
     [result.trades],
   );
+  const days = useMemo(() => {
+    const groups = new Map<string, { bars: MarketBar[]; signals: MarketSignalMarker[] }>();
+    for (const bar of bars) {
+      const day = shanghaiDay(bar.timestamp);
+      const group = groups.get(day) ?? { bars: [], signals: [] };
+      group.bars.push(bar);
+      groups.set(day, group);
+    }
+    for (const signal of signals) {
+      const day = shanghaiDay(new Date(signal.timestamp).toISOString());
+      const group = groups.get(day);
+      if (group !== undefined) group.signals.push(signal);
+    }
+    return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
+  }, [bars, signals]);
+  const [selectedDay, setSelectedDay] = useState<string>(days.at(-1)?.[0] ?? "");
+  const selected = days.find(([day]) => day === selectedDay);
+  const dayBars = selected?.[1].bars ?? [];
+  const daySignals = selected?.[1].signals ?? [];
   const equity = useMemo(
     () =>
       result.equity_points
@@ -263,24 +282,43 @@ function ReplayResultView({
       </Panel>
 
       <Panel
-        title={`${result.instrument_id} · 1 分钟 K 线与买卖点`}
-        eyebrow="PRICE / TRADES"
+        title={`${result.instrument_id} · 分时与买卖点（${selectedDay}）`}
+        eyebrow="INTRADAY / PRICE / TRADES"
+        action={
+          <div className="strategy-lab__day-switcher" role="tablist" aria-label="切换分时日期">
+            {days.map(([day]) => (
+              <button
+                key={day}
+                type="button"
+                role="tab"
+                aria-selected={day === selectedDay}
+                onClick={() => setSelectedDay(day)}
+              >
+                {day.slice(5)}
+              </button>
+            ))}
+          </div>
+        }
       >
-        <ProfessionalMarketChart
-          instrumentId={result.instrument_id}
-          period="1m"
-          mainIndicator="MA"
-          secondaryIndicator="VOL"
-          showQuantSignals
-          bars={bars}
-          signals={signals}
-        />
-        <p className="strategy-lab__note">
-          主图默认显示区间末尾，可拖动/缩放查看全部；买卖点悬停显示概率。
-          起点 {result.initial_cash} 现金
-          {result.initial_equity > result.initial_cash ? ` + 期初持仓（初始权益 ${formatMoney(result.initial_equity)}）` : ""}
-          ，期末资金 {formatMoney(result.final_cash)}，剩余持仓 {result.position_remaining} 份。
-        </p>
+        {dayBars.length === 0 ? (
+          <p className="strategy-lab__empty">该日没有分钟数据（可能为节假日或数据源缺失）。</p>
+        ) : (
+          <>
+            <ProfessionalMarketChart
+              instrumentId={result.instrument_id}
+              period="intraday"
+              mainIndicator="MA"
+              secondaryIndicator="VOL"
+              showQuantSignals
+              bars={dayBars}
+              signals={daySignals}
+            />
+            <p className="strategy-lab__note">
+              与首页一致的分时图：默认展示区间最后一天，可点击上方日期切换任意交易日；
+              红 B / 绿 S 为该日真实模型信号（悬停查看时间与上涨概率）。共 {result.trades.length} 笔信号。
+            </p>
+          </>
+        )}
       </Panel>
 
       <Panel title="权益曲线" eyebrow="EQUITY / REPLAY">
@@ -632,6 +670,15 @@ function RunList({ runs }: { runs: PaperStrategyRun[] }) {
       ))}
     </ul>
   );
+}
+
+function shanghaiDay(timestampIso: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(timestampIso));
 }
 
 function toChartBars(bars: ReplayBar[]): MarketBar[] {

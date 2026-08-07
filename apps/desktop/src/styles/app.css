@@ -3406,3 +3406,27 @@ code {
 .strategy-lab__report button:hover {
   border-color: var(--accent);
 }
+
+
+.strategy-lab__day-switcher {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  max-width: 520px;
+}
+
+.strategy-lab__day-switcher button {
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.strategy-lab__day-switcher button[aria-selected="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
