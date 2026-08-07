@@ -105,6 +105,7 @@ function AccountWorkspace({
   const marketValue = equity?.market_value ?? "0";
   const cash = equity?.cash ?? detail?.account.cash ?? selectedSummary.cash;
   const positions = detail?.positions ?? [];
+  const dayPnl = useMemo(() => calculateDayPnl(equityQuery.data ?? []), [equityQuery.data]);
   const [selectedInstrumentId, setSelectedInstrumentId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -163,13 +164,15 @@ function AccountWorkspace({
 
       <section className="paper-equity-rail" aria-label="账户权益摘要">
         <Metric label="总资产" value={formatMoney(totalEquity)} primary />
-        <Metric label="累计盈亏" value={formatSignedMoney(totalPnl)} trend={Number(totalPnl)} />
+        <Metric
+          label="当日盈亏"
+          value={dayPnl === null ? "—" : formatSignedMoney(dayPnl.pnl.toFixed(2))}
+          trend={dayPnl?.pnl ?? 0}
+          sub={dayPnl === null ? "等待今日首笔行情快照" : `今日 ${formatSignedPercent(dayPnl.pct)}`}
+        />
+        <Metric label="累计盈亏" value={formatSignedMoney(totalPnl)} trend={Number(totalPnl)} sub={`权益基线 ${formatMoney(selectedSummary.initial_equity)}`} />
         <Metric label="持仓市值" value={formatMoney(marketValue)} />
         <Metric label="剩余现金" value={formatMoney(cash)} />
-        <Metric
-          label="权益基线"
-          value={formatMoney(selectedSummary.initial_equity)}
-        />
       </section>
 
       <div className="paper-equity-formula" role="note">
@@ -312,6 +315,11 @@ function StrategyConsole({
   const runScan = useRunPaperStrategyScanMutation(client);
   const persistedRuns = usePaperStrategyRunsQuery(client, accountId);
   const results = runScan.data ?? persistedRuns.data;
+  const strategyError = runScan.error instanceof Error
+    ? runScan.error
+    : persistedRuns.error instanceof Error
+      ? persistedRuns.error
+      : null;
   return (
     <Panel
       title="量化策略"
@@ -324,7 +332,7 @@ function StrategyConsole({
           <div className="paper-strategy__scope">
             <span>当前检查范围</span>
             <strong>{positions.length === 0 ? "等待录入持仓" : `全部持仓 · ${positions.length} 只（并发检查）`}</strong>
-            <small>建议数量和仓位限制由量化与风控引擎自动计算</small>
+            <small className="paper-strategy__brief">baseline-v1 日内动量 + 量能突破：买入需 5 分钟涨幅 ≥ 0.3% 且均线多头排列且量比 ≥ 1.5；卖出需 5 分钟跌幅 ≥ 0.3% 且均线走弱。特征不足 20 根 1 分钟 K 线时只观察不出手。</small>
           </div>
           <button
             type="button"
@@ -349,7 +357,7 @@ function StrategyConsole({
           ) : (
             <ScanResultList results={results} positions={positions} />
           )}
-          {runScan.error instanceof Error ? <p className="paper-form__error">{runScan.error.message}</p> : null}
+          {strategyError !== null ? <p className="paper-form__error" role="alert">策略服务暂时不可用：{strategyError.message}。请重启应用后重试。</p> : null}
         </div>
       </div>
     </Panel>
@@ -377,26 +385,45 @@ function ScanResultList({
         <div className="paper-scan__stamp">最近检查 · {formatTime(lastChecked.toISOString())}</div>
       ) : null}
       <ul className="paper-scan">
-      {results.map((result) => (
-        <li key={result.decision_id} data-outcome={result.outcome.toLowerCase()}>
-          <span className="paper-scan__identity">
-            <strong>{nameOf(result.signal.instrument_id)}</strong>
-            <small>{result.signal.instrument_id} · {result.signal.state}</small>
-          </span>
-          <span className="paper-scan__signal">
-            <b>{result.outcome}</b>
-            <small>{result.signal.action} · 置信度 {(Number(result.signal.confidence) * 100).toFixed(0)}%</small>
-          </span>
-          <span className="paper-scan__detail">
-            <small>{result.risk_reason ?? result.signal.reason_codes.join(" · ")}</small>
-            {result.fill !== null ? <small>已按真实快照价 {result.fill.price} 虚拟成交 {result.fill.quantity} 份</small> : null}
-            <code>{result.decision_id}</code>
-          </span>
-        </li>
-      ))}
-    </ul>
+        {results.map((result) => (
+          <li key={result.decision_id} data-outcome={result.outcome.toLowerCase()}>
+            <span className="paper-scan__identity">
+              <strong>{nameOf(result.signal.instrument_id)}</strong>
+              <small>{result.signal.instrument_id} · {result.signal.state}</small>
+            </span>
+            <span className="paper-scan__signal">
+              <b>{result.outcome}</b>
+              <small>{result.signal.action} · 置信度 {(Number(result.signal.confidence) * 100).toFixed(0)}%</small>
+            </span>
+            <span className="paper-scan__detail">
+              <small>{result.risk_reason ?? result.signal.reason_codes.map(reasonCopy).join(" · ")}</small>
+              {result.fill !== null ? <small>已按真实快照价 {result.fill.price} 虚拟成交 {result.fill.quantity} 份</small> : null}
+              <code>{result.decision_id}</code>
+            </span>
+          </li>
+        ))}
+      </ul>
     </>
   );
+}
+
+function reasonCopy(code: string): string {
+  switch (code) {
+    case "INSUFFICIENT_COMPLETED_BARS":
+      return "1 分钟 K 线不足 20 根，特征热身中";
+    case "MARKET_NOT_LIVE":
+      return "真实行情尚未连接";
+    case "MARKET_DATA_STALE":
+      return "行情数据已过期，暂停判断";
+    case "NO_CONFIRMED_EDGE":
+      return "未满足买入/卖出条件，保持观望";
+    case "MOMENTUM_VOLUME_BREAKOUT":
+      return "动量 + 量能突破，触发买入";
+    case "DOWNTREND_EXIT":
+      return "均线走弱下跌，触发卖出";
+    default:
+      return code;
+  }
 }
 
 function OpeningPositionDock({ client, accountId }: { client: ApiClient; accountId: string }) {
@@ -509,8 +536,34 @@ function CashEditor({
   );
 }
 
-function Metric({ label, value, primary = false, trend }: { label: string; value: string; primary?: boolean; trend?: number }) {
-  return <div className="paper-metric" data-primary={primary} data-trend={trend === undefined ? "neutral" : trend >= 0 ? "up" : "down"}><span>{label}</span><strong>{value}</strong></div>;
+function Metric({ label, value, primary = false, trend, sub }: { label: string; value: string; primary?: boolean; trend?: number; sub?: string }) {
+  return (
+    <div className="paper-metric" data-primary={primary} data-trend={trend === undefined ? "neutral" : trend >= 0 ? "up" : "down"}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {sub !== undefined ? <small className="paper-metric__sub">{sub}</small> : null}
+    </div>
+  );
+}
+
+function calculateDayPnl(equity: PaperEquity[]): { pnl: number; pct: number } | null {
+  if (equity.length < 2) return null;
+  const today = shanghaiDayKey(Date.now());
+  const todaySnapshots = equity.filter((item) => shanghaiDayKey(Date.parse(item.as_of)) === today);
+  if (todaySnapshots.length < 2) return null;
+  const first = Number(todaySnapshots[0].total_equity);
+  const last = Number(todaySnapshots[todaySnapshots.length - 1].total_equity);
+  if (!Number.isFinite(first) || !Number.isFinite(last) || first <= 0) return null;
+  return { pnl: last - first, pct: ((last - first) / first) * 100 };
+}
+
+function shanghaiDayKey(value: number): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(value));
 }
 
 function EquityPulse({ equity, baseline }: { equity: PaperEquity[]; baseline: string }) {
@@ -532,6 +585,7 @@ function AuditList({ rows, empty }: { rows: { id: string; title: string; meta: s
 
 function formatMoney(value: string): string { return Number(value).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function formatSignedMoney(value: string): string { const amount = Number(value); return `${amount >= 0 ? "+" : ""}${formatMoney(value)}`; }
+function formatSignedPercent(value: number): string { return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`; }
 function formatPercent(value: string | null): string { if (value === null) return "—"; const amount = Number(value); return `${amount >= 0 ? "+" : ""}${amount.toFixed(2)}%`; }
 function formatTime(value: string): string { return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date(value)); }
 function trendClass(value: number): string { return value >= 0 ? "paper-trend-up" : "paper-trend-down"; }

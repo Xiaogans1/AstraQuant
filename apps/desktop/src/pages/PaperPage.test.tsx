@@ -323,8 +323,53 @@ test("strategy panel restores the latest persisted scan after refresh", async ()
 
   expect(await screen.findByText(/最近检查/)).toBeVisible();
   expect(screen.getByText("decision-persisted-1")).toBeVisible();
-  expect(screen.getByText("INSUFFICIENT_COMPLETED_BARS")).toBeVisible();
+  expect(screen.getByText("1 分钟 K 线不足 20 根，特征热身中")).toBeVisible();
   expect(client.listPaperStrategyRuns).toHaveBeenCalledWith("account-1");
+});
+
+test("account rail shows today's pnl percentage from intraday snapshots", async () => {
+  const todayKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const dayEquity = [
+    {
+      snapshot_id: "s1",
+      cash: "99279.99",
+      market_value: "960.51",
+      total_equity: "100240.50",
+      initial_equity: "100000",
+      total_pnl: "240.50",
+      total_pnl_percent: "0.2405",
+      as_of: `${todayKey}T01:30:00Z`,
+    },
+    {
+      snapshot_id: "s2",
+      cash: "99279.99",
+      market_value: "1050.51",
+      total_equity: "100330.50",
+      initial_equity: "100000",
+      total_pnl: "330.50",
+      total_pnl_percent: "0.3305",
+      as_of: `${todayKey}T02:00:00Z`,
+    },
+  ];
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue(dayEquity),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+  } as unknown as ApiClient;
+  renderPage(client);
+
+  expect(await screen.findByText("当日盈亏")).toBeVisible();
+  expect(screen.getByText("+90.00")).toBeVisible();
+  expect(screen.getByText(/今日 \+0\.09%/)).toBeVisible();
 });
 
 test("opening position form searches the real catalog and requires a selected instrument", async () => {

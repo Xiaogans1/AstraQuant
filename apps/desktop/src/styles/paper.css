@@ -190,6 +190,13 @@
   font-size: clamp(28px, 3vw, 36px);
 }
 
+.paper-metric__sub {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font: 11px var(--font-data);
+}
+
 .paper-metric[data-trend="up"] strong,
 .paper-trend-up {
   color: var(--negative);
