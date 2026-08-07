@@ -44,6 +44,8 @@ export const queryKeys = {
   paperOrders: (accountId: string) => ["paper", "accounts", accountId, "orders"] as const,
   paperFills: (accountId: string) => ["paper", "accounts", accountId, "fills"] as const,
   paperEquity: (accountId: string) => ["paper", "accounts", accountId, "equity"] as const,
+  paperStrategyRuns: (accountId: string) =>
+    ["paper", "accounts", accountId, "strategy-runs"] as const,
 };
 
 export function useDefaultPaperAccountQuery(client: ApiClient) {
@@ -209,6 +211,10 @@ export function useRunPaperStrategyScanMutation(client: ApiClient) {
       request: PaperStrategyRunRequest;
     }) => client.runPaperStrategyScan(accountId, request),
     onSuccess: async (results, variables) => {
+      queryClient.setQueryData(
+        queryKeys.paperStrategyRuns(variables.accountId),
+        results,
+      );
       if (!results.some((result) => result.outcome === "EXECUTED")) return;
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.paperAccounts }),
@@ -218,6 +224,16 @@ export function useRunPaperStrategyScanMutation(client: ApiClient) {
         queryClient.invalidateQueries({ queryKey: queryKeys.paperEquity(variables.accountId) }),
       ]);
     },
+  });
+}
+
+export function usePaperStrategyRunsQuery(client: ApiClient, accountId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.paperStrategyRuns(accountId ?? "none"),
+    queryFn: () => client.listPaperStrategyRuns(requireId(accountId, "Paper account")),
+    enabled: accountId !== null,
+    staleTime: 15_000,
+    refetchInterval: 15_000,
   });
 }
 

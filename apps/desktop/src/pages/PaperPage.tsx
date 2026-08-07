@@ -10,6 +10,7 @@ import {
   usePaperEquityQuery,
   usePaperFillsQuery,
   usePaperOrdersQuery,
+  usePaperStrategyRunsQuery,
   useRunPaperStrategyScanMutation,
   useUpdatePaperCashMutation,
 } from "../api/queries";
@@ -179,6 +180,37 @@ function AccountWorkspace({
         <span>持仓市值 {formatMoney(marketValue)}</span>
       </div>
 
+      <StrategyConsole
+        client={client}
+        accountId={accountId}
+        positions={positions}
+        selectedPosition={selectedPosition ?? null}
+      />
+
+      <div className="paper-trade-section">
+        {positions.length > 0 ? (
+          <PositionSwitcher
+            positions={positions}
+            selectedId={selectedPosition?.instrument_id ?? null}
+            onSelect={setSelectedInstrumentId}
+          />
+        ) : null}
+        {selectedQuote === null ? (
+          <section className="paper-chart-empty">
+            <strong>录入持仓后显示策略图</strong>
+            <p>这里将复用首页的真实分时与 K 线，并叠加量化信号和模拟成交点。</p>
+          </section>
+        ) : (
+          <MarketWorkspace
+            client={client}
+            quote={selectedQuote}
+            state={connectionQuery.data?.state ?? "UNAVAILABLE"}
+            contextLabel="主模拟账户 · 持仓策略图"
+            portfolioMarkers={paperMarkers}
+          />
+        )}
+      </div>
+
       <div className="paper-grid">
         <Panel title="当前持仓" eyebrow="POSITIONS / MARKED">
           {detail === undefined || detail.positions.length === 0 ? (
@@ -207,28 +239,6 @@ function AccountWorkspace({
         </Panel>
         <OpeningPositionDock client={client} accountId={accountId} />
       </div>
-
-      <StrategyConsole
-        client={client}
-        accountId={accountId}
-        positions={positions}
-        selectedPosition={selectedPosition ?? null}
-      />
-
-      {selectedQuote === null ? (
-        <section className="paper-chart-empty">
-          <strong>录入持仓后显示策略图</strong>
-          <p>这里将复用首页的真实分时与 K 线，并叠加量化信号和模拟成交点。</p>
-        </section>
-      ) : (
-        <MarketWorkspace
-          client={client}
-          quote={selectedQuote}
-          state={connectionQuery.data?.state ?? "UNAVAILABLE"}
-          contextLabel="主模拟账户 · 持仓策略图"
-          portfolioMarkers={paperMarkers}
-        />
-      )}
 
       <EquityPulse equity={equityQuery.data ?? []} baseline={selectedSummary.initial_equity} />
 
@@ -260,6 +270,34 @@ function AccountWorkspace({
   );
 }
 
+function PositionSwitcher({
+  positions,
+  selectedId,
+  onSelect,
+}: {
+  positions: PaperPosition[];
+  selectedId: string | null;
+  onSelect: (instrumentId: string) => void;
+}) {
+  return (
+    <div className="paper-switcher" role="tablist" aria-label="切换持仓查看策略图">
+      {positions.map((position) => (
+        <button
+          key={position.instrument_id}
+          type="button"
+          role="tab"
+          aria-selected={position.instrument_id === selectedId}
+          onClick={() => onSelect(position.instrument_id)}
+        >
+          <strong>{position.name ?? position.instrument_id}</strong>
+          <span>{position.instrument_id}</span>
+          <small>{position.last_price ?? "等待行情"} · {formatPercent(position.unrealized_pnl_percent)}</small>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function StrategyConsole({
   client,
   accountId,
@@ -272,7 +310,8 @@ function StrategyConsole({
   selectedPosition: PaperPosition | null;
 }) {
   const runScan = useRunPaperStrategyScanMutation(client);
-  const results = runScan.data;
+  const persistedRuns = usePaperStrategyRunsQuery(client, accountId);
+  const results = runScan.data ?? persistedRuns.data;
   return (
     <Panel
       title="量化策略"
@@ -329,8 +368,15 @@ function ScanResultList({
   const nameOf = (instrumentId: string): string =>
     positions.find((item) => item.instrument_id === instrumentId)?.name
     ?? instrumentId;
+  const lastChecked = results.length > 0
+    ? new Date(Math.max(...results.map((item) => Date.parse(item.signal.decision_time))))
+    : null;
   return (
-    <ul className="paper-scan">
+    <>
+      {lastChecked !== null && Number.isFinite(lastChecked.getTime()) ? (
+        <div className="paper-scan__stamp">最近检查 · {formatTime(lastChecked.toISOString())}</div>
+      ) : null}
+      <ul className="paper-scan">
       {results.map((result) => (
         <li key={result.decision_id} data-outcome={result.outcome.toLowerCase()}>
           <span className="paper-scan__identity">
@@ -349,6 +395,7 @@ function ScanResultList({
         </li>
       ))}
     </ul>
+    </>
   );
 }
 

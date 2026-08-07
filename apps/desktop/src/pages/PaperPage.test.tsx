@@ -78,6 +78,7 @@ test("first visit creates and opens the default local paper account", async () =
     listPaperOrders: vi.fn().mockResolvedValue([]),
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
   } as unknown as ApiClient;
 
   renderPage(client);
@@ -95,13 +96,14 @@ test("account workspace shows real portfolio metrics and holdings", async () => 
     listPaperOrders: vi.fn().mockResolvedValue([]),
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
   } as unknown as ApiClient;
 
   renderPage(client);
 
   expect(await screen.findByText("100,240.50")).toBeVisible();
   expect(screen.getByText("+240.50")).toBeVisible();
-  expect(screen.getByText("半导体设备ETF")).toBeVisible();
+  expect(screen.getAllByText("半导体设备ETF").length).toBeGreaterThan(0);
   expect(screen.getByText("+5.00%")).toBeVisible();
   expect(screen.getByText("真实行情盯市")).toBeVisible();
   expect(screen.getByTestId("paper-market-workspace")).toHaveTextContent(
@@ -119,6 +121,7 @@ test("account discovery does not poll or replace the workspace with onboarding",
     listPaperOrders: vi.fn().mockResolvedValue([]),
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
   } as unknown as ApiClient;
   renderPage(client);
 
@@ -143,6 +146,7 @@ test("cash editor persists the remaining cash outside current holdings", async (
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
     updatePaperCash,
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -252,6 +256,7 @@ test("strategy console scans all holdings concurrently and hides engineering par
     listPaperFills: vi.fn().mockResolvedValue([]),
     listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
     runPaperStrategyScan,
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -277,6 +282,51 @@ test("strategy console scans all holdings concurrently and hides engineering par
   expect(screen.getByText("decision-audit-2")).toBeVisible();
 });
 
+test("strategy panel restores the latest persisted scan after refresh", async () => {
+  const persisted = [
+    {
+      outcome: "HOLD",
+      proposed_side: null,
+      proposed_quantity: 100,
+      risk_reason: null,
+      decision_id: "decision-persisted-1",
+      advisory_checks: ["MARKET_LIVE", "FEATURES_WARMING_UP"],
+      signal: {
+        signal_id: "signal-persisted-1",
+        instrument_id: "159516.SZSE",
+        action: "HOLD",
+        state: "WARMING_UP",
+        reference_price: null,
+        confidence: "0",
+        strategy_id: "intraday-momentum-volume",
+        strategy_version: "baseline-v1",
+        feature_version: "realtime-v1",
+        reason_codes: ["INSUFFICIENT_COMPLETED_BARS"],
+        event_time: "2026-08-06T06:31:00Z",
+        decision_time: "2026-08-06T06:31:00Z",
+        expires_at: "2026-08-06T06:32:00Z",
+      },
+      order: null,
+      fill: null,
+    },
+  ];
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue(persisted),
+  } as unknown as ApiClient;
+  renderPage(client);
+
+  expect(await screen.findByText(/最近检查/)).toBeVisible();
+  expect(screen.getByText("decision-persisted-1")).toBeVisible();
+  expect(screen.getByText("INSUFFICIENT_COMPLETED_BARS")).toBeVisible();
+  expect(client.listPaperStrategyRuns).toHaveBeenCalledWith("account-1");
+});
+
 test("opening position form searches the real catalog and requires a selected instrument", async () => {
   const addPaperOpeningPosition = vi.fn().mockResolvedValue(detail);
   const client = {
@@ -291,6 +341,7 @@ test("opening position form searches the real catalog and requires a selected in
       { instrument_id: "588200.SSE", name: "半导体ETF", kind: "etf" },
     ]),
     addPaperOpeningPosition,
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -345,6 +396,7 @@ test("opening position form resets after save and supports continuous additions"
       { instrument_id: "600000.SSE", name: "浦发银行", kind: "equity" },
     ]),
     addPaperOpeningPosition,
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -385,6 +437,7 @@ test("opening position form explains duplicate holdings in Chinese", async () =>
       { instrument_id: "159516.SZSE", name: "半导体设备ETF", kind: "etf" },
     ]),
     addPaperOpeningPosition,
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();

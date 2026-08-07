@@ -60,6 +60,7 @@ def build_client(tmp_path: Path) -> tuple[TestClient, MarketDataService]:
         repository=PaperRepository(engine),
         market_service=market,
     )
+    paper_repository = PaperRepository(engine)
     state = AppState(
         repository=TaskRepository(engine),
         data_catalog=DataCatalogRepository(engine),
@@ -71,6 +72,7 @@ def build_client(tmp_path: Path) -> tuple[TestClient, MarketDataService]:
         paper_strategy_service=PaperStrategyService(
             paper_service=paper,
             market_service=market,
+            repository=paper_repository,
         ),
     )
     client = TestClient(create_app(state))
@@ -328,6 +330,64 @@ def test_strategy_scan_on_empty_account_returns_empty_list(tmp_path: Path) -> No
             "max_position_percent": "20",
         },
     )
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_strategy_runs_survive_reload_and_return_newest_batch(tmp_path: Path) -> None:
+    client, _ = build_client(tmp_path)
+    account_id = create_account(client)
+    for instrument_id, name in (
+        ("159516.SZSE", "半导体设备ETF"),
+        ("600000.SSE", "浦发银行"),
+    ):
+        client.post(
+            f"/v1/paper/accounts/{account_id}/positions/opening",
+            json={
+                "instrument_id": instrument_id,
+                "name": name,
+                "quantity": 1000,
+                "available_quantity": 1000,
+                "average_cost": "0.7",
+            },
+        )
+    request = {
+        "instrument_id": "159516.SZSE",
+        "quantity": 100,
+        "auto_execute": False,
+        "max_position_percent": "20",
+    }
+    first_scan = client.post(f"/v1/paper/accounts/{account_id}/strategy/scan", json=request)
+    assert first_scan.status_code == 200
+
+    runs = client.get(f"/v1/paper/accounts/{account_id}/strategy/runs")
+    assert runs.status_code == 200
+    payload = runs.json()
+    assert [item["signal"]["instrument_id"] for item in payload] == [
+        "159516.SZSE",
+        "600000.SSE",
+    ]
+    assert all(item["outcome"] == "HOLD" for item in payload)
+    assert all(item["decision_id"].startswith("decision-") for item in payload)
+
+    second_scan = client.post(f"/v1/paper/accounts/{account_id}/strategy/scan", json=request)
+    assert second_scan.status_code == 200
+
+    runs_after = client.get(f"/v1/paper/accounts/{account_id}/strategy/runs").json()
+    assert runs_after[0]["decision_id"] != payload[0]["decision_id"]
+
+    reloaded, _ = build_client(tmp_path)
+    persisted = reloaded.get(f"/v1/paper/accounts/{account_id}/strategy/runs")
+    assert persisted.status_code == 200
+    assert persisted.json() == runs_after
+
+
+def test_strategy_runs_on_empty_account_return_empty_list(tmp_path: Path) -> None:
+    client, _ = build_client(tmp_path)
+    account_id = create_account(client)
+
+    response = client.get(f"/v1/paper/accounts/{account_id}/strategy/runs")
 
     assert response.status_code == 200
     assert response.json() == []

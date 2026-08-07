@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -10,6 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Header
 
 from astraquant_api.app import ApiProblem
+from astraquant_api.paper_repository import StrategyRunRecord
 from astraquant_api.paper_schemas import (
     AccountCreateRequest,
     AccountDetailView,
@@ -27,7 +29,7 @@ from astraquant_api.paper_schemas import (
 )
 from astraquant_api.paper_service import PaperService, QuoteUnavailable
 from astraquant_api.paper_strategy_service import PaperStrategyService, StrategyRunResult
-from astraquant_domain import InstrumentId, PaperAccount
+from astraquant_domain import InstrumentId, OrderSide, PaperAccount
 from astraquant_paper import LedgerState
 
 
@@ -172,6 +174,15 @@ def build_paper_router(
 
     if strategy_service is not None:
 
+        @router.get(
+            "/accounts/{account_id}/strategy/runs",
+            response_model=list[StrategyRunView],
+        )
+        def list_strategy_runs(account_id: str) -> list[StrategyRunView]:
+            _state_or_404(service, account_id)
+            records = strategy_service.latest_runs(account_id)
+            return [_strategy_view_from_record(record) for record in records]
+
         @router.post(
             "/accounts/{account_id}/strategy/run",
             response_model=StrategyRunView,
@@ -232,6 +243,28 @@ def _strategy_view(result: StrategyRunResult) -> StrategyRunView:
         signal=StrategySignalView.from_domain(result.decision.signal),
         order=None if result.order is None else OrderView.from_domain(result.order),
         fill=None if result.fill is None else FillView.from_domain(result.fill),
+    )
+
+
+def _strategy_view_from_record(record: StrategyRunRecord) -> StrategyRunView:
+    return StrategyRunView(
+        outcome=record.outcome,
+        proposed_side=(None if record.proposed_side is None else OrderSide(record.proposed_side)),
+        proposed_quantity=record.proposed_quantity,
+        risk_reason=record.risk_reason,
+        decision_id=record.decision_id,
+        advisory_checks=list(record.advisory_checks),
+        signal=StrategySignalView.model_validate(json.loads(record.signal_json)),
+        order=(
+            None
+            if record.order_json is None
+            else OrderView.model_validate(json.loads(record.order_json))
+        ),
+        fill=(
+            None
+            if record.fill_json is None
+            else FillView.model_validate(json.loads(record.fill_json))
+        ),
     )
 
 

@@ -281,6 +281,12 @@ export class ApiClient {
     );
   }
 
+  listPaperStrategyRuns(accountId: string): Promise<PaperStrategyRun[]> {
+    return this.request(
+      `/v1/paper/accounts/${encodeURIComponent(accountId)}/strategy/runs`,
+    );
+  }
+
   getSettings(): Promise<Settings> {
     return this.request("/v1/settings");
   }

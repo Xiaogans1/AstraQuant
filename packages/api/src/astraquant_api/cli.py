@@ -91,6 +91,7 @@ def serve() -> None:
     paper_strategy_service = PaperStrategyService(
         paper_service=paper_service,
         market_service=market_service,
+        repository=paper_repository,
     )
     state = AppState(
         repository=repository,

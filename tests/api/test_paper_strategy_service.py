@@ -106,7 +106,14 @@ def build_service(
             )
         ]
     )
-    return PaperStrategyService(paper_service=paper, market_service=market), repository
+    return (
+        PaperStrategyService(
+            paper_service=paper,
+            market_service=market,
+            repository=repository,
+        ),
+        repository,
+    )
 
 
 def test_hold_signal_never_creates_an_order(tmp_path: Path) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -91,6 +93,40 @@ paper_equity_snapshots = sa.Table(
     sa.Column("total_pnl_percent", sa.String(64)),
     sa.Column("as_of", sa.DateTime(timezone=True), nullable=False),
 )
+paper_strategy_runs = sa.Table(
+    "paper_strategy_runs",
+    metadata,
+    sa.Column("decision_id", sa.String(36), primary_key=True),
+    sa.Column("batch_id", sa.String(36), nullable=False),
+    sa.Column("account_id", sa.String(36), nullable=False),
+    sa.Column("instrument_id", sa.String(64), nullable=False),
+    sa.Column("outcome", sa.String(16), nullable=False),
+    sa.Column("proposed_side", sa.String(8)),
+    sa.Column("proposed_quantity", sa.Integer(), nullable=False),
+    sa.Column("risk_reason", sa.String(200)),
+    sa.Column("signal_json", sa.Text(), nullable=False),
+    sa.Column("advisory_checks_json", sa.Text(), nullable=False),
+    sa.Column("order_json", sa.Text()),
+    sa.Column("fill_json", sa.Text()),
+    sa.Column("decision_time", sa.DateTime(timezone=True), nullable=False),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class StrategyRunRecord:
+    decision_id: str
+    batch_id: str
+    account_id: str
+    instrument_id: str
+    outcome: str
+    proposed_side: str | None
+    proposed_quantity: int
+    risk_reason: str | None
+    signal_json: str
+    advisory_checks: tuple[str, ...]
+    order_json: str | None
+    fill_json: str | None
+    decision_time: datetime
 
 
 def _utc(value: datetime) -> datetime:
@@ -228,6 +264,79 @@ class PaperRepository:
                         .values(**item)
                         .on_conflict_do_nothing(index_elements=[key])
                     )
+
+    def save_strategy_runs(self, runs: tuple[StrategyRunRecord, ...]) -> None:
+        if not runs:
+            return
+        with self.engine.begin() as connection:
+            connection.execute(
+                paper_strategy_runs.insert(),
+                [self._strategy_run_values(item) for item in runs],
+            )
+
+    def latest_strategy_run_batch(
+        self,
+        account_id: str,
+        *,
+        limit: int = 200,
+    ) -> tuple[StrategyRunRecord, ...]:
+        """Return the newest persisted batch of strategy runs for an account."""
+        with self.engine.connect() as connection:
+            rows = list(
+                connection.execute(
+                    sa.select(paper_strategy_runs)
+                    .where(paper_strategy_runs.c.account_id == account_id)
+                    .order_by(
+                        paper_strategy_runs.c.decision_time.desc(),
+                        paper_strategy_runs.c.instrument_id,
+                    )
+                    .limit(limit)
+                ).mappings()
+            )
+        if not rows:
+            return ()
+        newest_batch = rows[0]["batch_id"]
+        batch_rows = [row for row in rows if row["batch_id"] == newest_batch]
+        return tuple(
+            self._strategy_run(row)
+            for row in sorted(batch_rows, key=lambda item: str(item["instrument_id"]))
+        )
+
+    @staticmethod
+    def _strategy_run_values(item: StrategyRunRecord) -> dict[str, object]:
+        return {
+            "decision_id": item.decision_id,
+            "batch_id": item.batch_id,
+            "account_id": item.account_id,
+            "instrument_id": item.instrument_id,
+            "outcome": item.outcome,
+            "proposed_side": item.proposed_side,
+            "proposed_quantity": item.proposed_quantity,
+            "risk_reason": item.risk_reason,
+            "signal_json": item.signal_json,
+            "advisory_checks_json": json.dumps(list(item.advisory_checks)),
+            "order_json": item.order_json,
+            "fill_json": item.fill_json,
+            "decision_time": _utc(item.decision_time),
+        }
+
+    @staticmethod
+    def _strategy_run(row: RowMapping) -> StrategyRunRecord:
+        return StrategyRunRecord(
+            decision_id=row["decision_id"],
+            batch_id=row["batch_id"],
+            account_id=row["account_id"],
+            instrument_id=row["instrument_id"],
+            outcome=row["outcome"],
+            proposed_side=row["proposed_side"],
+            proposed_quantity=row["proposed_quantity"],
+            risk_reason=row["risk_reason"],
+            signal_json=row["signal_json"],
+            advisory_checks=tuple(json.loads(row["advisory_checks_json"])),
+            order_json=row["order_json"],
+            fill_json=row["fill_json"],
+            decision_time=_utc(row["decision_time"]),
+        )
 
     @staticmethod
     def _position_values(item: Position) -> dict[str, object]:
