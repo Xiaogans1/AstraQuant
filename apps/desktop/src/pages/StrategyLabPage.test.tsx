@@ -141,8 +141,40 @@ test("strategy lab presets the home watchlist instruments", async () => {
   expect(screen.getByRole("button", { name: "批量运行 2 只" })).toBeVisible();
 });
 
-test("running batch replay submits instruments, model and window", async () => {
-  const runResearchReplay = vi.fn().mockResolvedValue([result]);
+test("replay with fully-invested opening sells renders without crashing", async () => {
+  const openingSellResult = {
+    ...result,
+    trades: [
+      {
+        index: 60,
+        timestamp: "2026-07-10T03:30:00Z",
+        side: "SELL",
+        price: "0.72",
+        quantity: 1000,
+        pnl: "18.5",
+        proba: 0.2,
+      },
+    ],
+  };
+  const runResearchReplay = vi.fn().mockResolvedValue([openingSellResult]);
+  const client = baseClient();
+  client.runResearchReplay = runResearchReplay;
+  renderLab(client);
+  const user = userEvent.setup();
+
+  await screen.findByText(/lgbm-minute-001 · lgbm-v1/);
+  await user.click(screen.getByTestId("pick-instrument"));
+  await user.selectOptions(
+    screen.getByRole("combobox", { name: "模型" }),
+    "lgbm-minute-001",
+  );
+  await user.click(screen.getByRole("button", { name: "批量运行 1 只" }));
+
+  expect(await screen.findByText(/期初持仓/)).toBeVisible();
+  expect(screen.getByText(/\+18.5/)).toBeVisible();
+});
+
+test("running batch replay submits instruments, model and window", async () => {  const runResearchReplay = vi.fn().mockResolvedValue([result]);
   const client = baseClient();
   client.runResearchReplay = runResearchReplay;
   renderLab(client);

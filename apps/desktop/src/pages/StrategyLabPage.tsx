@@ -621,7 +621,7 @@ function ReplayOverview({ result }: { result: ReplayResult }) {
           strokeWidth="0.55"
         />
         {pairs.map((pair) => {
-          if (pair.sell === null) return null;
+          if (pair.sell === null || pair.buyIndex < 0) return null;
           return (
             <line
               key={`pair-${pair.buyIndex}`}
@@ -749,16 +749,17 @@ function tradePairs(trades: ReplayTrade[]): Array<{
         openTime = trade.timestamp;
       }
     } else {
-      const buyCost = openQty > 0 ? openCost * trade.quantity : Number(trade.price) * trade.quantity;
+      const hasOpenCost = openQty > 0;
+      const buyCost = hasOpenCost ? openCost * trade.quantity : 0;
       const pnl = Number(trade.pnl);
       rows.push({
         buyIndex: openIndex,
         buyTime: openTime,
-        buyPrice: openCost,
+        buyPrice: hasOpenCost ? openCost : 0,
         quantity: trade.quantity,
         sell: trade,
         pnl,
-        pnlPercent: buyCost > 0 ? (pnl / buyCost) * 100 : 0,
+        pnlPercent: hasOpenCost && buyCost > 0 ? (pnl / buyCost) * 100 : 0,
       });
       openQty = Math.max(openQty - trade.quantity, 0);
       if (openQty === 0) {
@@ -999,21 +1000,26 @@ function TradePairsTable({ trades }: { trades: ReplayTrade[] }) {
       </thead>
       <tbody>
         {pairs.map((pair) => {
+          const fromOpening = pair.buyTime === "";
           const holdMs = pair.sell === null
-            ? Date.now() - Date.parse(pair.buyTime)
-            : Date.parse(pair.sell.timestamp) - Date.parse(pair.buyTime);
-          const holdDays = Math.max(holdMs / 1000 / 60, 1);
-          const holdText = holdDays < 60 ? `${Math.round(holdDays)}分钟` : `${(holdDays / 60).toFixed(1)}小时`;
+            ? 0
+            : Date.parse(pair.sell.timestamp) - (fromOpening ? Date.parse(pair.sell.timestamp) : Date.parse(pair.buyTime));
+          const holdMinutes = holdMs / 1000 / 60;
+          const holdText = fromOpening || !Number.isFinite(holdMinutes)
+            ? "—"
+            : holdMinutes < 60
+              ? `${Math.round(holdMinutes)}分钟`
+              : `${(holdMinutes / 60).toFixed(1)}小时`;
           return (
             <tr key={`${pair.buyIndex}-${pair.sell?.index ?? "open"}`} data-pnl={pair.sell === null ? "open" : pair.pnl >= 0 ? "up" : "down"}>
-              <td>{formatTime(pair.buyTime)}</td>
-              <td>{pair.buyPrice.toFixed(4)}</td>
+              <td>{fromOpening ? "期初持仓" : formatTime(pair.buyTime)}</td>
+              <td>{fromOpening ? "—" : pair.buyPrice.toFixed(4)}</td>
               <td>{pair.quantity}</td>
               <td>{pair.sell === null ? "持仓中" : formatTime(pair.sell.timestamp)}</td>
               <td>{pair.sell === null ? "—" : pair.sell.price}</td>
               <td>{pair.sell === null ? "—" : holdText}</td>
               <td>{pair.sell === null ? "—" : formatSignedMoney(String(pair.pnl))}</td>
-              <td>{pair.sell === null ? "—" : `${pair.pnlPercent >= 0 ? "+" : ""}${pair.pnlPercent.toFixed(2)}%`}</td>
+              <td>{pair.sell === null || fromOpening ? "—" : `${pair.pnlPercent >= 0 ? "+" : ""}${pair.pnlPercent.toFixed(2)}%`}</td>
             </tr>
           );
         })}
@@ -1055,7 +1061,9 @@ function formatSignedMoney(value: string): string {
   return `${amount >= 0 ? "+" : ""}${formatMoney(value)}`;
 }
 function formatTime(value: string): string {
-  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value));
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return "—";
+  return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(parsed));
 }
 function trendClass(value: string): string {
   return Number(value) >= 0 ? "paper-trend-up" : "paper-trend-down";
