@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ApiClient } from "../api/client";
 import type { MarketBar } from "../api/market-contracts";
@@ -225,31 +225,6 @@ function ReplayResultView({
         .filter((item) => Number.isFinite(item.timestamp) && Number.isFinite(item.price)),
     [result.trades],
   );
-  const days = useMemo(() => {
-    const groups = new Map<string, { bars: MarketBar[]; signals: MarketSignalMarker[] }>();
-    for (const bar of bars) {
-      const day = shanghaiDay(bar.timestamp);
-      const group = groups.get(day) ?? { bars: [], signals: [] };
-      group.bars.push(bar);
-      groups.set(day, group);
-    }
-    for (const signal of signals) {
-      const day = shanghaiDay(new Date(signal.timestamp).toISOString());
-      const group = groups.get(day);
-      if (group !== undefined) group.signals.push(signal);
-    }
-    return [...groups.entries()].sort(([left], [right]) => left.localeCompare(right));
-  }, [bars, signals]);
-  const [selectedDay, setSelectedDay] = useState<string>(days.at(-1)?.[0] ?? "");
-  useEffect(() => {
-    setSelectedDay((current) => {
-      if (current !== "" && days.some(([day]) => day === current)) return current;
-      return days.at(-1)?.[0] ?? "";
-    });
-  }, [days]);
-  const selected = days.find(([day]) => day === selectedDay);
-  const dayBars = selected?.[1].bars ?? [];
-  const daySignals = selected?.[1].signals ?? [];
   const equity = useMemo(
     () =>
       result.equity_points
@@ -284,61 +259,29 @@ function ReplayResultView({
       </p>
 
       <Panel
-        title={`${result.instrument_id} · 区间全览（${result.bars_count} 根 1 分钟线）`}
-        eyebrow="OVERVIEW / SELECTED WINDOW"
+        title={`${result.instrument_id} · 区间 K 线与全部买卖点（${result.bars_count} 根 1 分钟）`}
+        eyebrow="RANGE / PRICE / TRADES"
         action={
           <span className="paper-strategy__version">
             {model?.strategy_version ?? result.model_id}{result.model_status === "DRAFT" ? "（草稿）" : ""}
           </span>
         }
       >
-        <ReplayOverview result={result} />
+        <div className="strategy-lab__intraday">
+          <ProfessionalMarketChart
+            instrumentId={result.instrument_id}
+            period="1m"
+            mainIndicator="MA"
+            secondaryIndicator="VOL"
+            showQuantSignals
+            bars={bars}
+            signals={signals}
+          />
+        </div>
         <p className="strategy-lab__note">
-          全览展示所选区间完整走势与全部买卖点：红色 B = 模型买入，绿色 S = 模型卖出（悬停查看时间与上涨概率）。
-          数据实际覆盖 {formatTime(result.start)} ~ {formatTime(result.end)}（东财分钟线，历史深度以数据源为准）。
+          整段区间一张图：**按住拖动平移，滚轮缩放**，可逐段查看任意时段；红 B / 绿 S 为全部真实模型信号（悬停查看时间与上涨概率）。
+          数据实际覆盖 {formatTime(result.start)} ~ {formatTime(result.end)}，共 {result.trades.length} 笔信号。
         </p>
-      </Panel>
-
-      <Panel
-        title={`${result.instrument_id} · 分时与买卖点（${selectedDay}）`}
-        eyebrow="INTRADAY / PRICE / TRADES"
-        action={
-          <div className="strategy-lab__day-switcher" role="tablist" aria-label="切换分时日期">
-            {days.map(([day]) => (
-              <button
-                key={day}
-                type="button"
-                role="tab"
-                aria-selected={day === selectedDay}
-                onClick={() => setSelectedDay(day)}
-              >
-                {day.slice(5)}
-              </button>
-            ))}
-          </div>
-        }
-      >
-        {dayBars.length === 0 ? (
-          <p className="strategy-lab__empty">该日没有分钟数据（可能为节假日或数据源缺失）。</p>
-        ) : (
-          <>
-            <div className="strategy-lab__intraday">
-              <ProfessionalMarketChart
-                instrumentId={result.instrument_id}
-                period="intraday"
-                mainIndicator="MA"
-                secondaryIndicator="VOL"
-                showQuantSignals
-                bars={dayBars}
-                signals={daySignals}
-              />
-            </div>
-            <p className="strategy-lab__note">
-              与首页一致的分时图：默认展示区间最后一天，可点击上方日期切换任意交易日；
-              红 B / 绿 S 为该日真实模型信号（悬停查看时间与上涨概率）。共 {result.trades.length} 笔信号。
-            </p>
-          </>
-        )}
       </Panel>
 
       <Panel title="权益曲线：策略 vs 买入持有" eyebrow="EQUITY / VS BUY & HOLD">
@@ -574,216 +517,6 @@ function TrainTab({ client }: { client: ApiClient }) {
   );
 }
 
-function ReplayOverview({ result }: { result: ReplayResult }) {
-  const [selectedTrade, setSelectedTrade] = useState<ReplayTrade | null>(null);
-  const pairs = useMemo(() => tradePairs(result.trades), [result.trades]);
-  const points = useMemo(() => {
-    const closes = result.bars.map((bar) => Number(bar.close));
-    if (closes.length < 2) return null;
-    const min = Math.min(...closes);
-    const max = Math.max(...closes);
-    const range = Math.max(max - min, 1e-9);
-    const width = 100;
-    const height = 100;
-    const step = width / (closes.length - 1);
-    return {
-      line: closes.map((close, index) => {
-        const x = index * step;
-        const y = height - ((close - min) / range) * (height - 8) - 4;
-        return `${x.toFixed(3)},${y.toFixed(3)}`;
-      }),
-      xOf: (index: number) => Math.min(index, closes.length - 1) * step,
-      yOf: (close: number) => height - ((close - min) / range) * (height - 8) - 4,
-      min,
-      max,
-    };
-  }, [result]);
-
-  if (points === null) {
-    return <p className="strategy-lab__empty">数据不足，无法绘制全览。</p>;
-  }
-  const selectedPair = selectedTrade === null
-    ? null
-    : pairs.find((pair) => pair.sell?.index === selectedTrade.index) ?? null;
-  return (
-    <div className="strategy-lab__overview">
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="区间全览：完整走势与买卖配对"
-        className="strategy-lab__overview-svg"
-      >
-        <line x1="0" y1="50" x2="100" y2="50" stroke="var(--border)" strokeDasharray="2 2" />
-        <polyline
-          points={points.line.join(" ")}
-          fill="none"
-          stroke="var(--accent)"
-          strokeWidth="0.55"
-        />
-        {pairs.map((pair) => {
-          if (pair.sell === null || pair.buyIndex < 0) return null;
-          return (
-            <line
-              key={`pair-${pair.buyIndex}`}
-              x1={points.xOf(pair.buyIndex)}
-              y1={points.yOf(pair.buyPrice)}
-              x2={points.xOf(pair.sell.index)}
-              y2={points.yOf(Number(pair.sell.price))}
-              stroke={pair.pnl >= 0 ? "#21ad76" : "#ef5b5b"}
-              strokeWidth="0.35"
-              strokeDasharray="1.2 1.2"
-              opacity="0.75"
-            >
-              <title>{`盈亏 ${formatSignedMoney(String(pair.pnl))}（${pair.pnlPercent.toFixed(1)}%）`}</title>
-            </line>
-          );
-        })}
-        {result.trades.map((trade) => {
-          const x = points.xOf(trade.index);
-          const y = points.yOf(Number(trade.price));
-          const isSelected = selectedPair !== null && selectedPair.sell?.index === trade.index;
-          return (
-            <g key={`${trade.index}-${trade.side}`} className="strategy-lab__overview-point">
-              <circle
-                cx={x}
-                cy={y}
-                r={isSelected ? 2.6 : 2.0}
-                fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
-                stroke={isSelected ? "#fff" : "none"}
-                strokeWidth="0.4"
-              >
-                <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（上涨概率 ${(trade.proba * 100).toFixed(0)}%，${formatTime(trade.timestamp)}）`}</title>
-              </circle>
-              <text
-                x={x}
-                y={trade.side === "BUY" ? y - 4.2 : y + 5.6}
-                textAnchor="middle"
-                fontSize="4.6"
-                fontWeight="bold"
-                fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
-              >
-                {trade.side === "BUY" ? "B" : "S"}
-              </text>
-              <text
-                x={x}
-                y={y - (trade.side === "BUY" ? 7.4 : -8.2)}
-                textAnchor="middle"
-                fontSize="3.4"
-                fill="var(--text-muted)"
-              >
-                {trade.quantity / 100}手
-              </text>
-              <rect
-                x={x - 3}
-                y={y - 3}
-                width="6"
-                height="6"
-                fill="transparent"
-                role="presentation"
-                onClick={() => setSelectedTrade(selectedTrade?.index === trade.index ? null : trade)}
-              >
-                <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（上涨概率 ${(trade.proba * 100).toFixed(0)}%，${formatTime(trade.timestamp)}）`}</title>
-              </rect>
-            </g>
-          );
-        })}
-      </svg>
-      {selectedPair === null ? (
-        <div className="strategy-lab__overview-legend">
-          <span>区间 {formatTime(result.start)} ~ {formatTime(result.end)}</span>
-          <span>最高 {points.max.toFixed(4)} / 最低 {points.min.toFixed(4)}</span>
-          <span>{result.trades.length} 笔信号（B {result.buys} / S {result.sells}），点击任意点查看买卖配对盈亏</span>
-        </div>
-      ) : (
-        <div
-          className="strategy-lab__overview-detail"
-          data-pnl={selectedPair.pnl >= 0 ? "up" : "down"}
-        >
-          <strong>
-            买入 {selectedPair.quantity} 份 @ {selectedPair.buyPrice.toFixed(4)}（{formatTime(selectedPair.buyTime)}）
-          </strong>
-          <span>
-            {selectedPair.sell === null ? (
-              "持仓中（未卖出）"
-            ) : (
-              <>卖出 {selectedPair.sell.quantity} 份 @ {selectedPair.sell.price}（{formatTime(selectedPair.sell.timestamp)}） · 盈亏 <b>{formatSignedMoney(String(selectedPair.pnl))}（{selectedPair.pnlPercent.toFixed(1)}%）</b></>
-            )}
-          </span>
-        </div>
-      )}
-      <p className="strategy-lab__note">
-        虚线为买入→卖出配对（绿=盈利，红=亏损）；"x手"为买入/卖出数量；悬停或点击查看数量、价格与盈亏。
-      </p>
-    </div>
-  );
-}
-
-function tradePairs(trades: ReplayTrade[]): Array<{
-  buyIndex: number;
-  buyTime: string;
-  buyPrice: number;
-  quantity: number;
-  sell: ReplayTrade | null;
-  pnl: number;
-  pnlPercent: number;
-}> {
-  const rows: Array<{
-    buyIndex: number;
-    buyTime: string;
-    buyPrice: number;
-    quantity: number;
-    sell: ReplayTrade | null;
-    pnl: number;
-    pnlPercent: number;
-  }> = [];
-  let openQty = 0;
-  let openCost = 0;
-  let openIndex = -1;
-  let openTime = "";
-  for (const trade of trades) {
-    if (trade.side === "BUY") {
-      openCost = (openCost * openQty + Number(trade.price) * trade.quantity) / (openQty + trade.quantity);
-      openQty += trade.quantity;
-      if (openIndex < 0) {
-        openIndex = trade.index;
-        openTime = trade.timestamp;
-      }
-    } else {
-      const hasOpenCost = openQty > 0;
-      const buyCost = hasOpenCost ? openCost * trade.quantity : 0;
-      const pnl = Number(trade.pnl);
-      rows.push({
-        buyIndex: openIndex,
-        buyTime: openTime,
-        buyPrice: hasOpenCost ? openCost : 0,
-        quantity: trade.quantity,
-        sell: trade,
-        pnl,
-        pnlPercent: hasOpenCost && buyCost > 0 ? (pnl / buyCost) * 100 : 0,
-      });
-      openQty = Math.max(openQty - trade.quantity, 0);
-      if (openQty === 0) {
-        openCost = 0;
-        openIndex = -1;
-        openTime = "";
-      }
-    }
-  }
-  if (openQty > 0) {
-    rows.push({
-      buyIndex: openIndex,
-      buyTime: openTime,
-      buyPrice: openCost,
-      quantity: openQty,
-      sell: null,
-      pnl: 0,
-      pnlPercent: 0,
-    });
-  }
-  return rows;
-}
-
 function downloadReport(result: ReplayResult) {
   const lines = [
     `# 回放实验报告 — ${result.instrument_id}`,
@@ -843,15 +576,6 @@ function RunList({ runs }: { runs: PaperStrategyRun[] }) {
       ))}
     </ul>
   );
-}
-
-function shanghaiDay(timestampIso: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(timestampIso));
 }
 
 function toChartBars(bars: ReplayBar[]): MarketBar[] {
@@ -978,6 +702,71 @@ function EquityCurve({ points, initial }: { points: Array<readonly [number, numb
       <polyline points={coords.join(" ")} fill="none" stroke="var(--accent)" strokeWidth="1.2" />
     </svg>
   );
+}
+
+function tradePairs(trades: ReplayTrade[]): Array<{
+  buyIndex: number;
+  buyTime: string;
+  buyPrice: number;
+  quantity: number;
+  sell: ReplayTrade | null;
+  pnl: number;
+  pnlPercent: number;
+}> {
+  const rows: Array<{
+    buyIndex: number;
+    buyTime: string;
+    buyPrice: number;
+    quantity: number;
+    sell: ReplayTrade | null;
+    pnl: number;
+    pnlPercent: number;
+  }> = [];
+  let openQty = 0;
+  let openCost = 0;
+  let openIndex = -1;
+  let openTime = "";
+  for (const trade of trades) {
+    if (trade.side === "BUY") {
+      openCost = (openCost * openQty + Number(trade.price) * trade.quantity) / (openQty + trade.quantity);
+      openQty += trade.quantity;
+      if (openIndex < 0) {
+        openIndex = trade.index;
+        openTime = trade.timestamp;
+      }
+    } else {
+      const hasOpenCost = openQty > 0;
+      const buyCost = hasOpenCost ? openCost * trade.quantity : 0;
+      const pnl = Number(trade.pnl);
+      rows.push({
+        buyIndex: openIndex,
+        buyTime: openTime,
+        buyPrice: hasOpenCost ? openCost : 0,
+        quantity: trade.quantity,
+        sell: trade,
+        pnl,
+        pnlPercent: hasOpenCost && buyCost > 0 ? (pnl / buyCost) * 100 : 0,
+      });
+      openQty = Math.max(openQty - trade.quantity, 0);
+      if (openQty === 0) {
+        openCost = 0;
+        openIndex = -1;
+        openTime = "";
+      }
+    }
+  }
+  if (openQty > 0) {
+    rows.push({
+      buyIndex: openIndex,
+      buyTime: openTime,
+      buyPrice: openCost,
+      quantity: openQty,
+      sell: null,
+      pnl: 0,
+      pnlPercent: 0,
+    });
+  }
+  return rows;
 }
 
 function TradePairsTable({ trades }: { trades: ReplayTrade[] }) {
