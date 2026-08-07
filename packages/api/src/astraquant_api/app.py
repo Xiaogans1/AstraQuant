@@ -279,14 +279,23 @@ def create_app(state: AppState) -> FastAPI:
     if state.paper_service is not None:
         from astraquant_api.paper_routes import build_paper_router
         from astraquant_api.paper_service import PaperService
+        from astraquant_api.research_routes import build_research_router
 
+        paper_service = cast(PaperService, state.paper_service)
         app.include_router(
             build_paper_router(
-                service=cast(PaperService, state.paper_service),
+                service=paper_service,
                 strategy_service=state.paper_strategy_service,
                 authenticated=authenticated,
                 validate_idempotency_key=_validate_idempotency_key,
                 settings_store=state.repository,
+            )
+        )
+        app.include_router(
+            build_research_router(
+                data_root=state.state_dir / "data",
+                models=paper_service,
+                authenticated=authenticated,
             )
         )
     return app

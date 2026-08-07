@@ -65,7 +65,7 @@ it("renders the responsive workspace shell", async () => {
     "aria-current",
     "page",
   );
-  expect(screen.getByRole("button", { name: "智能选股" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "策略实验室" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Paper 模拟" })).toBeEnabled();
 });
 

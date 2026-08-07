@@ -36,6 +36,7 @@ import { ActivityPage } from "./pages/ActivityPage";
 import { DataPage } from "./pages/DataPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { PaperPage } from "./pages/PaperPage";
+import { StrategyLabPage } from "./pages/StrategyLabPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TasksPage } from "./pages/TasksPage";
 import {
@@ -73,6 +74,11 @@ const viewCopy: Record<
     index: "PORTFOLIO / PAPER",
     title: "模拟账户",
     summary: "用真实行情驱动本地虚拟成交，观察持仓、资金与策略收益；当前不会向券商发送任何委托。",
+  },
+  strategy: {
+    index: "RESEARCH / REPLAY",
+    title: "策略实验室",
+    summary: "在已录制的真实历史 K 线上确定性回放模型信号，检验模型在任意时间段的表现。",
   },
   tasks: {
     index: "WORKSPACE / 03",
@@ -364,6 +370,9 @@ function renderView({
   }
   if (currentView === "paper") {
     return <PaperPage client={client} />;
+  }
+  if (currentView === "strategy") {
+    return <StrategyLabPage client={client} />;
   }
   if (currentView === "tasks") {
     return (

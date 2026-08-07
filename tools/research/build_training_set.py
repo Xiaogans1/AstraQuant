@@ -9,52 +9,11 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
-import pyarrow.parquet as pq  # type: ignore[import-untyped]
-
-from astraquant_data.arrow_schema import table_to_bars
-from astraquant_data.market_bars import MarketBar
+from astraquant_data.research_store import load_dataset_bars
 from astraquant_quant.research_features import build_training_rows
 
 _HORIZON = 5
 _THRESHOLD = Decimal("0.005")
-
-
-def load_market_bars(data_root: Path, dataset_id: str) -> tuple[list[MarketBar], str]:
-    """Load the newest recorded snapshot of a dataset as MarketBar rows."""
-    snapshots_root = data_root / "datasets" / dataset_id / "snapshots"
-    manifests = sorted(snapshots_root.glob("*/manifest.json"))
-    if not manifests:
-        raise ValueError(f"no snapshots found for dataset {dataset_id}")
-    manifest = json.loads(manifests[-1].read_text(encoding="utf-8"))
-    files = [item["path"] for item in manifest["files"]]
-    bars: list[MarketBar] = []
-    instrument_id = ""
-    for relative in files:
-        path = snapshots_root / manifests[-1].parent.name / relative
-        with pq.ParquetFile(path) as handle:
-            table = handle.read()
-        if not instrument_id and table.column_names and "instrument_id" in table.column_names:
-            instrument_id = str(table.column("instrument_id")[0].as_py())
-        for bar in table_to_bars(table):
-            bars.append(_to_market_bar(bar))
-    return sorted(bars, key=lambda item: item.timestamp), instrument_id
-
-
-def _to_market_bar(bar: object) -> MarketBar:
-    from astraquant_domain import Bar
-
-    typed = bar if isinstance(bar, Bar) else None
-    assert typed is not None
-    return MarketBar(
-        timestamp=typed.event_time,
-        open=typed.open,
-        high=typed.high,
-        low=typed.low,
-        close=typed.close,
-        volume=typed.volume,
-        turnover=typed.turnover if typed.turnover is not None else Decimal("0"),
-        previous_close=typed.open,
-    )
 
 
 def build_features_json(
@@ -64,7 +23,7 @@ def build_features_json(
     horizon: int,
     threshold: Decimal,
 ) -> dict[str, object]:
-    bars, instrument_id = load_market_bars(data_root, dataset_id)
+    bars, instrument_id = load_dataset_bars(data_root, dataset_id)
     if not bars:
         raise ValueError(f"dataset {dataset_id} has no bars")
     rows = build_training_rows(bars, horizon=horizon, threshold=threshold)

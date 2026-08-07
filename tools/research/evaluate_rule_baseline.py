@@ -10,9 +10,9 @@ from decimal import Decimal
 from pathlib import Path
 
 from astraquant_data.market_bars import MarketBar
+from astraquant_data.research_store import load_dataset_bars as load_market_bars
 from astraquant_domain import InstrumentId, SignalAction
 from astraquant_quant import evaluate_intraday_signal
-from tools.research.build_training_set import load_market_bars
 
 _FEE_RATE = Decimal("0.00025")
 _MIN_BARS = 20

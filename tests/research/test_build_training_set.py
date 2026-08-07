@@ -5,8 +5,9 @@ from decimal import Decimal
 from pathlib import Path
 
 from astraquant_data.parquet_store import ParquetSnapshotStore
+from astraquant_data.research_store import load_dataset_bars
 from astraquant_domain import Adjustment, Bar, BarFrequency, InstrumentId
-from tools.research.build_training_set import build_features_json, load_market_bars
+from tools.research.build_training_set import build_features_json
 
 
 def _publish_snapshot(data_root: Path, instrument: str = "159516.SZSE") -> str:
@@ -48,7 +49,7 @@ def _publish_snapshot(data_root: Path, instrument: str = "159516.SZSE") -> str:
 def test_load_market_bars_reads_newest_snapshot(tmp_path: Path) -> None:
     dataset_id = _publish_snapshot(tmp_path / "data")
 
-    bars, instrument_id = load_market_bars(tmp_path / "data", dataset_id)
+    bars, instrument_id = load_dataset_bars(tmp_path / "data", dataset_id)
 
     assert len(bars) == 60
     assert instrument_id == "159516.SZSE"

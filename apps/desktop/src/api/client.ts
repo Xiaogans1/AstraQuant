@@ -25,6 +25,11 @@ import type {
   RealtimeQuantDecision,
 } from "./market-contracts";
 import type {
+  ReplayRequest,
+  ReplayResult,
+  ResearchDatasetSummary,
+} from "./research-contracts";
+import type {
   CreatePaperAccountRequest,
   OpeningPositionRequest,
   PaperCashBalanceRequest,
@@ -39,6 +44,7 @@ import type {
   PaperStrategyRun,
   PaperStrategyRunRequest,
   PaperStrategyStatus,
+  ModelRegistryView,
 } from "./paper-contracts";
 
 type Fetch = typeof fetch;
@@ -296,6 +302,10 @@ export class ApiClient {
     );
   }
 
+  listPaperModels(): Promise<ModelRegistryView[]> {
+    return this.request("/v1/paper/models");
+  }
+
   getPaperStrategyStatus(): Promise<PaperStrategyStatus> {
     return this.request("/v1/paper/strategy/status");
   }
@@ -313,6 +323,17 @@ export class ApiClient {
 
   getSettings(): Promise<Settings> {
     return this.request("/v1/settings");
+  }
+
+  listResearchDatasets(): Promise<ResearchDatasetSummary[]> {
+    return this.request("/v1/research/datasets");
+  }
+
+  runResearchReplay(request: ReplayRequest): Promise<ReplayResult> {
+    return this.request("/v1/research/replay", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
   }
 
   updateSettings(settings: Settings): Promise<Settings> {

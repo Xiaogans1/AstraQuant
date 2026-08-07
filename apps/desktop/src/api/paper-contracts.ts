@@ -148,6 +148,20 @@ export interface PaperStrategyStatus {
   last_scan_at: string | null;
 }
 
+export interface ModelRegistryView {
+  model_id: string;
+  strategy_id: string;
+  strategy_version: string;
+  feature_version: string;
+  artifact_path: string;
+  metrics_json: string;
+  params_json: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  approved_at: string | null;
+}
+
 export interface PaperFeeConfig {
   commission_rate: string;
   minimum_commission: string;

@@ -13,11 +13,11 @@ from pathlib import Path
 import lightgbm as lgb
 
 from astraquant_data.market_bars import MarketBar
+from astraquant_data.research_store import load_dataset_bars as load_market_bars
 from astraquant_domain import InstrumentId
 from astraquant_quant.replay import ReplayResult, replay_bars
 from astraquant_quant.research_features import build_feature_rows
 from astraquant_quant.strategy_layer import MODEL_FEATURE_COLUMNS
-from tools.research.build_training_set import load_market_bars
 
 
 def make_predictor(artifact: Path) -> Callable[[list[MarketBar]], float]:

@@ -1,6 +1,7 @@
 export type WorkspaceView =
   | "overview"
   | "paper"
+  | "strategy"
   | "data"
   | "tasks"
   | "activity"
@@ -14,26 +15,16 @@ interface SidebarProps {
 }
 
 interface NavigationItem {
-  id:
-    | WorkspaceView
-    | "watchlist"
-    | "scanner"
-    | "analysis"
-    | "paper"
-    | "strategy";
+  id: WorkspaceView;
   label: string;
   glyph: string;
-  disabled?: boolean;
   groupStart?: boolean;
 }
 
 const navigation: NavigationItem[] = [
   { id: "overview", label: "市场首页", glyph: "MK" },
-  { id: "watchlist", label: "行情浏览", glyph: "QT", disabled: true },
-  { id: "scanner", label: "智能选股", glyph: "AI", disabled: true, groupStart: true },
-  { id: "analysis", label: "个股分析", glyph: "AN", disabled: true },
   { id: "paper", label: "Paper 模拟", glyph: "PP", groupStart: true },
-  { id: "strategy", label: "策略实验室", glyph: "ST", disabled: true },
+  { id: "strategy", label: "策略实验室", glyph: "ST" },
   { id: "data", label: "数据与连接", glyph: "DT", groupStart: true },
   { id: "tasks", label: "任务", glyph: "TK" },
   { id: "activity", label: "本地活动", glyph: "AC" },
@@ -58,21 +49,13 @@ export function Sidebar({
               type="button"
               aria-current={item.id === currentView ? "page" : undefined}
               aria-label={item.label}
-              disabled={item.disabled}
               title={collapsed ? item.label : undefined}
-              onClick={() => {
-                if (!item.disabled) {
-                  onNavigate(item.id as WorkspaceView);
-                }
-              }}
+              onClick={() => onNavigate(item.id)}
             >
               <span className="sidebar__glyph" aria-hidden="true">
                 {item.glyph}
               </span>
               <span className="sidebar__label">{item.label}</span>
-              {item.disabled ? (
-                <span className="sidebar__later">Later</span>
-              ) : null}
             </button>
           </div>
         ))}

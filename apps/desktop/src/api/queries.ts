@@ -10,6 +10,11 @@ import type { Settings, Task } from "./contracts";
 import type { DataImportRequest } from "./data-contracts";
 import type { ConnectionState, MarketPeriod } from "./market-contracts";
 import type {
+  ReplayRequest,
+  ReplayResult,
+  ResearchDatasetSummary,
+} from "./research-contracts";
+import type {
   CreatePaperAccountRequest,
   OpeningPositionRequest,
   PaperCashBalanceRequest,
@@ -49,6 +54,8 @@ export const queryKeys = {
     ["paper", "accounts", accountId, "strategy-runs"] as const,
   paperStrategyStatus: ["paper", "strategy", "status"] as const,
   paperFeeConfig: ["paper", "fee-config"] as const,
+  paperModels: ["paper", "models"] as const,
+  researchDatasets: ["research", "datasets"] as const,
 };
 
 export function useDefaultPaperAccountQuery(client: ApiClient) {
@@ -265,6 +272,28 @@ export function usePaperStrategyStatusQuery(client: ApiClient) {
     queryFn: () => client.getPaperStrategyStatus(),
     staleTime: 15_000,
     refetchInterval: 15_000,
+  });
+}
+
+export function usePaperModelsQuery(client: ApiClient) {
+  return useQuery({
+    queryKey: queryKeys.paperModels,
+    queryFn: () => client.listPaperModels(),
+    staleTime: 30_000,
+  });
+}
+
+export function useResearchDatasetsQuery(client: ApiClient) {
+  return useQuery({
+    queryKey: queryKeys.researchDatasets,
+    queryFn: () => client.listResearchDatasets(),
+    staleTime: 60_000,
+  });
+}
+
+export function useResearchReplayMutation(client: ApiClient) {
+  return useMutation({
+    mutationFn: (request: ReplayRequest) => client.runResearchReplay(request),
   });
 }
 
