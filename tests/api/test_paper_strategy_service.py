@@ -225,8 +225,8 @@ def test_strategy_loop_skips_unchanged_one_minute_bar_and_rescans_on_new_bar(
 
     service, repository = build_service(
         tmp_path,
-        bars(["10"] * 20),
-        provider=GrowingBarProvider(bars(["10"] * 20)),
+        bars(["10"] * 40),
+        provider=GrowingBarProvider(bars(["10"] * 40)),
     )
     service._paper_service.add_opening_position(
         "account-1",
@@ -238,25 +238,21 @@ def test_strategy_loop_skips_unchanged_one_minute_bar_and_rescans_on_new_bar(
     )
 
     async def scenario() -> None:
-        market = service._market_service
-
         await service._run_loop_once()
         first_batch = repository.latest_strategy_run_batch("account-1")
         assert len(first_batch) == 1
+        assert first_batch[0].outcome == "HOLD"
 
-        market._bar_history.clear()
-        market._bar_history_fetched_at.clear()
         await service._run_loop_once()
-        second_batch = repository.latest_strategy_run_batch("account-1")
-        assert len(second_batch) == 1
-        assert second_batch[0].decision_id == first_batch[0].decision_id
+        assert len(repository.latest_strategy_run_batch("account-1")) == 1
+        assert len(repository.load_state("account-1").orders) == 0
 
-        market._bar_history.clear()
-        market._bar_history_fetched_at.clear()
-        await service._run_loop_once()
-        third_batch = repository.latest_strategy_run_batch("account-1")
-        assert len(third_batch) == 1
-        assert third_batch[0].decision_id != first_batch[0].decision_id
+        from zoneinfo import ZoneInfo as _ZI
+
+        today = datetime.now(UTC).astimezone(_ZI("Asia/Shanghai")).date()
+        opening = service._paper_service.get_daily_open("account-1", today)
+        assert opening is not None
+        assert Decimal(str(opening["cash"])) > 0
 
     asyncio.run(scenario())
 

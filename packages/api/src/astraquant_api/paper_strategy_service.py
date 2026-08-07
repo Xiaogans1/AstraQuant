@@ -107,8 +107,43 @@ class PaperStrategyService:
             return
         async with self._scan_lock:
             for account in accounts:
-                await self._scan_account_skipping_unchanged_bars(account.account_id)
+                self._ensure_daily_open(account.account_id)
+                await self.scan_account(
+                    account.account_id,
+                    quantity=100,
+                    auto_execute=True,
+                    max_position_percent=Decimal("20"),
+                    decision_time=datetime.now(UTC),
+                )
             self._last_scan_at = datetime.now(UTC)
+
+    def _ensure_daily_open(self, account_id: str) -> None:
+        """Snapshot the account state once per trading day (idempotent)."""
+        from zoneinfo import ZoneInfo as _ZI
+
+        now = datetime.now(UTC)
+        today = now.astimezone(_ZI("Asia/Shanghai")).date()
+        if self._paper_service.get_daily_open(account_id, today) is not None:
+            return
+        state = self._paper_service.get_state(account_id)
+        positions_json = json.dumps(
+            [
+                {
+                    "instrument_id": str(position.instrument_id),
+                    "quantity": position.quantity,
+                    "available_quantity": position.available_quantity,
+                    "average_cost": str(position.average_cost),
+                }
+                for position in state.positions
+            ],
+            ensure_ascii=False,
+        )
+        self._paper_service.save_daily_open(
+            account_id=account_id,
+            trading_date=today,
+            cash=state.account.cash,
+            positions_json=positions_json,
+        )
 
     async def _scan_account_skipping_unchanged_bars(self, account_id: str) -> None:
         """Scan holdings, skipping any whose latest one-minute bar is unchanged.

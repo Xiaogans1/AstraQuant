@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from threading import Lock
 
 from astraquant_api.market_service import MarketDataService
-from astraquant_api.paper_repository import ExperimentRecord, ModelRegistryRecord, PaperRepository
+from astraquant_api.paper_repository import (
+    ExperimentRecord,
+    ModelRegistryRecord,
+    PaperRepository,
+    StrategyRunRecord,
+)
 from astraquant_domain import AccountMode, InstrumentId, LiveQuote, OrderSide, PaperAccount
 from astraquant_paper import ExecutionResult, FeeSchedule, LedgerState, PaperLedger
 
@@ -174,6 +179,88 @@ class PaperService:
             if (quote := self._market_service.latest_quote(str(position.instrument_id))) is not None
             and quote.previous_close is not None
         }
+
+    def get_daily_open(self, account_id: str, trading_date: date) -> dict[str, object] | None:
+        return self._repository.get_daily_open(account_id, trading_date)
+
+    def runs_on_date(self, account_id: str, trading_date: date) -> tuple[StrategyRunRecord, ...]:
+        return self._repository.runs_on_date(account_id, trading_date)
+
+    def save_daily_open(
+        self,
+        *,
+        account_id: str,
+        trading_date: date,
+        cash: Decimal,
+        positions_json: str,
+    ) -> None:
+        self._repository.save_daily_open(
+            account_id=account_id,
+            trading_date=trading_date,
+            cash=str(cash),
+            positions_json=positions_json,
+            now=datetime.now(UTC),
+        )
+
+    def daily_summary(self, account_id: str) -> list[dict[str, object]]:
+        """Per-trading-day equity PnL with external cash flows separated."""
+        from collections import defaultdict
+        from zoneinfo import ZoneInfo
+
+        state = self._repository.load_state(account_id)
+        china = ZoneInfo("Asia/Shanghai")
+        day_equity: dict[date, Decimal] = {}
+        day_equity_time: dict[date, datetime] = {}
+        for snapshot in state.snapshots:
+            day = snapshot.as_of.astimezone(china).date()
+            if day not in day_equity_time or snapshot.as_of > day_equity_time[day]:
+                day_equity[day] = snapshot.total_equity
+                day_equity_time[day] = snapshot.as_of
+        day_fills: dict[date, Decimal] = defaultdict(lambda: Decimal("0"))
+        for fill in state.fills:
+            day = fill.occurred_at.astimezone(china).date()
+            day_fills[day] += fill.net_cash_flow
+        day_cash: dict[date, Decimal] = {}
+        day_cash_time: dict[date, datetime] = {}
+        for snapshot in state.snapshots:
+            day = snapshot.as_of.astimezone(china).date()
+            if day not in day_cash_time or snapshot.as_of > day_cash_time[day]:
+                day_cash[day] = snapshot.cash
+                day_cash_time[day] = snapshot.as_of
+        ordered = sorted(day_equity)
+        rows: list[dict[str, object]] = []
+        previous_equity: Decimal | None = None
+        previous_cash = Decimal("0")
+        for day in ordered:
+            equity_end = day_equity[day]
+            cash_end = day_cash.get(day, Decimal("0"))
+            fills_net = day_fills.get(day, Decimal("0"))
+            equity_prev = previous_equity
+            equity_pnl = equity_end - equity_prev if equity_prev is not None else Decimal("0")
+            cash_delta = cash_end - previous_cash
+            external_flow = cash_delta - fills_net
+            strategy_pnl = equity_pnl - external_flow
+            strategy_pnl_percent = (
+                None
+                if equity_prev is None or equity_prev == 0
+                else float(strategy_pnl / equity_prev * 100)
+            )
+            rows.append(
+                {
+                    "trading_date": day.isoformat(),
+                    "equity_end": str(equity_end),
+                    "cash_end": str(cash_end),
+                    "equity_pnl": str(equity_pnl),
+                    "external_flow": str(external_flow),
+                    "strategy_pnl": str(strategy_pnl),
+                    "strategy_pnl_percent": strategy_pnl_percent,
+                    "fills": str(fills_net),
+                    "has_daily_open": self.get_daily_open(account_id, day) is not None,
+                }
+            )
+            previous_equity = equity_end
+            previous_cash = cash_end
+        return rows
 
     def on_quotes(self, quotes: tuple[LiveQuote, ...]) -> None:
         if not quotes:

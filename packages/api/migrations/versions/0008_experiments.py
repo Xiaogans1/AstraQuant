@@ -6,7 +6,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0008_experiments"
-down_revision: str | Sequence[str] | None = "0006_model_params"
+down_revision: str | Sequence[str] | None = "0007_daily_open"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

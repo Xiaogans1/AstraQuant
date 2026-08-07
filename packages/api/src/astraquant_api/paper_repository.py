@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import sqlalchemy as sa
@@ -133,6 +133,16 @@ research_experiments = sa.Table(
     sa.Column("summary_json", sa.Text(), nullable=False),
     sa.Column("results_json", sa.Text(), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+)
+paper_daily_open = sa.Table(
+    "paper_daily_open",
+    metadata,
+    sa.Column("account_id", sa.String(36), nullable=False),
+    sa.Column("trading_date", sa.Date(), nullable=False),
+    sa.Column("cash", sa.String(64), nullable=False),
+    sa.Column("positions_json", sa.Text(), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.PrimaryKeyConstraint("account_id", "trading_date"),
 )
 
 
@@ -484,6 +494,70 @@ class PaperRepository:
                     created_at=_utc(record.created_at),
                 )
             )
+
+    def get_daily_open(
+        self,
+        account_id: str,
+        trading_date: date,
+    ) -> dict[str, object] | None:
+        with self.engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(paper_daily_open).where(
+                        paper_daily_open.c.account_id == account_id,
+                        paper_daily_open.c.trading_date == trading_date,
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        if row is None:
+            return None
+        return {
+            "cash": row["cash"],
+            "positions_json": row["positions_json"],
+        }
+
+    def save_daily_open(
+        self,
+        *,
+        account_id: str,
+        trading_date: date,
+        cash: str,
+        positions_json: str,
+        now: datetime,
+    ) -> None:
+        with self.engine.begin() as connection:
+            connection.execute(
+                sqlite_insert(paper_daily_open)
+                .values(
+                    account_id=account_id,
+                    trading_date=trading_date,
+                    cash=cash,
+                    positions_json=positions_json,
+                    created_at=_utc(now),
+                )
+                .on_conflict_do_nothing(index_elements=["account_id", "trading_date"])
+            )
+
+    def runs_on_date(self, account_id: str, trading_date: date) -> tuple[StrategyRunRecord, ...]:
+        from datetime import timedelta as _td
+        from zoneinfo import ZoneInfo as _ZI
+
+        shanghai = _ZI("Asia/Shanghai")
+        start = datetime.combine(trading_date, datetime.min.time(), tzinfo=shanghai).astimezone(UTC)
+        end = start + _td(days=1)
+        with self.engine.connect() as connection:
+            rows = connection.execute(
+                sa.select(paper_strategy_runs)
+                .where(
+                    paper_strategy_runs.c.account_id == account_id,
+                    paper_strategy_runs.c.decision_time >= start,
+                    paper_strategy_runs.c.decision_time < end,
+                )
+                .order_by(paper_strategy_runs.c.decision_time)
+            ).mappings()
+            return tuple(self._strategy_run(row) for row in rows)
 
     @staticmethod
     def _strategy_run_values(item: StrategyRunRecord) -> dict[str, object]:

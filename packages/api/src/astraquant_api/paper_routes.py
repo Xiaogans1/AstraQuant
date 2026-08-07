@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import math
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Protocol
 from uuid import uuid4
@@ -341,10 +341,35 @@ def build_paper_router(
             "/accounts/{account_id}/strategy/runs",
             response_model=list[StrategyRunView],
         )
-        def list_strategy_runs(account_id: str) -> list[StrategyRunView]:
+        def list_strategy_runs(
+            account_id: str,
+            on_date: str | None = None,
+        ) -> list[StrategyRunView]:
             _state_or_404(service, account_id)
+            if on_date is not None:
+                records = service.runs_on_date(account_id, date.fromisoformat(on_date))
+                return [_strategy_view_from_record(record) for record in records]
             records = strategy_service.latest_runs(account_id)
             return [_strategy_view_from_record(record) for record in records]
+
+        @router.get(
+            "/accounts/{account_id}/strategy/daily",
+            response_model=list[dict[str, object]],
+        )
+        def daily_summary(account_id: str) -> list[dict[str, object]]:
+            _state_or_404(service, account_id)
+            return service.daily_summary(account_id)
+
+        @router.get(
+            "/accounts/{account_id}/strategy/daily-open",
+            response_model=dict[str, object],
+        )
+        def daily_open(account_id: str, on_date: str) -> dict[str, object]:
+            _state_or_404(service, account_id)
+            opening = service.get_daily_open(account_id, date.fromisoformat(on_date))
+            if opening is None:
+                raise ApiProblem(404, "daily_open_not_found", "该日无日初存档")
+            return opening
 
         @router.post(
             "/accounts/{account_id}/strategy/run",
