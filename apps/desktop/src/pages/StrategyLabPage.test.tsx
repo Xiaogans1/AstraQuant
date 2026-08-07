@@ -95,6 +95,11 @@ function baseClient() {
     listStrategyRunsOnDate: vi.fn().mockResolvedValue([]),
     listPaperPositions: vi.fn().mockResolvedValue([]),
     searchInstruments: vi.fn(),
+    getMarketHome: vi.fn().mockResolvedValue({
+      connection: { state: "LIVE" },
+      watchlist: [],
+      selected_instrument: null,
+    }),
   } as unknown as ApiClient;
 }
 
@@ -104,6 +109,23 @@ test("strategy lab loads approved models and disables batch run without picks", 
   expect(await screen.findByRole("heading", { name: "策略实验室" })).toBeVisible();
   await screen.findByText(/lgbm-minute-001 · lgbm-v1/);
   expect(screen.getByRole("button", { name: /批量运行 0 只/ })).toBeDisabled();
+});
+
+test("strategy lab presets the home watchlist instruments", async () => {
+  const client = baseClient();
+  client.getMarketHome = vi.fn().mockResolvedValue({
+    connection: { state: "LIVE" },
+    watchlist: [
+      { instrument_id: "159516.SZSE", name: "半导体设备ETF" },
+      { instrument_id: "513310.SSE", name: "纳指ETF" },
+    ],
+    selected_instrument: "159516.SZSE",
+  });
+  renderLab(client);
+
+  await screen.findByText(/半导体设备ETF/);
+  expect(screen.getByText(/纳指ETF/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "批量运行 2 只" })).toBeVisible();
 });
 
 test("running batch replay submits instruments, model and window", async () => {

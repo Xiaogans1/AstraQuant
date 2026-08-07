@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ApiClient } from "../api/client";
 import type { MarketBar } from "../api/market-contracts";
@@ -11,6 +11,7 @@ import type {
 import type { ModelRegistryView, PaperStrategyRun } from "../api/paper-contracts";
 import {
   useDailySummaryQuery,
+  useMarketHomeQuery,
   usePaperModelsQuery,
   useResearchExperimentsQuery,
   useResearchReplayMutation,
@@ -63,6 +64,7 @@ export function StrategyLabPage({ client }: { client: ApiClient }) {
 
 function ReplayTab({ client }: { client: ApiClient }) {
   const modelsQuery = usePaperModelsQuery(client);
+  const home = useMarketHomeQuery(client);
   const replay = useResearchReplayMutation(client);
   const [instruments, setInstruments] = useState<InstrumentSelection[]>([]);
   const [startDate, setStartDate] = useState("");
@@ -70,8 +72,25 @@ function ReplayTab({ client }: { client: ApiClient }) {
   const [modelId, setModelId] = useState("");
   const [cash, setCash] = useState("100000");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const seededRef = useRef(false);
   const models = modelsQuery.data ?? [];
   const results = replay.data;
+
+  useEffect(() => {
+    if (seededRef.current || home.isLoading) return;
+    const list = home.data?.watchlist ?? [];
+    if (list.length > 0) {
+      setInstruments(
+        list.map((item) => ({
+          instrument_id: item.instrument_id,
+          name: item.name,
+          kind: item.kind,
+        })),
+      );
+      setSelectedIndex(0);
+    }
+    seededRef.current = true;
+  }, [home.data, home.isLoading]);
 
   const run = () => {
     if (instruments.length === 0 || modelId === "") return;
@@ -93,7 +112,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
       <Panel title="批量回放" eyebrow="REPLAY / ANY INSTRUMENT">
         <div className="strategy-lab__form">
           <label>
-            股票（可连续添加，与首页一致的真实搜索）
+            股票（已预设首页自选，可继续添加）
             <InstrumentSearchPicker
               client={client}
               value={null}
