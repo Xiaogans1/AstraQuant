@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -138,6 +139,8 @@ def build_paper_router(
 
     @router.post("/models", response_model=ModelRegistryView, status_code=201)
     def register_model(request: ModelRegisterRequest) -> ModelRegistryView:
+        if service.get_model(request.model_id) is not None:
+            raise ApiProblem(409, "model_exists", "模型已存在")
         now = datetime.now(UTC)
         record = ModelRegistryRecord(
             model_id=request.model_id,
@@ -160,6 +163,8 @@ def build_paper_router(
 
     @router.patch("/models/{model_id}", response_model=ModelRegistryView)
     def update_model_metrics(model_id: str, request: ModelRegisterRequest) -> ModelRegistryView:
+        if request.model_id != model_id:
+            raise ApiProblem(409, "invalid_model_id", "路径与请求体模型不一致")
         current = service.get_model(model_id)
         if current is None:
             raise ApiProblem(404, "model_not_found", "未找到模型")
@@ -190,8 +195,15 @@ def build_paper_router(
             metrics = json.loads(current.metrics_json)
         except (TypeError, ValueError):
             raise ApiProblem(409, "model_publish_gate_failed", "模型指标无法解析") from None
-        auc = float(metrics.get("auc", 0.0))
-        net_return = float(metrics.get("net_return", 0.0))
+        if not isinstance(metrics, dict):
+            raise ApiProblem(409, "model_publish_gate_failed", "模型指标无法解析")
+        try:
+            auc = float(metrics["auc"])
+            net_return = float(metrics["net_return"])
+        except (KeyError, TypeError, ValueError):
+            raise ApiProblem(409, "model_publish_gate_failed", "模型指标无法解析") from None
+        if not math.isfinite(auc) or not math.isfinite(net_return):
+            raise ApiProblem(409, "model_publish_gate_failed", "模型指标无法解析")
         if auc <= 0.55 or net_return <= 0.0:
             raise ApiProblem(
                 409,
