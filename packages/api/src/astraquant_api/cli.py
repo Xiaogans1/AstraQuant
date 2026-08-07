@@ -6,6 +6,7 @@ import json
 import os
 import socket
 import sys
+from decimal import Decimal
 from pathlib import Path
 from threading import Thread
 
@@ -29,8 +30,26 @@ from astraquant_data.eastmoney_client import EastmoneyBridgeClient
 from astraquant_data.live_providers import LiveMarketProvider
 from astraquant_data.subscriptions import SubscriptionBudget
 from astraquant_domain import SystemClock
+from astraquant_paper import FeeSchedule
 
 PROTOCOL_VERSION = 1
+
+_FEE_CONFIG_KEY = "paper.fee_schedule"
+
+
+def _load_fee_schedule(repository: TaskRepository) -> FeeSchedule:
+    stored = repository.get_setting(_FEE_CONFIG_KEY)
+    if not isinstance(stored, dict):
+        return FeeSchedule()
+    try:
+        return FeeSchedule(
+            commission_rate=Decimal(str(stored["commission_rate"])),
+            minimum_commission=Decimal(str(stored["minimum_commission"])),
+            stamp_duty_rate=Decimal(str(stored["stamp_duty_rate"])),
+            transfer_fee_rate=Decimal(str(stored["transfer_fee_rate"])),
+        )
+    except (KeyError, TypeError, ValueError):
+        return FeeSchedule()
 
 
 def main() -> None:
@@ -87,6 +106,7 @@ def serve() -> None:
     paper_service = PaperService(
         repository=paper_repository,
         market_service=market_service,
+        fee_schedule=_load_fee_schedule(repository),
     )
     paper_strategy_service = PaperStrategyService(
         paper_service=paper_service,

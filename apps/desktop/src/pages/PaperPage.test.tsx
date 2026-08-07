@@ -85,6 +85,12 @@ test("first visit creates and opens the default local paper account", async () =
       loop_interval_seconds: 60,
       last_scan_at: null,
     }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
+    }),
   } as unknown as ApiClient;
 
   renderPage(client);
@@ -107,6 +113,12 @@ test("account workspace shows real portfolio metrics and holdings", async () => 
       loop_enabled: true,
       loop_interval_seconds: 60,
       last_scan_at: null,
+    }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
     }),
   } as unknown as ApiClient;
 
@@ -138,6 +150,12 @@ test("account discovery does not poll or replace the workspace with onboarding",
       loop_interval_seconds: 60,
       last_scan_at: null,
     }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
+    }),
   } as unknown as ApiClient;
   renderPage(client);
 
@@ -167,6 +185,12 @@ test("cash editor persists the remaining cash outside current holdings", async (
       loop_enabled: true,
       loop_interval_seconds: 60,
       last_scan_at: null,
+    }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
     }),
   } as unknown as ApiClient;
   renderPage(client);
@@ -304,6 +328,12 @@ test("strategy console scans all holdings concurrently and hides engineering par
       loop_interval_seconds: 60,
       last_scan_at: null,
     }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
+    }),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -412,12 +442,64 @@ test("account rail shows today's pnl from last close for historical cost holding
       loop_interval_seconds: 60,
       last_scan_at: null,
     }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
+    }),
   } as unknown as ApiClient;
   renderPage(client);
 
   expect(await screen.findByText("当日盈亏")).toBeVisible();
   expect(screen.getByText("+20.00")).toBeVisible();
   expect(screen.getByText(/今日 \+2\.86%（相对昨收）/)).toBeVisible();
+});
+
+test("fee config editor persists a commission schedule without minimum", async () => {
+  const updatePaperFeeConfig = vi.fn().mockResolvedValue({
+    commission_rate: "0.00025",
+    minimum_commission: "0",
+    stamp_duty_rate: "0.0005",
+    transfer_fee_rate: "0.00001",
+  });
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
+    }),
+    updatePaperFeeConfig,
+  } as unknown as ApiClient;
+  renderPage(client);
+  const user = userEvent.setup();
+
+  const commissionInput = await screen.findByDisplayValue("0.025");
+  expect(screen.getByLabelText("最低佣金（元，0 = 免最低 5 元）")).toHaveValue(0);
+
+  await user.clear(commissionInput);
+  await user.type(commissionInput, "0.03");
+  await user.click(screen.getByRole("button", { name: "保存费用设置" }));
+
+  expect(updatePaperFeeConfig).toHaveBeenCalledWith({
+    commission_rate: "0.0003",
+    minimum_commission: "0",
+    stamp_duty_rate: "0.0005",
+    transfer_fee_rate: "0.00001",
+  });
 });
 
 test("opening position form searches the real catalog and requires a selected instrument", async () => {
@@ -439,6 +521,12 @@ test("opening position form searches the real catalog and requires a selected in
       loop_enabled: true,
       loop_interval_seconds: 60,
       last_scan_at: null,
+    }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
     }),
   } as unknown as ApiClient;
   renderPage(client);
@@ -500,6 +588,12 @@ test("opening position form resets after save and supports continuous additions"
       loop_interval_seconds: 60,
       last_scan_at: null,
     }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
+    }),
   } as unknown as ApiClient;
   renderPage(client);
   const user = userEvent.setup();
@@ -545,6 +639,12 @@ test("opening position form explains duplicate holdings in Chinese", async () =>
       loop_enabled: true,
       loop_interval_seconds: 60,
       last_scan_at: null,
+    }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
     }),
   } as unknown as ApiClient;
   renderPage(client);

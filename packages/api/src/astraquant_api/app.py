@@ -286,6 +286,7 @@ def create_app(state: AppState) -> FastAPI:
                 strategy_service=state.paper_strategy_service,
                 authenticated=authenticated,
                 validate_idempotency_key=_validate_idempotency_key,
+                settings_store=state.repository,
             )
         )
     return app

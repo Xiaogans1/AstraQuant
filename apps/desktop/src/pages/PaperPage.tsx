@@ -8,12 +8,14 @@ import {
   usePaperAccountQuery,
   usePaperAccountsQuery,
   usePaperEquityQuery,
+  usePaperFeeConfigQuery,
   usePaperFillsQuery,
   usePaperOrdersQuery,
   usePaperStrategyRunsQuery,
   usePaperStrategyStatusQuery,
   useRunPaperStrategyScanMutation,
   useUpdatePaperCashMutation,
+  useUpdatePaperFeeConfigMutation,
 } from "../api/queries";
 import type {
   PaperAccountDetail,
@@ -216,8 +218,7 @@ function AccountWorkspace({
       </div>
 
       <div className="paper-grid">
-        <Panel title="当前持仓" eyebrow="POSITIONS / MARKED">
-          {detail === undefined || detail.positions.length === 0 ? (
+        <Panel title="当前持仓" eyebrow="POSITIONS / MARKED">          {detail === undefined || detail.positions.length === 0 ? (
             <p className="paper-empty">先录入当前持仓，真实行情到达后会自动计算盈亏。</p>
           ) : (
             <div className="paper-table-wrap">
@@ -243,6 +244,8 @@ function AccountWorkspace({
         </Panel>
         <OpeningPositionDock client={client} accountId={accountId} />
       </div>
+
+      <FeeConfigEditor client={client} />
 
       <EquityPulse equity={equityQuery.data ?? []} baseline={selectedSummary.initial_equity} />
 
@@ -430,6 +433,69 @@ function reasonCopy(code: string): string {
     default:
       return code;
   }
+}
+
+function FeeConfigEditor({ client }: { client: ApiClient }) {
+  const configQuery = usePaperFeeConfigQuery(client);
+  const update = useUpdatePaperFeeConfigMutation(client);
+  const [commission, setCommission] = useState("");
+  const [minimum, setMinimum] = useState("");
+  const [stampDuty, setStampDuty] = useState("");
+  const [transfer, setTransfer] = useState("");
+
+  useEffect(() => {
+    const config = configQuery.data;
+    if (config === undefined) return;
+    setCommission(rateToPercent(config.commission_rate));
+    setMinimum(config.minimum_commission);
+    setStampDuty(rateToPercent(config.stamp_duty_rate));
+    setTransfer(rateToPercent(config.transfer_fee_rate));
+  }, [configQuery.data]);
+
+  const dirty =
+    commission !== (configQuery.data === undefined ? "" : rateToPercent(configQuery.data.commission_rate))
+    || minimum !== (configQuery.data?.minimum_commission ?? "")
+    || stampDuty !== (configQuery.data === undefined ? "" : rateToPercent(configQuery.data.stamp_duty_rate))
+    || transfer !== (configQuery.data === undefined ? "" : rateToPercent(configQuery.data.transfer_fee_rate));
+
+  return (
+    <Panel
+      title="模拟费用设置"
+      eyebrow="FEES / LOCAL ACCOUNT"
+      className="paper-fees"
+      action={<span className="paper-dock__step">影响虚拟成交成本</span>}
+    >
+      <form
+        className="paper-form paper-form--compact paper-form--fees"
+        onSubmit={(event) => {
+          event.preventDefault();
+          update.mutate({
+            commission_rate: percentToRate(commission),
+            minimum_commission: minimum,
+            stamp_duty_rate: percentToRate(stampDuty),
+            transfer_fee_rate: percentToRate(transfer),
+          });
+        }}
+      >
+        <label>佣金费率（%，每边）<input required min="0" step="any" type="number" inputMode="decimal" value={commission} onChange={(event) => setCommission(event.target.value)} /></label>
+        <label>最低佣金（元，0 = 免最低 5 元）<input required min="0" step="any" type="number" inputMode="decimal" value={minimum} onChange={(event) => setMinimum(event.target.value)} /></label>
+        <label>印花税率（%，卖出）<input required min="0" step="any" type="number" inputMode="decimal" value={stampDuty} onChange={(event) => setStampDuty(event.target.value)} /></label>
+        <label>过户费率（%）<input required min="0" step="any" type="number" inputMode="decimal" value={transfer} onChange={(event) => setTransfer(event.target.value)} /></label>
+        <button type="submit" disabled={update.isPending || !dirty || configQuery.isLoading}>
+          {update.isPending ? "保存中…" : "保存费用设置"}
+        </button>
+        {update.error instanceof Error ? <p className="paper-form__error">{update.error.message}</p> : null}
+      </form>
+    </Panel>
+  );
+}
+
+function rateToPercent(rate: string): string {
+  return String(Number(rate) * 100);
+}
+
+function percentToRate(value: string): string {
+  return String(Number(value) / 100);
 }
 
 function OpeningPositionDock({ client, accountId }: { client: ApiClient; accountId: string }) {

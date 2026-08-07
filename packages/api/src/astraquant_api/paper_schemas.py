@@ -18,7 +18,7 @@ from astraquant_domain import (
     Position,
     SignalFrame,
 )
-from astraquant_paper import LedgerState
+from astraquant_paper import FeeSchedule, LedgerState
 
 
 class AccountCreateRequest(BaseModel):
@@ -271,3 +271,27 @@ class StrategyStatusView(BaseModel):
     loop_enabled: bool
     loop_interval_seconds: int
     last_scan_at: datetime | None
+
+
+class FeeConfigView(BaseModel):
+    commission_rate: Decimal
+    minimum_commission: Decimal
+    stamp_duty_rate: Decimal
+    transfer_fee_rate: Decimal
+
+    @classmethod
+    def from_schedule(cls, schedule: FeeSchedule) -> FeeConfigView:
+        return cls(
+            commission_rate=schedule.commission_rate,
+            minimum_commission=schedule.minimum_commission,
+            stamp_duty_rate=schedule.stamp_duty_rate,
+            transfer_fee_rate=schedule.transfer_fee_rate,
+        )
+
+    def to_schedule(self) -> FeeSchedule:
+        return FeeSchedule(
+            commission_rate=self.commission_rate,
+            minimum_commission=self.minimum_commission,
+            stamp_duty_rate=self.stamp_duty_rate,
+            transfer_fee_rate=self.transfer_fee_rate,
+        )

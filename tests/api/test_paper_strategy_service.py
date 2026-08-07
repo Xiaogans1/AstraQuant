@@ -14,7 +14,13 @@ from astraquant_api.secret_store import MemorySecretStore
 from astraquant_data.live_providers import ConnectionState, ProviderHealth
 from astraquant_data.market_bars import MarketBar, MarketPeriod
 from astraquant_data.subscriptions import SubscriptionBudget
-from astraquant_domain import AccountMode, InstrumentId, LiveQuote, PaperAccount
+from astraquant_domain import (
+    AccountMode,
+    InstrumentId,
+    LiveQuote,
+    OrderSide,
+    PaperAccount,
+)
 
 INSTRUMENT = InstrumentId.parse("159516.SZSE")
 START = datetime(2026, 8, 6, 1, 30, tzinfo=UTC)
@@ -73,13 +79,16 @@ def bars(closes: list[str], *, last_volume: str = "100") -> list[MarketBar]:
 
 
 def build_service(
-    tmp_path: Path, market_bars: list[MarketBar]
+    tmp_path: Path,
+    market_bars: list[MarketBar],
+    *,
+    provider: BarProvider | None = None,
 ) -> tuple[PaperStrategyService, PaperRepository]:
     url = f"sqlite:///{tmp_path / 'state.sqlite3'}"
     migrate_database(url)
     repository = PaperRepository(create_database(url))
     market = MarketDataService(
-        provider=BarProvider(market_bars),
+        provider=provider if provider is not None else BarProvider(market_bars),
         budget=SubscriptionBudget(),
         secret_store=MemorySecretStore(None),
     )
@@ -191,6 +200,67 @@ def test_strategy_loop_skips_accounts_without_positions(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_strategy_loop_skips_unchanged_one_minute_bar_and_rescans_on_new_bar(
+    tmp_path: Path,
+) -> None:
+    class GrowingBarProvider(BarProvider):
+        def __init__(self, bars: list[MarketBar]) -> None:
+            super().__init__(bars)
+            self._bars = bars
+            self._call_count = 0
+
+        def bars(
+            self,
+            _instrument_id: InstrumentId,
+            *,
+            period: MarketPeriod,
+            count: int,
+        ) -> list[MarketBar]:
+            assert period is MarketPeriod.MINUTE_1
+            self._call_count += 1
+            if self._call_count >= 3:
+                extra = bars(["10.05"], last_volume="400")
+                self._bars = [*self._bars, extra[-1]]
+            return self._bars[-count:]
+
+    service, repository = build_service(
+        tmp_path,
+        bars(["10"] * 20),
+        provider=GrowingBarProvider(bars(["10"] * 20)),
+    )
+    service._paper_service.add_opening_position(
+        "account-1",
+        instrument_id=INSTRUMENT,
+        name="半导体设备ETF",
+        quantity=1000,
+        available_quantity=1000,
+        average_cost=Decimal("10"),
+    )
+
+    async def scenario() -> None:
+        market = service._market_service
+
+        await service._run_loop_once()
+        first_batch = repository.latest_strategy_run_batch("account-1")
+        assert len(first_batch) == 1
+
+        market._bar_history.clear()
+        market._bar_history_fetched_at.clear()
+        await service._run_loop_once()
+        second_batch = repository.latest_strategy_run_batch("account-1")
+        assert len(second_batch) == 1
+        assert second_batch[0].decision_id == first_batch[0].decision_id
+
+        market._bar_history.clear()
+        market._bar_history_fetched_at.clear()
+        await service._run_loop_once()
+        third_batch = repository.latest_strategy_run_batch("account-1")
+        assert len(third_batch) == 1
+        assert third_batch[0].decision_id != first_batch[0].decision_id
+
+    asyncio.run(scenario())
+
+
 def test_strategy_loop_does_not_overlap_running_scans(tmp_path: Path) -> None:
     service, _ = build_service(tmp_path, bars(["10"] * 20))
 
@@ -244,7 +314,29 @@ def test_buy_signal_is_only_a_suggestion_when_auto_execute_is_off(tmp_path: Path
     )
 
     assert result.outcome is StrategyOutcome.SUGGESTED
+    assert result.proposed_quantity == 1900
     assert repository.load_state("account-1").orders == ()
+
+
+def test_buy_quantity_is_computed_from_position_budget(tmp_path: Path) -> None:
+    market_bars = bars(
+        ["10"] * 15 + ["10.01", "10.02", "10.03", "10.04", "10.05"],
+        last_volume="400",
+    )
+    service, _ = build_service(tmp_path, market_bars)
+
+    result = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=False,
+            max_position_percent=Decimal("20"),
+            decision_time=market_bars[-1].timestamp + timedelta(minutes=1),
+        )
+    )
+
+    assert result.proposed_quantity == 1900
 
 
 def test_risk_limit_blocks_auto_execution(tmp_path: Path) -> None:
@@ -265,9 +357,138 @@ def test_risk_limit_blocks_auto_execution(tmp_path: Path) -> None:
         )
     )
 
-    assert result.outcome is StrategyOutcome.BLOCKED
-    assert result.risk_reason == "max_position_value_exceeded"
+    assert result.outcome is StrategyOutcome.HOLD
+    assert result.risk_reason == "当前无可卖数量或买入预算不足 等待行情变化"
     assert repository.load_state("account-1").orders == ()
+
+
+def test_same_direction_signal_executes_at_most_once_per_day(tmp_path: Path) -> None:
+    market_bars = bars(
+        ["10"] * 15 + ["10.01", "10.02", "10.03", "10.04", "10.05"],
+        last_volume="400",
+    )
+    service, _ = build_service(tmp_path, market_bars)
+    service._paper_service.add_opening_position(
+        "account-1",
+        instrument_id=INSTRUMENT,
+        name="半导体设备ETF",
+        quantity=1000,
+        available_quantity=1000,
+        average_cost=Decimal("10"),
+    )
+    decision_time = market_bars[-1].timestamp + timedelta(minutes=1)
+
+    first = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=False,
+            max_position_percent=Decimal("20"),
+            decision_time=decision_time,
+        )
+    )
+    assert first.outcome is StrategyOutcome.SUGGESTED
+    assert first.proposed_quantity == 1100
+
+    second = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=False,
+            max_position_percent=Decimal("20"),
+            decision_time=decision_time,
+        )
+    )
+    assert second.outcome is StrategyOutcome.SUGGESTED
+
+
+def test_sell_uses_available_quantity_and_does_not_repeat(tmp_path: Path) -> None:
+    market_bars = bars(
+        ["10"] * 15 + ["9.99", "9.98", "9.97", "9.96", "9.95"],
+        last_volume="400",
+    )
+    service, repository = build_service(tmp_path, market_bars)
+    service._paper_service.add_opening_position(
+        "account-1",
+        instrument_id=INSTRUMENT,
+        name="半导体设备ETF",
+        quantity=1000,
+        available_quantity=1000,
+        average_cost=Decimal("10"),
+    )
+    decision_time = market_bars[-1].timestamp + timedelta(minutes=1)
+
+    first = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=True,
+            max_position_percent=Decimal("20"),
+            decision_time=decision_time,
+        )
+    )
+    assert first.outcome is StrategyOutcome.EXECUTED
+    assert first.fill is not None
+    assert first.fill.quantity == 1000
+    assert repository.load_state("account-1").positions == ()
+
+    second = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=True,
+            max_position_percent=Decimal("20"),
+            decision_time=decision_time + timedelta(minutes=1),
+        )
+    )
+    assert second.outcome is StrategyOutcome.HOLD
+    assert second.risk_reason == "当前无可卖数量或买入预算不足 等待行情变化"
+    assert len(repository.load_state("account-1").orders) == 1
+
+
+def test_same_direction_dedup_recognizes_previous_execution(tmp_path: Path) -> None:
+    from astraquant_quant import evaluate_intraday_signal
+
+    market_bars = bars(
+        ["10"] * 15 + ["10.01", "10.02", "10.03", "10.04", "10.05"],
+        last_volume="400",
+    )
+    service, _ = build_service(tmp_path, market_bars)
+    decision_time = market_bars[-1].timestamp + timedelta(minutes=1)
+
+    first = asyncio.run(
+        service.run(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            quantity=100,
+            auto_execute=True,
+            max_position_percent=Decimal("100"),
+            decision_time=decision_time,
+        )
+    )
+    assert first.outcome is StrategyOutcome.EXECUTED
+
+    later = decision_time + timedelta(minutes=1)
+    decision = evaluate_intraday_signal(
+        INSTRUMENT,
+        market_bars,
+        later,
+        market_live=True,
+    )
+    assert (
+        service._same_direction_already_executed(
+            "account-1",
+            instrument_id=INSTRUMENT,
+            side=OrderSide.BUY,
+            decision_time=later,
+            current_decision_id=decision.decision_record.decision_id,
+        )
+        is True
+    )
 
 
 def test_auto_execution_is_idempotent_for_the_same_decision(tmp_path: Path) -> None:

@@ -58,11 +58,11 @@ def test_buy_uses_best_ask_and_freezes_new_quantity_for_t_plus_one() -> None:
     assert result.order.status is OrderStatus.FILLED
     assert result.fill is not None
     assert result.fill.price == Decimal("0.715")
-    assert result.state.account.cash == Decimal("99279.99")
+    assert result.state.account.cash == Decimal("99284.81")
     assert result.state.positions[0].quantity == 1_000
     assert result.state.positions[0].available_quantity == 0
     assert result.state.snapshots[-1].initial_equity == Decimal("100000")
-    assert result.state.snapshots[-1].total_pnl == Decimal("-6.01")
+    assert result.state.snapshots[-1].total_pnl == Decimal("-1.19")
 
 
 def test_set_cash_balance_treats_the_difference_as_external_capital() -> None:
@@ -150,7 +150,7 @@ def test_sell_uses_best_bid_and_reduces_available_quantity() -> None:
     assert result.fill.price == Decimal("0.713")
     assert result.state.positions[0].quantity == 700
     assert result.state.positions[0].available_quantity == 500
-    assert result.state.account.cash == Decimal("1208.89")
+    assert result.state.account.cash == Decimal("1213.84")
 
 
 def test_market_order_falls_back_to_last_price_without_depth() -> None:

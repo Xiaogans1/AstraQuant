@@ -147,3 +147,10 @@ export interface PaperStrategyStatus {
   loop_interval_seconds: number;
   last_scan_at: string | null;
 }
+
+export interface PaperFeeConfig {
+  commission_rate: string;
+  minimum_commission: string;
+  stamp_duty_rate: string;
+  transfer_fee_rate: string;
+}

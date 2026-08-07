@@ -9,7 +9,7 @@ from threading import Lock
 from astraquant_api.market_service import MarketDataService
 from astraquant_api.paper_repository import PaperRepository
 from astraquant_domain import AccountMode, InstrumentId, LiveQuote, OrderSide, PaperAccount
-from astraquant_paper import ExecutionResult, LedgerState, PaperLedger
+from astraquant_paper import ExecutionResult, FeeSchedule, LedgerState, PaperLedger
 
 
 class QuoteUnavailable(RuntimeError):
@@ -23,12 +23,16 @@ class PaperService:
         repository: PaperRepository,
         market_service: MarketDataService,
         ledger: PaperLedger | None = None,
+        fee_schedule: FeeSchedule | None = None,
     ) -> None:
         self._repository = repository
         self._market_service = market_service
-        self._ledger = ledger or PaperLedger()
+        self._ledger = ledger or PaperLedger(fee_schedule)
         self._started = False
         self._account_creation_lock = Lock()
+
+    def set_fee_schedule(self, fee_schedule: FeeSchedule) -> None:
+        self._ledger = PaperLedger(fee_schedule)
 
     def start(self) -> None:
         if self._started:

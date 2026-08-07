@@ -10,16 +10,26 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from astraquant_api.market_service import MarketDataService
 from astraquant_api.paper_repository import PaperRepository, StrategyRunRecord
 from astraquant_api.paper_service import PaperService
 from astraquant_data.live_providers import ConnectionState
 from astraquant_data.market_bars import MarketPeriod
-from astraquant_domain import InstrumentId, OrderSide, PaperFill, PaperOrder, SignalAction
+from astraquant_domain import (
+    InstrumentId,
+    OrderSide,
+    PaperFill,
+    PaperOrder,
+    Position,
+    SignalAction,
+)
 from astraquant_quant import QuantDecision, evaluate_intraday_signal
 
 LOGGER = logging.getLogger(__name__)
+
+_CHINA_ZONE = ZoneInfo("Asia/Shanghai")
 
 
 class StrategyOutcome(StrEnum):
@@ -47,7 +57,7 @@ class PaperStrategyService:
         paper_service: PaperService,
         market_service: MarketDataService,
         repository: PaperRepository,
-        loop_interval_seconds: float = 60,
+        loop_interval_seconds: float = 5,
     ) -> None:
         self._paper_service = paper_service
         self._market_service = market_service
@@ -85,30 +95,78 @@ class PaperStrategyService:
             return
         async with self._scan_lock:
             for account in accounts:
-                state = self._paper_service.get_state(account.account_id)
-                if not state.positions:
-                    continue
-                await self.scan_account(
-                    account.account_id,
+                await self._scan_account_skipping_unchanged_bars(account.account_id)
+            self._last_scan_at = datetime.now(UTC)
+
+    async def _scan_account_skipping_unchanged_bars(self, account_id: str) -> None:
+        """Scan holdings, skipping any whose latest one-minute bar is unchanged.
+
+        The automatic loop is more frequent than the one-minute bar cadence;
+        re-evaluating (and re-executing) the same bar would duplicate orders.
+        """
+        state = self._paper_service.get_state(account_id)
+        if not state.positions:
+            return
+        latest = self._repository.latest_strategy_run_batch(account_id)
+        latest_event_by_instrument: dict[str, str] = {}
+        for record in latest:
+            try:
+                signal = json.loads(record.signal_json)
+            except (ValueError, TypeError):
+                continue
+            event_time = signal.get("event_time")
+            if isinstance(event_time, str):
+                latest_event_by_instrument[record.instrument_id] = event_time
+
+        pending: list[Position] = []
+        for position in state.positions:
+            bars = await self._market_service.bars(
+                str(position.instrument_id),
+                period=MarketPeriod.MINUTE_1,
+                count=60,
+            )
+            if not bars:
+                pending.append(position)
+                continue
+            current_event = bars[-1].timestamp.isoformat()
+            if latest_event_by_instrument.get(str(position.instrument_id)) == current_event:
+                continue
+            pending.append(position)
+        if not pending:
+            return
+        batch_id = str(uuid4())
+        results = await asyncio.gather(
+            *(
+                self.run(
+                    account_id,
+                    instrument_id=position.instrument_id,
                     quantity=100,
                     auto_execute=True,
                     max_position_percent=Decimal("20"),
                     decision_time=datetime.now(UTC),
                 )
-            self._last_scan_at = datetime.now(UTC)
+                for position in pending
+            )
+        )
+        self._persist_run_batch(account_id, results, batch_id=batch_id)
 
     async def run(
         self,
         account_id: str,
         *,
         instrument_id: InstrumentId,
-        quantity: int,
+        quantity: int | None = None,
         auto_execute: bool,
         max_position_percent: Decimal,
         decision_time: datetime,
     ) -> StrategyRunResult:
-        if quantity <= 0:
-            raise ValueError("quantity must be positive")
+        """Run the baseline check; order size is always engine-computed.
+
+        ``quantity`` is accepted for call-site compatibility but ignored: the
+        engine decides how many shares to trade so trends cannot nibble 100
+        shares at a time and the same direction is executed at most once per
+        trading day until the signal reverses.
+        """
         if not Decimal("0") < max_position_percent <= Decimal("100"):
             raise ValueError("max_position_percent must be between 0 and 100")
         rows = await self._market_service.bars(
@@ -128,20 +186,67 @@ class PaperStrategyService:
                 decision=decision,
                 outcome=StrategyOutcome.HOLD,
                 proposed_side=None,
-                proposed_quantity=quantity,
+                proposed_quantity=quantity if quantity is not None else 0,
+            )
+        decision_id = decision.decision_record.decision_id
+        if auto_execute and self._decision_already_executed(account_id, decision_id):
+            execution = self._paper_service.submit_market_order(
+                account_id,
+                instrument_id=instrument_id,
+                side=side,
+                quantity=100,
+                idempotency_key=f"strategy-{decision_id}",
+                now=decision_time,
+                stamp_duty_exempt=instrument_id.symbol.startswith(("1", "5")),
+            )
+            return StrategyRunResult(
+                decision=decision,
+                outcome=StrategyOutcome.EXECUTED,
+                proposed_side=side,
+                proposed_quantity=(execution.fill.quantity if execution.fill is not None else 100),
+                order=execution.order,
+                fill=execution.fill,
+            )
+        suggested = self._suggested_quantity(
+            account_id,
+            instrument_id=instrument_id,
+            side=side,
+            max_position_percent=max_position_percent,
+        )
+        if suggested <= 0:
+            return StrategyRunResult(
+                decision=decision,
+                outcome=StrategyOutcome.HOLD,
+                proposed_side=side,
+                proposed_quantity=0,
+                risk_reason="当前无可卖数量或买入预算不足 等待行情变化",
+            )
+        if self._same_direction_already_executed(
+            account_id,
+            instrument_id=instrument_id,
+            side=side,
+            decision_time=decision_time,
+            current_decision_id=decision.decision_record.decision_id,
+        ):
+            return StrategyRunResult(
+                decision=decision,
+                outcome=StrategyOutcome.HOLD,
+                proposed_side=side,
+                proposed_quantity=suggested,
+                risk_reason="同方向信号今日已执行 等待信号反转后再操作",
             )
         if not auto_execute:
             return StrategyRunResult(
                 decision=decision,
                 outcome=StrategyOutcome.SUGGESTED,
                 proposed_side=side,
-                proposed_quantity=quantity,
+                proposed_quantity=suggested,
             )
         risk_reason = self._risk_reason(
             account_id,
             instrument_id=instrument_id,
             side=side,
-            quantity=quantity,
+            quantity=suggested,
             max_position_percent=max_position_percent,
         )
         if risk_reason is not None:
@@ -149,14 +254,14 @@ class PaperStrategyService:
                 decision=decision,
                 outcome=StrategyOutcome.BLOCKED,
                 proposed_side=side,
-                proposed_quantity=quantity,
+                proposed_quantity=suggested,
                 risk_reason=risk_reason,
             )
         execution = self._paper_service.submit_market_order(
             account_id,
             instrument_id=instrument_id,
             side=side,
-            quantity=quantity,
+            quantity=suggested,
             idempotency_key=f"strategy-{decision.decision_record.decision_id}",
             now=decision_time,
             stamp_duty_exempt=instrument_id.symbol.startswith(("1", "5")),
@@ -165,12 +270,74 @@ class PaperStrategyService:
             decision=decision,
             outcome=StrategyOutcome.EXECUTED,
             proposed_side=side,
-            proposed_quantity=quantity,
+            proposed_quantity=suggested,
             order=execution.order,
             fill=execution.fill,
         )
         self._persist_run(account_id, result, batch_id=str(uuid4()))
         return result
+
+    def _decision_already_executed(self, account_id: str, decision_id: str) -> bool:
+        batch = self._repository.latest_strategy_run_batch(account_id)
+        return any(
+            record.decision_id == decision_id and record.order_json is not None for record in batch
+        )
+
+    def _suggested_quantity(
+        self,
+        account_id: str,
+        *,
+        instrument_id: InstrumentId,
+        side: OrderSide,
+        max_position_percent: Decimal,
+    ) -> int:
+        state = self._paper_service.get_state(account_id)
+        position = next(
+            (item for item in state.positions if item.instrument_id == instrument_id),
+            None,
+        )
+        if side is OrderSide.SELL:
+            return 0 if position is None else position.available_quantity
+        quote = self._market_service.latest_quote(str(instrument_id))
+        if quote is None or quote.last_price <= 0:
+            return 0
+        assert state.initial_equity is not None
+        budget = state.initial_equity * max_position_percent / Decimal("100")
+        current_value = Decimal("0") if position is None else position.market_value
+        available = budget - current_value
+        if available <= 0:
+            return 0
+        lots = int(available / quote.last_price / 100)
+        return lots * 100
+
+    def _same_direction_already_executed(
+        self,
+        account_id: str,
+        *,
+        instrument_id: InstrumentId,
+        side: OrderSide,
+        decision_time: datetime,
+        current_decision_id: str,
+    ) -> bool:
+        today = decision_time.astimezone(_CHINA_ZONE).date()
+        batch = self._repository.latest_strategy_run_batch(account_id)
+        for record in batch:
+            if record.instrument_id != str(instrument_id):
+                continue
+            if record.order_json is None:
+                continue
+            if record.decision_id == current_decision_id:
+                continue
+            try:
+                signal = json.loads(record.signal_json)
+            except (ValueError, TypeError):
+                continue
+            executed_day = record.decision_time.astimezone(_CHINA_ZONE).date()
+            if executed_day != today:
+                continue
+            action = signal.get("action")
+            return isinstance(action, str) and action == side.value
+        return False
 
     async def scan_account(
         self,

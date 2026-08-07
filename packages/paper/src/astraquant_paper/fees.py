@@ -28,8 +28,8 @@ class FeeBreakdown:
 
 @dataclass(frozen=True, slots=True)
 class FeeSchedule:
-    commission_rate: Decimal = Decimal("0.0003")
-    minimum_commission: Decimal = Decimal("5")
+    commission_rate: Decimal = Decimal("0.00025")
+    minimum_commission: Decimal = Decimal("0")
     stamp_duty_rate: Decimal = Decimal("0.0005")
     transfer_fee_rate: Decimal = Decimal("0.00001")
 

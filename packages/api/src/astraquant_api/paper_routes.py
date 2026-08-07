@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Annotated, Any
+from decimal import Decimal
+from typing import Annotated, Any, Protocol
 from uuid import uuid4
 
 from fastapi import APIRouter, Header
@@ -18,6 +19,7 @@ from astraquant_api.paper_schemas import (
     AccountSummaryView,
     CashBalanceRequest,
     EquityView,
+    FeeConfigView,
     FillView,
     MarketOrderRequest,
     OpeningPositionRequest,
@@ -31,7 +33,16 @@ from astraquant_api.paper_schemas import (
 from astraquant_api.paper_service import PaperService, QuoteUnavailable
 from astraquant_api.paper_strategy_service import PaperStrategyService, StrategyRunResult
 from astraquant_domain import InstrumentId, OrderSide, PaperAccount
-from astraquant_paper import LedgerState
+from astraquant_paper import FeeSchedule, LedgerState
+
+
+class SettingsStore(Protocol):
+    def get_setting(self, key: str) -> object | None: ...
+
+    def set_setting(self, key: str, value: object) -> None: ...
+
+
+_FEE_CONFIG_KEY = "paper.fee_schedule"
 
 
 def build_paper_router(
@@ -40,8 +51,48 @@ def build_paper_router(
     strategy_service: PaperStrategyService | None,
     authenticated: Any,
     validate_idempotency_key: Callable[[str | None], str],
+    settings_store: SettingsStore | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/paper", dependencies=[authenticated])
+
+    @router.get("/fee-config", response_model=FeeConfigView)
+    def get_fee_config() -> FeeConfigView:
+        stored = None if settings_store is None else settings_store.get_setting(_FEE_CONFIG_KEY)
+        if not isinstance(stored, dict):
+            return FeeConfigView.from_schedule(FeeSchedule())
+        try:
+            return FeeConfigView(
+                commission_rate=Decimal(str(stored["commission_rate"])),
+                minimum_commission=Decimal(str(stored["minimum_commission"])),
+                stamp_duty_rate=Decimal(str(stored["stamp_duty_rate"])),
+                transfer_fee_rate=Decimal(str(stored["transfer_fee_rate"])),
+            )
+        except (KeyError, TypeError, ValueError):
+            return FeeConfigView.from_schedule(FeeSchedule())
+
+    @router.put("/fee-config", response_model=FeeConfigView)
+    def update_fee_config(request: FeeConfigView) -> FeeConfigView:
+        for label, rate in (
+            ("commission_rate", request.commission_rate),
+            ("stamp_duty_rate", request.stamp_duty_rate),
+            ("transfer_fee_rate", request.transfer_fee_rate),
+        ):
+            if not Decimal("0") <= rate <= Decimal("1"):
+                raise ApiProblem(422, "invalid_fee_config", f"{label} 必须在 0 到 1 之间")
+        if request.minimum_commission < 0:
+            raise ApiProblem(422, "invalid_fee_config", "最低佣金不能为负")
+        if settings_store is not None:
+            settings_store.set_setting(
+                _FEE_CONFIG_KEY,
+                {
+                    "commission_rate": str(request.commission_rate),
+                    "minimum_commission": str(request.minimum_commission),
+                    "stamp_duty_rate": str(request.stamp_duty_rate),
+                    "transfer_fee_rate": str(request.transfer_fee_rate),
+                },
+            )
+        service.set_fee_schedule(request.to_schedule())
+        return request
 
     @router.post("/accounts", response_model=AccountDetailView, status_code=201)
     def create_account(request: AccountCreateRequest) -> AccountDetailView:

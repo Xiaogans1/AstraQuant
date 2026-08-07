@@ -31,6 +31,7 @@ import type {
   PaperAccountDetail,
   PaperAccountSummary,
   PaperEquity,
+  PaperFeeConfig,
   PaperFill,
   PaperMarketOrderRequest,
   PaperOrder,
@@ -290,6 +291,17 @@ export class ApiClient {
 
   getPaperStrategyStatus(): Promise<PaperStrategyStatus> {
     return this.request("/v1/paper/strategy/status");
+  }
+
+  getPaperFeeConfig(): Promise<PaperFeeConfig> {
+    return this.request("/v1/paper/fee-config");
+  }
+
+  updatePaperFeeConfig(config: PaperFeeConfig): Promise<PaperFeeConfig> {
+    return this.request("/v1/paper/fee-config", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    });
   }
 
   getSettings(): Promise<Settings> {

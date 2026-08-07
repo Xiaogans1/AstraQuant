@@ -13,6 +13,7 @@ import type {
   CreatePaperAccountRequest,
   OpeningPositionRequest,
   PaperCashBalanceRequest,
+  PaperFeeConfig,
   PaperMarketOrderRequest,
   PaperStrategyRunRequest,
 } from "./paper-contracts";
@@ -47,6 +48,7 @@ export const queryKeys = {
   paperStrategyRuns: (accountId: string) =>
     ["paper", "accounts", accountId, "strategy-runs"] as const,
   paperStrategyStatus: ["paper", "strategy", "status"] as const,
+  paperFeeConfig: ["paper", "fee-config"] as const,
 };
 
 export function useDefaultPaperAccountQuery(client: ApiClient) {
@@ -244,6 +246,24 @@ export function usePaperStrategyStatusQuery(client: ApiClient) {
     queryFn: () => client.getPaperStrategyStatus(),
     staleTime: 15_000,
     refetchInterval: 15_000,
+  });
+}
+
+export function usePaperFeeConfigQuery(client: ApiClient) {
+  return useQuery({
+    queryKey: queryKeys.paperFeeConfig,
+    queryFn: () => client.getPaperFeeConfig(),
+    staleTime: 30_000,
+  });
+}
+
+export function useUpdatePaperFeeConfigMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (config: PaperFeeConfig) => client.updatePaperFeeConfig(config),
+    onSuccess: (config) => {
+      queryClient.setQueryData(queryKeys.paperFeeConfig, config);
+    },
   });
 }
 
