@@ -84,6 +84,35 @@ class PaperLedger:
             positions=(*state.positions, position),
         )
 
+    def set_cash_balance(
+        self,
+        state: LedgerState,
+        *,
+        cash: Decimal,
+        now: datetime,
+    ) -> LedgerState:
+        """Record an external cash adjustment without changing strategy PnL."""
+        if cash < 0:
+            raise ValueError("cash must be non-negative")
+        assert state.initial_equity is not None
+        cash_delta = cash - state.account.cash
+        next_account = replace(state.account, cash=cash, updated_at=now)
+        next_initial_equity = state.initial_equity + cash_delta
+        if next_initial_equity < 0:
+            raise ValueError("initial_equity must be non-negative")
+        snapshot = self._snapshot(
+            next_account,
+            next_initial_equity,
+            state.positions,
+            now,
+        )
+        return replace(
+            state,
+            account=next_account,
+            initial_equity=next_initial_equity,
+            snapshots=(*state.snapshots, snapshot),
+        )
+
     def mark_to_market(
         self,
         state: LedgerState,

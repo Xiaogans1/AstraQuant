@@ -451,8 +451,17 @@ from astraquant_domain import Adjustment, BarFrequency, InstrumentId
 class FakeAkShare:
     def stock_zh_a_hist(self, **_: object) -> pd.DataFrame:
         return pd.DataFrame(
-            [{"日期": "2026-07-24", "开盘": 10, "最高": 11, "最低": 9, "收盘": 10.5,
-              "成交量": 100, "成交额": 105000}]
+            [
+                {
+                    "日期": "2026-07-24",
+                    "开盘": 10,
+                    "最高": 11,
+                    "最低": 9,
+                    "收盘": 10.5,
+                    "成交量": 100,
+                    "成交额": 105000,
+                }
+            ]
         )
 
 
@@ -942,6 +951,7 @@ def from_manifest(
     manifest_path: Path,
 ) -> MarketDataQuery: ...
 
+
 def bars_between(
     self,
     *,
@@ -949,6 +959,7 @@ def bars_between(
     start: datetime,
     end: datetime,
 ) -> list[Bar]: ...
+
 
 def bars_as_of(
     self,

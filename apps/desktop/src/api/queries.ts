@@ -12,6 +12,7 @@ import type { ConnectionState, MarketPeriod } from "./market-contracts";
 import type {
   CreatePaperAccountRequest,
   OpeningPositionRequest,
+  PaperCashBalanceRequest,
   PaperMarketOrderRequest,
   PaperStrategyRunRequest,
 } from "./paper-contracts";
@@ -124,6 +125,27 @@ export function useAddPaperPositionMutation(client: ApiClient) {
     onSuccess: async (detail) => {
       queryClient.setQueryData(queryKeys.paperAccount(detail.account.account_id), detail);
       await queryClient.invalidateQueries({ queryKey: queryKeys.paperAccounts });
+    },
+  });
+}
+
+export function useUpdatePaperCashMutation(client: ApiClient) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      accountId,
+      request,
+    }: {
+      accountId: string;
+      request: PaperCashBalanceRequest;
+    }) => client.updatePaperCash(accountId, request),
+    onSuccess: async (detail) => {
+      const accountId = detail.account.account_id;
+      queryClient.setQueryData(queryKeys.paperAccount(accountId), detail);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperAccounts }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.paperEquity(accountId) }),
+      ]);
     },
   });
 }

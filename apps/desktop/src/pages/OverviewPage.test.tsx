@@ -219,7 +219,7 @@ it("searches the real catalog and adds the selected instrument", async () => {
   ]);
 
   await user.type(await screen.findByRole("searchbox", { name: "搜索证券" }), "600000");
-  await user.click(await screen.findByRole("button", { name: /浦发银行.*加入自选/ }));
+  await user.click(await screen.findByRole("button", { name: /浦发银行.*选择/ }));
 
   expect(client.searchMarketInstruments).toHaveBeenCalledWith("600000");
   expect(client.addWatchlistInstrument).toHaveBeenCalledWith("600000.SSE");

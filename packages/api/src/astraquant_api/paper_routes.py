@@ -14,6 +14,7 @@ from astraquant_api.paper_schemas import (
     AccountCreateRequest,
     AccountDetailView,
     AccountSummaryView,
+    CashBalanceRequest,
     EquityView,
     FillView,
     MarketOrderRequest,
@@ -86,6 +87,19 @@ def build_paper_router(
     @router.get("/accounts/{account_id}", response_model=AccountDetailView)
     def get_account(account_id: str) -> AccountDetailView:
         return AccountDetailView.from_state(_state_or_404(service, account_id))
+
+    @router.patch("/accounts/{account_id}/cash", response_model=AccountDetailView)
+    def update_cash_balance(
+        account_id: str,
+        request: CashBalanceRequest,
+    ) -> AccountDetailView:
+        try:
+            state = service.set_cash_balance(account_id, cash=request.cash)
+        except KeyError:
+            raise ApiProblem(404, "paper_account_not_found", "未找到模拟账户") from None
+        except ValueError as error:
+            raise ApiProblem(409, "cash_balance_conflict", str(error)) from None
+        return AccountDetailView.from_state(state)
 
     @router.post(
         "/accounts/{account_id}/positions/opening",

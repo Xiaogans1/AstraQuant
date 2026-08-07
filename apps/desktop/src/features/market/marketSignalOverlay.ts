@@ -4,7 +4,7 @@ export interface MarketSignalMarker {
   side: "BUY" | "SELL";
   price: number;
   label: string;
-  source: "QUANT";
+  source: "QUANT" | "PAPER_FILL";
 }
 
 export interface MarketSignalOverlay {

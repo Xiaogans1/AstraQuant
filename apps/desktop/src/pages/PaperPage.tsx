@@ -4,20 +4,26 @@ import type { ApiClient } from "../api/client";
 import {
   useAddPaperPositionMutation,
   useDefaultPaperAccountQuery,
+  useMarketConnectionQuery,
   usePaperAccountQuery,
   usePaperAccountsQuery,
   usePaperEquityQuery,
   usePaperFillsQuery,
   usePaperOrdersQuery,
   useRunPaperStrategyMutation,
-  useSubmitPaperOrderMutation,
+  useUpdatePaperCashMutation,
 } from "../api/queries";
 import type {
   PaperAccountDetail,
   PaperAccountSummary,
   PaperEquity,
-  PaperOrderSide,
+  PaperPosition,
 } from "../api/paper-contracts";
+import type { ConnectionState, QuoteCard } from "../api/market-contracts";
+import type { MarketSignalMarker } from "../features/market/marketSignalOverlay";
+import { ApiError } from "../api/client";
+import { InstrumentSearchPicker, type InstrumentSelection } from "../components/InstrumentSearchPicker";
+import { MarketWorkspace } from "../components/MarketWorkspace";
 import { Panel } from "../components/Panel";
 
 export function PaperPage({ client }: { client: ApiClient }) {
@@ -89,6 +95,7 @@ function AccountWorkspace({
   const ordersQuery = usePaperOrdersQuery(client, accountId);
   const fillsQuery = usePaperFillsQuery(client, accountId);
   const equityQuery = usePaperEquityQuery(client, accountId);
+  const connectionQuery = useMarketConnectionQuery(client);
   const selectedSummary = accounts.find((item) => item.account_id === accountId) ?? accounts[0];
   const detail = accountQuery.data;
   const equity = detail?.latest_equity;
@@ -96,11 +103,43 @@ function AccountWorkspace({
   const totalPnl = equity?.total_pnl ?? selectedSummary.total_pnl;
   const marketValue = equity?.market_value ?? "0";
   const cash = equity?.cash ?? detail?.account.cash ?? selectedSummary.cash;
+  const positions = detail?.positions ?? [];
+  const [selectedInstrumentId, setSelectedInstrumentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      positions.length > 0
+      && !positions.some((item) => item.instrument_id === selectedInstrumentId)
+    ) {
+      setSelectedInstrumentId(positions[0].instrument_id);
+    }
+  }, [positions, selectedInstrumentId]);
+
+  const selectedPosition = positions.find(
+    (item) => item.instrument_id === selectedInstrumentId,
+  ) ?? positions[0];
+  const selectedQuote = selectedPosition === undefined
+    ? null
+    : positionQuote(selectedPosition, connectionQuery.data?.state ?? "UNAVAILABLE");
+  const paperMarkers = useMemo<MarketSignalMarker[]>(
+    () => (fillsQuery.data ?? [])
+      .filter((fill) => fill.instrument_id === selectedPosition?.instrument_id)
+      .map((fill) => ({
+        id: fill.fill_id,
+        timestamp: Date.parse(fill.occurred_at),
+        side: fill.side,
+        price: Number(fill.price),
+        label: `模拟成交 · ${fill.quantity} 份 @ ${fill.price}`,
+        source: "PAPER_FILL" as const,
+      }))
+      .filter((item) => Number.isFinite(item.timestamp) && Number.isFinite(item.price)),
+    [fillsQuery.data, selectedPosition?.instrument_id],
+  );
 
   return (
     <div className="paper-workspace">
       <div className="paper-account-bar">
-        <div>
+        <div className="paper-account-bar__identity">
           <p className="panel__eyebrow">SHADOW PORTFOLIO / REAL QUOTES</p>
           <select
             aria-label="模拟账户"
@@ -114,28 +153,31 @@ function AccountWorkspace({
             ))}
           </select>
         </div>
-        <span className="paper-live-badge">真实行情盯市</span>
-        <span className="paper-virtual-badge">不发送券商委托</span>
+        <div className="paper-account-bar__status">
+          <span className="paper-live-badge">真实行情盯市</span>
+          <span className="paper-virtual-badge">仅虚拟成交</span>
+        </div>
+        <CashEditor client={client} accountId={accountId} cash={cash} />
       </div>
 
       <section className="paper-equity-rail" aria-label="账户权益摘要">
         <Metric label="总资产" value={formatMoney(totalEquity)} primary />
         <Metric label="累计盈亏" value={formatSignedMoney(totalPnl)} trend={Number(totalPnl)} />
         <Metric label="持仓市值" value={formatMoney(marketValue)} />
-        <Metric label="可用现金" value={formatMoney(cash)} />
+        <Metric label="剩余现金" value={formatMoney(cash)} />
         <Metric
           label="权益基线"
           value={formatMoney(selectedSummary.initial_equity)}
         />
       </section>
 
-      <EquityPulse equity={equityQuery.data ?? []} baseline={selectedSummary.initial_equity} />
-
-      <StrategyConsole
-        client={client}
-        accountId={accountId}
-        defaultInstrument={detail?.positions[0]?.instrument_id ?? "159516.SZSE"}
-      />
+      <div className="paper-equity-formula" role="note">
+        <strong>总资产</strong>
+        <span>=</span>
+        <span>剩余现金 {formatMoney(cash)}</span>
+        <span>+</span>
+        <span>持仓市值 {formatMoney(marketValue)}</span>
+      </div>
 
       <div className="paper-grid">
         <Panel title="当前持仓" eyebrow="POSITIONS / MARKED">
@@ -145,16 +187,17 @@ function AccountWorkspace({
             <div className="paper-table-wrap">
               <table className="paper-table">
                 <thead>
-                  <tr><th>证券</th><th>数量 / 可用</th><th>成本 / 最新</th><th>市值</th><th>浮动盈亏</th></tr>
+                  <tr><th>证券</th><th>数量 / 可用</th><th>成本 / 最新</th><th>市值</th><th>浮动盈亏</th><th /></tr>
                 </thead>
                 <tbody>
                   {detail.positions.map((position) => (
-                    <tr key={position.instrument_id}>
+                    <tr key={position.instrument_id} data-selected={position.instrument_id === selectedPosition?.instrument_id}>
                       <td><strong>{position.name ?? position.instrument_id}</strong><small>{position.instrument_id}</small></td>
                       <td>{position.quantity.toLocaleString()}<small>可用 {position.available_quantity.toLocaleString()}</small></td>
                       <td>{position.average_cost}<small>{position.last_price ?? "等待行情"}</small></td>
                       <td>{formatMoney(position.market_value)}</td>
                       <td className={trendClass(Number(position.unrealized_pnl))}>{formatSignedMoney(position.unrealized_pnl)}<small>{formatPercent(position.unrealized_pnl_percent)}</small></td>
+                      <td><button type="button" className="paper-table__chart-action" onClick={() => setSelectedInstrumentId(position.instrument_id)}>查看策略图</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -162,8 +205,32 @@ function AccountWorkspace({
             </div>
           )}
         </Panel>
-        <TradingDock client={client} accountId={accountId} />
+        <OpeningPositionDock client={client} accountId={accountId} />
       </div>
+
+      <StrategyConsole
+        client={client}
+        accountId={accountId}
+        instrument={selectedPosition?.instrument_id ?? null}
+        instrumentName={selectedPosition?.name ?? null}
+      />
+
+      {selectedQuote === null ? (
+        <section className="paper-chart-empty">
+          <strong>录入持仓后显示策略图</strong>
+          <p>这里将复用首页的真实分时与 K 线，并叠加量化信号和模拟成交点。</p>
+        </section>
+      ) : (
+        <MarketWorkspace
+          client={client}
+          quote={selectedQuote}
+          state={connectionQuery.data?.state ?? "UNAVAILABLE"}
+          contextLabel="主模拟账户 · 持仓策略图"
+          portfolioMarkers={paperMarkers}
+        />
+      )}
+
+      <EquityPulse equity={equityQuery.data ?? []} baseline={selectedSummary.initial_equity} />
 
       <div className="paper-grid paper-grid--history">
         <Panel title="订单与风控结果" eyebrow="ORDERS / AUDIT">
@@ -196,52 +263,50 @@ function AccountWorkspace({
 function StrategyConsole({
   client,
   accountId,
-  defaultInstrument,
+  instrument,
+  instrumentName,
 }: {
   client: ApiClient;
   accountId: string;
-  defaultInstrument: string;
+  instrument: string | null;
+  instrumentName: string | null;
 }) {
   const runStrategy = useRunPaperStrategyMutation(client);
-  const [instrument, setInstrument] = useState(defaultInstrument);
-  const [quantity, setQuantity] = useState("100");
-  const [maxPosition, setMaxPosition] = useState("20");
-  const [autoExecute, setAutoExecute] = useState(false);
-
-  useEffect(() => setInstrument(defaultInstrument), [defaultInstrument]);
   const result = runStrategy.data;
   return (
     <Panel
-      title="策略执行台"
-      eyebrow="QUANT / AUDITABLE BASELINE"
+      title="量化策略"
+      eyebrow="STRATEGY / ACCOUNT CONTEXT"
       className="paper-strategy"
       action={<span className="paper-strategy__version">baseline-v1</span>}
     >
       <div className="paper-strategy__layout">
-        <form
-          className="paper-strategy__controls"
-          onSubmit={(event) => {
-            event.preventDefault();
+        <div className="paper-strategy__controls">
+          <div className="paper-strategy__scope">
+            <span>当前检查范围</span>
+            <strong>{instrument === null ? "等待录入持仓" : `${instrumentName ?? instrument} · ${instrument}`}</strong>
+            <small>建议数量和仓位限制由量化与风控引擎自动计算</small>
+          </div>
+          <button
+            type="button"
+            disabled={runStrategy.isPending || instrument === null}
+            onClick={() => {
+              if (instrument === null) return;
             runStrategy.mutate({
               accountId,
               request: {
                 instrument_id: instrument,
-                quantity: Number(quantity),
-                auto_execute: autoExecute,
-                max_position_percent: maxPosition,
+                quantity: 100,
+                auto_execute: true,
+                max_position_percent: "20",
               },
             });
           }}
-        >
-          <label>证券代码<input value={instrument} onChange={(event) => setInstrument(event.target.value.toUpperCase())} /></label>
-          <label>建议数量<input inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
-          <label>单标的仓位上限<input inputMode="decimal" value={maxPosition} onChange={(event) => setMaxPosition(event.target.value)} /><span>%</span></label>
-          <label className="paper-strategy__switch"><input type="checkbox" checked={autoExecute} onChange={(event) => setAutoExecute(event.target.checked)} /><span>允许自动执行模拟成交</span></label>
-          <button type="submit" disabled={runStrategy.isPending}>{runStrategy.isPending ? "正在读取真实行情…" : "运行 baseline-v1"}</button>
-        </form>
+          >{runStrategy.isPending ? "正在检查真实行情…" : "运行一次检查"}</button>
+        </div>
         <div className="paper-strategy__result" aria-live="polite">
           {result === undefined ? (
-            <><strong>默认只生成建议</strong><p>策略、信号、风控和结果都有确定版本与审计编号。即使开启自动执行，也只写入本地模拟账本。</p></>
+            <><strong>策略由量化核心执行</strong><p>当前版本先进行单次检查；产生的信号、风控结果和虚拟成交都会进入本地审计记录。</p></>
           ) : (
             <>
               <div className="paper-strategy__outcome" data-outcome={result.outcome}>{result.outcome} · {result.signal.state}</div>
@@ -258,70 +323,113 @@ function StrategyConsole({
   );
 }
 
-function TradingDock({ client, accountId }: { client: ApiClient; accountId: string }) {
+function OpeningPositionDock({ client, accountId }: { client: ApiClient; accountId: string }) {
   const addPosition = useAddPaperPositionMutation(client);
-  const submitOrder = useSubmitPaperOrderMutation(client);
-  const [mode, setMode] = useState<"position" | "order">("position");
-  const [instrument, setInstrument] = useState("159516.SZSE");
-  const [name, setName] = useState("半导体设备ETF");
-  const [quantity, setQuantity] = useState("100");
-  const [available, setAvailable] = useState("100");
-  const [cost, setCost] = useState("0.6800");
-  const [side, setSide] = useState<PaperOrderSide>("BUY");
-  const activeMutation = mode === "position" ? addPosition : submitOrder;
+  const [instrument, setInstrument] = useState<InstrumentSelection | null>(null);
+  const [quantity, setQuantity] = useState("");
+  const [available, setAvailable] = useState("");
+  const [cost, setCost] = useState("");
   return (
     <Panel
-      title={mode === "position" ? "录入当前持仓" : "提交虚拟订单"}
-      eyebrow="CONTROL / LOCAL ONLY"
+      title="初始化持仓"
+      eyebrow="ACCOUNT SETUP / HOLDINGS"
       className="paper-dock"
-      action={
-        <div className="paper-segmented">
-          <button type="button" data-active={mode === "position"} onClick={() => setMode("position")}>持仓</button>
-          <button type="button" data-active={mode === "order"} onClick={() => setMode("order")}>买卖</button>
-        </div>
-      }
+      action={<span className="paper-dock__step">可连续添加</span>}
     >
+      <p className="paper-dock__hint">只录入你现在真实持有的证券。后续买卖全部由量化策略在模拟盘完成。</p>
       <form
         className="paper-form paper-form--compact"
         onSubmit={(event) => {
           event.preventDefault();
-          if (mode === "position") {
-            addPosition.mutate({
-              accountId,
-              request: {
-                instrument_id: instrument,
-                name: name || null,
-                quantity: Number(quantity),
-                available_quantity: Number(available),
-                average_cost: cost,
-              },
-            });
-          } else {
-            submitOrder.mutate({
-              accountId,
-              idempotencyKey: `paper-${Date.now()}-${crypto.randomUUID()}`,
-              request: {
-                instrument_id: instrument,
-                name: name || null,
-                side,
-                quantity: Number(quantity),
-                stamp_duty_exempt: /ETF/i.test(name),
-              },
-            });
-          }
+          if (instrument === null) return;
+          addPosition.mutate({
+            accountId,
+            request: {
+              instrument_id: instrument.instrument_id,
+              name: instrument.name,
+              quantity: Number(quantity),
+              available_quantity: Number(available),
+              average_cost: cost,
+            },
+          }, {
+            onSuccess: () => {
+              setInstrument(null);
+              setQuantity("");
+              setAvailable("");
+              setCost("");
+            },
+          });
         }}
       >
-        <label>证券代码<input value={instrument} onChange={(event) => setInstrument(event.target.value.toUpperCase())} /></label>
-        <label>证券名称<input value={name} onChange={(event) => setName(event.target.value)} /></label>
-        {mode === "order" ? (
-          <label>方向<select value={side} onChange={(event) => setSide(event.target.value as PaperOrderSide)}><option value="BUY">买入</option><option value="SELL">卖出</option></select></label>
-        ) : null}
-        <label>数量<input inputMode="numeric" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label>
-        {mode === "position" ? <><label>可用数量<input inputMode="numeric" value={available} onChange={(event) => setAvailable(event.target.value)} /></label><label>平均成本<input inputMode="decimal" value={cost} onChange={(event) => setCost(event.target.value)} /></label></> : null}
-        <button type="submit" disabled={activeMutation.isPending}>{mode === "position" ? "保存期初持仓" : "按真实行情虚拟成交"}</button>
-        {activeMutation.error instanceof Error ? <p className="paper-form__error">{activeMutation.error.message}</p> : null}
+        <label>
+          证券（从真实搜索结果中选择）
+          <InstrumentSearchPicker
+            client={client}
+            value={instrument}
+            onChange={setInstrument}
+            ariaLabel="搜索期初持仓证券"
+            placeholder="输入代码或名称，如 159516 或半导体设备"
+          />
+        </label>
+        <label>持有数量<input required min="1" type="number" inputMode="numeric" value={quantity} onChange={(event) => { setQuantity(event.target.value); if (available === "") setAvailable(event.target.value); }} /></label>
+        <label>可用数量<input required min="0" type="number" inputMode="numeric" value={available} onChange={(event) => setAvailable(event.target.value)} /></label>
+        <label>平均成本<input required min="0" step="any" type="number" inputMode="decimal" value={cost} onChange={(event) => setCost(event.target.value)} /></label>
+        <button type="submit" disabled={addPosition.isPending || instrument === null}>{addPosition.isPending ? "正在保存…" : "添加到初始持仓"}</button>
+        {addPosition.error instanceof Error ? <p className="paper-form__error">{friendlyPaperError(addPosition.error)}</p> : null}
       </form>
     </Panel>
+  );
+}
+
+function friendlyPaperError(error: Error): string {
+  if (error instanceof ApiError && error.code === "opening_position_conflict") {
+    if (/invalid instrument identifier/i.test(error.message)) {
+      return "请从搜索结果中选择有效的证券后再提交";
+    }
+    if (/already exists/i.test(error.message)) {
+      return "该证券已在期初持仓中，请勿重复添加";
+    }
+    return "该证券无法加入期初持仓，请检查后重试";
+  }
+  return error.message;
+}
+
+function CashEditor({
+  client,
+  accountId,
+  cash,
+}: {
+  client: ApiClient;
+  accountId: string;
+  cash: string;
+}) {
+  const updateCash = useUpdatePaperCashMutation(client);
+  const [value, setValue] = useState(cash);
+  useEffect(() => setValue(cash), [accountId, cash]);
+  return (
+    <form
+      className="paper-cash-editor"
+      onSubmit={(event) => {
+        event.preventDefault();
+        updateCash.mutate({ accountId, request: { cash: value } });
+      }}
+    >
+      <label>
+        <span>剩余现金（不含持仓）</span>
+        <input
+          aria-label="剩余现金（不含持仓）"
+          type="number"
+          min="0"
+          step="0.01"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      </label>
+      <button type="submit" disabled={updateCash.isPending || value === cash}>
+        {updateCash.isPending ? "保存中…" : "保存资金"}
+      </button>
+      {updateCash.error instanceof Error ? <span role="alert">{updateCash.error.message}</span> : null}
+    </form>
   );
 }
 
@@ -351,3 +459,23 @@ function formatSignedMoney(value: string): string { const amount = Number(value)
 function formatPercent(value: string | null): string { if (value === null) return "—"; const amount = Number(value); return `${amount >= 0 ? "+" : ""}${amount.toFixed(2)}%`; }
 function formatTime(value: string): string { return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }).format(new Date(value)); }
 function trendClass(value: number): string { return value >= 0 ? "paper-trend-up" : "paper-trend-down"; }
+
+function positionQuote(position: PaperPosition, state: ConnectionState): QuoteCard {
+  return {
+    instrument_id: position.instrument_id,
+    name: position.name ?? position.instrument_id,
+    kind: "holding",
+    state,
+    event_time: position.marked_at,
+    last_price: position.last_price ?? position.average_cost,
+    change: null,
+    change_percent: position.unrealized_pnl_percent,
+    previous_close: null,
+    open: null,
+    high: null,
+    low: null,
+    volume: null,
+    turnover: null,
+    source_id: "paper-position",
+  };
+}

@@ -86,7 +86,20 @@ const bars: MarketBar[] = [
   },
 ];
 
-function renderWorkspace() {
+function renderWorkspace({
+  contextLabel,
+  portfolioMarkers = [],
+}: {
+  contextLabel?: string;
+  portfolioMarkers?: Array<{
+    id: string;
+    timestamp: number;
+    side: "BUY" | "SELL";
+    price: number;
+    label: string;
+    source: "PAPER_FILL";
+  }>;
+} = {}) {
   const client = {
     getMarketBars: vi.fn().mockResolvedValue(bars),
     getMarketSignal: vi.fn().mockResolvedValue({
@@ -128,11 +141,34 @@ function renderWorkspace() {
   });
   render(
     <QueryClientProvider client={queryClient}>
-      <MarketWorkspace client={client} quote={quote} state="LIVE" />
+      <MarketWorkspace
+        client={client}
+        quote={quote}
+        state="LIVE"
+        contextLabel={contextLabel}
+        portfolioMarkers={portfolioMarkers}
+      />
     </QueryClientProvider>,
   );
   return client;
 }
+
+it("merges paper fills into the shared chart in account context", async () => {
+  renderWorkspace({
+    contextLabel: "主模拟账户 · 持仓策略图",
+    portfolioMarkers: [{
+      id: "fill-1",
+      timestamp: Date.parse("2026-08-06T10:01:00+08:00"),
+      side: "BUY",
+      price: 0.703,
+      label: "模拟成交 · 100 份",
+      source: "PAPER_FILL",
+    }],
+  });
+
+  expect(await screen.findByText("主模拟账户 · 持仓策略图")).toBeVisible();
+  expect(await screen.findByTestId("chart-signals")).toHaveTextContent("signal-1,fill-1");
+});
 
 it("shows truthful broker-style quote stats and a full-width chart", async () => {
   const client = renderWorkspace();

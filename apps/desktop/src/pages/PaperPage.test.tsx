@@ -3,11 +3,20 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import type { ApiClient } from "../api/client";
+import { ApiError } from "../api/client";
 import type {
   PaperAccountDetail,
   PaperAccountSummary,
 } from "../api/paper-contracts";
 import { PaperPage } from "./PaperPage";
+
+vi.mock("../components/MarketWorkspace", () => ({
+  MarketWorkspace: ({ quote }: { quote: { name: string; instrument_id: string } }) => (
+    <div data-testid="paper-market-workspace">
+      {quote.name} · {quote.instrument_id} · 持仓买卖点图
+    </div>
+  ),
+}));
 
 const summary: PaperAccountSummary = {
   account_id: "account-1",
@@ -95,6 +104,10 @@ test("account workspace shows real portfolio metrics and holdings", async () => 
   expect(screen.getByText("半导体设备ETF")).toBeVisible();
   expect(screen.getByText("+5.00%")).toBeVisible();
   expect(screen.getByText("真实行情盯市")).toBeVisible();
+  expect(screen.getByTestId("paper-market-workspace")).toHaveTextContent(
+    "半导体设备ETF · 159516.SZSE · 持仓买卖点图",
+  );
+  expect(screen.queryByRole("button", { name: "买卖" })).not.toBeInTheDocument();
 });
 
 test("account discovery does not poll or replace the workspace with onboarding", async () => {
@@ -117,7 +130,34 @@ test("account discovery does not poll or replace the workspace with onboarding",
   vi.useRealTimers();
 });
 
-test("strategy console runs baseline in advisory mode and renders the audit result", async () => {
+test("cash editor persists the remaining cash outside current holdings", async () => {
+  const updatePaperCash = vi.fn().mockResolvedValue({
+    ...detail,
+    account: { ...detail.account, cash: "80000" },
+  });
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    updatePaperCash,
+  } as unknown as ApiClient;
+  renderPage(client);
+  const user = userEvent.setup();
+
+  const cashInput = await screen.findByRole("spinbutton", {
+    name: "剩余现金（不含持仓）",
+  });
+  await user.clear(cashInput);
+  await user.type(cashInput, "80000");
+  await user.click(screen.getByRole("button", { name: "保存资金" }));
+
+  expect(updatePaperCash).toHaveBeenCalledWith("account-1", { cash: "80000" });
+});
+
+test("strategy console hides engineering parameters and runs one visible check", async () => {
   const runPaperStrategy = vi.fn().mockResolvedValue({
     outcome: "HOLD",
     proposed_side: null,
@@ -154,15 +194,144 @@ test("strategy console runs baseline in advisory mode and renders the audit resu
   renderPage(client);
   const user = userEvent.setup();
 
-  await user.click(await screen.findByRole("button", { name: "运行 baseline-v1" }));
+  await user.click(await screen.findByRole("button", { name: "运行一次检查" }));
 
   expect(runPaperStrategy).toHaveBeenCalledWith("account-1", {
     instrument_id: "159516.SZSE",
     quantity: 100,
-    auto_execute: false,
+    auto_execute: true,
     max_position_percent: "20",
   });
+  expect(screen.queryByText("建议数量")).not.toBeInTheDocument();
+  expect(screen.queryByText("单标的仓位上限")).not.toBeInTheDocument();
+  expect(screen.queryByText("允许自动执行模拟成交")).not.toBeInTheDocument();
   expect(await screen.findByText("HOLD · WARMING_UP")).toBeVisible();
   expect(screen.getByText("INSUFFICIENT_COMPLETED_BARS")).toBeVisible();
   expect(screen.getByText("decision-audit-1")).toBeVisible();
+});
+
+test("opening position form searches the real catalog and requires a selected instrument", async () => {
+  const addPaperOpeningPosition = vi.fn().mockResolvedValue(detail);
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    searchMarketInstruments: vi.fn().mockResolvedValue([
+      { instrument_id: "159516.SZSE", name: "半导体设备ETF", kind: "etf" },
+      { instrument_id: "588200.SSE", name: "半导体ETF", kind: "etf" },
+    ]),
+    addPaperOpeningPosition,
+  } as unknown as ApiClient;
+  renderPage(client);
+  const user = userEvent.setup();
+
+  const submit = await screen.findByRole("button", { name: "添加到初始持仓" });
+  expect(submit).toBeDisabled();
+
+  await user.type(
+    await screen.findByRole("searchbox", { name: "搜索期初持仓证券" }),
+    "159516",
+  );
+  expect(client.searchMarketInstruments).toHaveBeenCalledWith("159516");
+  await user.click(
+    await screen.findByRole("button", { name: /半导体设备ETF.*159516\.SZSE.*选择/ }),
+  );
+
+  expect(
+    screen.getByText("半导体设备ETF", { selector: ".instrument-picker--selected strong" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText("159516.SZSE", { selector: ".instrument-picker--selected span" }),
+  ).toBeVisible();
+  expect(submit).toBeEnabled();
+  expect(screen.queryByRole("searchbox", { name: "搜索期初持仓证券" })).not.toBeInTheDocument();
+
+  await user.type(screen.getByLabelText("持有数量"), "500");
+  const availableInput = screen.getByLabelText("可用数量");
+  await user.clear(availableInput);
+  await user.type(availableInput, "500");
+  await user.type(screen.getByLabelText("平均成本"), "9");
+  await user.click(submit);
+
+  expect(addPaperOpeningPosition).toHaveBeenCalledWith("account-1", {
+    instrument_id: "159516.SZSE",
+    name: "半导体设备ETF",
+    quantity: 500,
+    available_quantity: 500,
+    average_cost: "9",
+  });
+});
+
+test("opening position form resets after save and supports continuous additions", async () => {
+  const addPaperOpeningPosition = vi.fn().mockResolvedValue(detail);
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    searchMarketInstruments: vi.fn().mockResolvedValue([
+      { instrument_id: "600000.SSE", name: "浦发银行", kind: "equity" },
+    ]),
+    addPaperOpeningPosition,
+  } as unknown as ApiClient;
+  renderPage(client);
+  const user = userEvent.setup();
+
+  await user.type(
+    await screen.findByRole("searchbox", { name: "搜索期初持仓证券" }),
+    "600000",
+  );
+  await user.click(await screen.findByRole("button", { name: /浦发银行.*选择/ }));
+  await user.type(screen.getByLabelText("持有数量"), "300");
+  await user.type(screen.getByLabelText("可用数量"), "300");
+  await user.type(screen.getByLabelText("平均成本"), "9.5");
+  await user.click(screen.getByRole("button", { name: "添加到初始持仓" }));
+
+  expect(addPaperOpeningPosition).toHaveBeenCalledTimes(1);
+  expect(await screen.findByRole("searchbox", { name: "搜索期初持仓证券" })).toBeVisible();
+  expect(screen.getByLabelText("持有数量")).toHaveValue(null);
+  expect(screen.getByLabelText("可用数量")).toHaveValue(null);
+  expect(screen.getByLabelText("平均成本")).toHaveValue(null);
+  expect(screen.getByText("可连续添加")).toBeVisible();
+});
+
+test("opening position form explains duplicate holdings in Chinese", async () => {
+  const addPaperOpeningPosition = vi.fn().mockRejectedValue(
+    new ApiError(
+      { code: "opening_position_conflict", message: "opening position already exists" },
+      409,
+    ),
+  );
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    searchMarketInstruments: vi.fn().mockResolvedValue([
+      { instrument_id: "159516.SZSE", name: "半导体设备ETF", kind: "etf" },
+    ]),
+    addPaperOpeningPosition,
+  } as unknown as ApiClient;
+  renderPage(client);
+  const user = userEvent.setup();
+
+  await user.type(
+    await screen.findByRole("searchbox", { name: "搜索期初持仓证券" }),
+    "159516",
+  );
+  await user.click(await screen.findByRole("button", { name: /半导体设备ETF.*选择/ }));
+  await user.type(screen.getByLabelText("持有数量"), "100");
+  await user.type(screen.getByLabelText("可用数量"), "100");
+  await user.type(screen.getByLabelText("平均成本"), "0.68");
+  await user.click(screen.getByRole("button", { name: "添加到初始持仓" }));
+
+  expect(await screen.findByText("该证券已在期初持仓中，请勿重复添加")).toBeVisible();
+  expect(screen.queryByText("opening position already exists")).not.toBeInTheDocument();
 });

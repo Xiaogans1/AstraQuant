@@ -65,6 +65,31 @@ def test_buy_uses_best_ask_and_freezes_new_quantity_for_t_plus_one() -> None:
     assert result.state.snapshots[-1].total_pnl == Decimal("-6.01")
 
 
+def test_set_cash_balance_treats_the_difference_as_external_capital() -> None:
+    ledger = PaperLedger()
+    opening = ledger.add_opening_position(
+        LedgerState(account=account()),
+        instrument_id=INSTRUMENT,
+        name="半导体设备ETF",
+        quantity=1_000,
+        available_quantity=1_000,
+        average_cost=Decimal("0.68"),
+    )
+    marked = ledger.mark_to_market(opening, (quote(),), now=NOW)
+
+    adjusted = ledger.set_cash_balance(
+        marked,
+        cash=Decimal("50000"),
+        now=NOW + timedelta(seconds=1),
+    )
+
+    assert adjusted.account.cash == Decimal("50000")
+    assert adjusted.initial_equity == Decimal("50680")
+    assert adjusted.snapshots[-1].cash == Decimal("50000")
+    assert adjusted.snapshots[-1].total_equity == Decimal("50714")
+    assert adjusted.snapshots[-1].total_pnl == marked.snapshots[-1].total_pnl
+
+
 def test_next_market_day_releases_frozen_quantity_before_sell() -> None:
     ledger = PaperLedger()
     bought = ledger.execute_market_order(

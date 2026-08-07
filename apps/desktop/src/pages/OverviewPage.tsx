@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { ApiClient } from "../api/client";
 import type { QuoteCard } from "../api/market-contracts";
+import { InstrumentSearchPicker } from "../components/InstrumentSearchPicker";
 import { MarketConnectionPanel } from "../components/MarketConnectionPanel";
 import { MarketWorkspace } from "../components/MarketWorkspace";
 import {
   useAddWatchlistMutation,
   useMarketConnectionQuery,
   useMarketHomeQuery,
-  useMarketSearchQuery,
   useRemoveWatchlistMutation,
 } from "../api/queries";
 
@@ -44,8 +44,6 @@ export function OverviewPage({ client }: { client: ApiClient }) {
   const home = homeQuery.data;
   const state = connection?.state ?? home?.connection.state ?? "UNAVAILABLE";
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const searchQuery = useMarketSearchQuery(client, search);
   const addWatchlist = useAddWatchlistMutation(client);
   const removeWatchlist = useRemoveWatchlistMutation(client);
 
@@ -120,37 +118,17 @@ export function OverviewPage({ client }: { client: ApiClient }) {
         <section className="terminal-panel watchlist-panel">
           <div className="terminal-panel__heading watchlist-heading">
             <div><p className="terminal-kicker">WATCHLIST / REAL DATA</p><h2>我的自选</h2></div>
-            <label className="watchlist-search">
-              <span className="sr-only">搜索证券</span>
-              <input
-                aria-label="搜索证券"
-                type="search"
-                value={search}
-                placeholder="输入代码或名称"
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
+            <InstrumentSearchPicker
+              client={client}
+              value={null}
+              className="watchlist-search"
+              onChange={(selection) => {
+                if (selection === null) return;
+                addWatchlist.mutate(selection.instrument_id);
+                setSelectedId(selection.instrument_id);
+              }}
+            />
           </div>
-          {search.trim().length >= 2 ? (
-            <div className="market-search-results">
-              {searchQuery.isLoading ? <p>正在搜索东财证券目录…</p> : null}
-              {searchQuery.isError ? <p role="alert">证券目录搜索失败，请稍后重试</p> : null}
-              {searchQuery.data?.map((item) => (
-                <button
-                  key={item.instrument_id}
-                  type="button"
-                  onClick={() => {
-                    addWatchlist.mutate(item.instrument_id);
-                    setSearch("");
-                    setSelectedId(item.instrument_id);
-                  }}
-                >
-                  <strong>{item.name}</strong><span>{item.instrument_id}</span><em>加入自选</em>
-                </button>
-              ))}
-              {!searchQuery.isLoading && searchQuery.data?.length === 0 ? <p>没有找到可订阅证券</p> : null}
-            </div>
-          ) : null}
           {home.watchlist.length === 0 ? (
             <div className="market-empty"><strong>自选列表为空</strong><p>搜索 A 股、ETF 或具体月份期货合约后加入。</p></div>
           ) : (

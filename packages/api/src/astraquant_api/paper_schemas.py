@@ -43,6 +43,10 @@ class OpeningPositionRequest(BaseModel):
     average_cost: Decimal = Field(ge=0)
 
 
+class CashBalanceRequest(BaseModel):
+    cash: Decimal = Field(ge=0)
+
+
 class MarketOrderRequest(BaseModel):
     instrument_id: str
     side: OrderSide

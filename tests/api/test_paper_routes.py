@@ -142,6 +142,35 @@ def test_create_account_and_add_opening_position(tmp_path: Path) -> None:
     assert client.get("/v1/paper/accounts").json()[0]["account_id"] == account_id
 
 
+def test_update_cash_balance_persists_external_capital_without_fake_profit(
+    tmp_path: Path,
+) -> None:
+    client, _ = build_client(tmp_path)
+    account_id = create_account(client)
+    client.post(
+        f"/v1/paper/accounts/{account_id}/positions/opening",
+        json={
+            "instrument_id": "159516.SZSE",
+            "name": "半导体设备ETF",
+            "quantity": 1_000,
+            "available_quantity": 800,
+            "average_cost": "0.6800",
+        },
+    )
+
+    response = client.patch(
+        f"/v1/paper/accounts/{account_id}/cash",
+        json={"cash": "50000"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["account"]["cash"] == "50000"
+    assert response.json()["latest_equity"]["initial_equity"] == "50680.0000"
+    assert response.json()["latest_equity"]["total_pnl"] == "0.0000"
+    persisted = client.get(f"/v1/paper/accounts/{account_id}").json()
+    assert persisted["account"]["cash"] == "50000"
+
+
 def test_virtual_order_uses_real_quote_and_is_idempotent(tmp_path: Path) -> None:
     client, market = build_client(tmp_path)
     account_id = create_account(client)

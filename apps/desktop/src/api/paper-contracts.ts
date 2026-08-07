@@ -88,6 +88,10 @@ export interface OpeningPositionRequest {
   average_cost: string;
 }
 
+export interface PaperCashBalanceRequest {
+  cash: string;
+}
+
 export interface PaperMarketOrderRequest {
   instrument_id: string;
   side: PaperOrderSide;

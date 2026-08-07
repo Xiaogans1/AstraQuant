@@ -27,6 +27,7 @@ import type {
 import type {
   CreatePaperAccountRequest,
   OpeningPositionRequest,
+  PaperCashBalanceRequest,
   PaperAccountDetail,
   PaperAccountSummary,
   PaperEquity,
@@ -224,6 +225,16 @@ export class ApiClient {
       `/v1/paper/accounts/${encodeURIComponent(accountId)}/positions/opening`,
       { method: "POST", body: JSON.stringify(request) },
     );
+  }
+
+  updatePaperCash(
+    accountId: string,
+    request: PaperCashBalanceRequest,
+  ): Promise<PaperAccountDetail> {
+    return this.request(`/v1/paper/accounts/${encodeURIComponent(accountId)}/cash`, {
+      method: "PATCH",
+      body: JSON.stringify(request),
+    });
   }
 
   submitPaperOrder(

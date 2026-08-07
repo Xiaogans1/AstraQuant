@@ -22,9 +22,17 @@ interface MarketWorkspaceProps {
   client: ApiClient;
   quote: QuoteCard;
   state: ConnectionState;
+  contextLabel?: string;
+  portfolioMarkers?: MarketSignalMarker[];
 }
 
-export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) {
+export function MarketWorkspace({
+  client,
+  quote,
+  state,
+  contextLabel,
+  portfolioMarkers = [],
+}: MarketWorkspaceProps) {
   const [period, setPeriod] = useState<MarketPeriod>("intraday");
   const [intradayMainIndicator, setIntradayMainIndicator] =
     useState<MainChartIndicator>("AVG");
@@ -64,11 +72,10 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
   const setMainIndicator =
     period === "intraday" ? setIntradayMainIndicator : setCandleMainIndicator;
   const signalMarkers = useMemo(
-    () =>
-      period === "intraday" || period === "1m"
-        ? toSignalMarkers(signalQuery.data)
-        : [],
-    [period, signalQuery.data],
+    () => showQuantSignals
+      ? [...toSignalMarkers(signalQuery.data), ...portfolioMarkers]
+      : [],
+    [portfolioMarkers, showQuantSignals, signalQuery.data],
   );
 
   useEffect(() => {
@@ -111,6 +118,14 @@ export function MarketWorkspace({ client, quote, state }: MarketWorkspaceProps) 
           <QuoteStat label="成交额" value={formatCompact(quote.turnover)} />
         </dl>
       </header>
+
+      {contextLabel === undefined ? null : (
+        <div className="market-workspace__context">
+          <span>PORTFOLIO CONTEXT</span>
+          <strong>{contextLabel}</strong>
+          <small>图中 B / S 同时包含策略信号与本账户虚拟成交</small>
+        </div>
+      )}
 
       <MarketChartToolbar
         period={period}

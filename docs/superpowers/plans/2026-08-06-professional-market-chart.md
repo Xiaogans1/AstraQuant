@@ -104,11 +104,13 @@ Change:
 ```python
 previous_close: Decimal | None
 
+
 @property
 def change(self) -> Decimal | None:
     if self.previous_close is None:
         return None
     return self.last_price - self.previous_close
+
 
 @property
 def change_percent(self) -> Decimal | None:
@@ -198,8 +200,7 @@ OHLC, non-negative volume/turnover, sort ascending and remove duplicate timestam
 def aggregate_daily_bars(
     bars: Sequence[MarketBar],
     period: Literal[MarketPeriod.WEEK, MarketPeriod.MONTH, MarketPeriod.YEAR],
-) -> list[MarketBar]:
-    ...
+) -> list[MarketBar]: ...
 ```
 
 Use ISO year/week, `(year, month)` and `year` grouping keys.

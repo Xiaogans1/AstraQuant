@@ -99,6 +99,16 @@ class PaperService:
         self._market_service.request_quote(str(instrument_id))
         return next_state
 
+    def set_cash_balance(self, account_id: str, *, cash: Decimal) -> LedgerState:
+        state = self._repository.load_state(account_id)
+        next_state = self._ledger.set_cash_balance(
+            state,
+            cash=cash,
+            now=datetime.now(UTC),
+        )
+        self._repository.save_state(next_state)
+        return next_state
+
     def submit_market_order(
         self,
         account_id: str,
