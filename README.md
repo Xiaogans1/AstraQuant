@@ -157,6 +157,8 @@ Token 提供；缺失或休市时界面显示明确空态，不使用假行情�
 
 ### 前置条件
 
+Windows：
+
 - Windows 10/11 与 WebView2 Runtime。
 - Visual Studio Build Tools，包含 C++ 桌面生成工具。
 - Python 3.12。
@@ -164,10 +166,22 @@ Token 提供；缺失或休市时界面显示明确空态，不使用假行情�
 - Node.js 24（脚本会通过 Corepack 使用 pnpm 11.9）。
 - Rust 1.96（MSVC toolchain）。
 
+macOS：
+
+- macOS 13+（Intel 或 Apple Silicon，推荐 Apple Silicon）。
+- Xcode Command Line Tools（`xcode-select --install`）。
+- Python 3.12、[uv](https://docs.astral.sh/uv/)、Node.js 24、Rust 1.96。
+
 日常只需在仓库根目录执行：
 
 ```powershell
 .\start.ps1
+```
+
+macOS / Linux 使用等价脚本：
+
+```bash
+./scripts/dev.sh
 ```
 
 脚本会自动进入正确项目目录并准备缺失的项目依赖。首次手工准备依赖时可使用：
@@ -181,6 +195,12 @@ pnpm install --frozen-lockfile
 `start.ps1` 只启动 Tauri；Tauri 会自动拉起并管理本地 FastAPI，因此不需要再开一个
 API 终端。自定义状态目录、备份恢复与 AKShare 可选开关见
 [本地行情数据运维](docs/operations/local-data.md)。
+
+> macOS 提示：Apple Silicon 首次编译 Rust 依赖会自动下载对应 target；`uv`、
+> `pnpm`、`cargo` 均支持跨平台锁文件，直接 `uv sync --locked --all-packages` 与
+> `pnpm install --frozen-lockfile` 即可。东财掘金 SDK（`gm`）支持 macOS，Token
+> 通过系统钥匙串保存（对应 Windows 的凭据管理器）；行情终端与 SDK 路径需在 Mac
+> 上另行安装与配置。
 
 常用检查：
 

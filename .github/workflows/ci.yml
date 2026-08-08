@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v9.0.0
@@ -52,8 +52,12 @@ jobs:
       - run: pnpm --dir apps/desktop build
 
   desktop-rust:
-    name: Desktop Rust
-    runs-on: windows-latest
+    name: Desktop Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable

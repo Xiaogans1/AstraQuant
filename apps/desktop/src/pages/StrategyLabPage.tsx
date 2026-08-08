@@ -169,6 +169,9 @@ function ReplayTab({ client }: { client: ApiClient }) {
                     type="button"
                     className={`strategy-lab__chip${selected ? " strategy-lab__chip--selected" : ""}`}
                     aria-pressed={selected}
+                    style={selected
+                      ? { background: "#0a8f4c", color: "#ffffff", borderColor: "#0a8f4c", fontWeight: 600 }
+                      : { background: "#ffffff", color: "#172327", borderColor: "#cbd7d7" }}
                     onClick={() => toggleSelected(item.instrument_id)}
                   >
                     {item.name}
@@ -188,11 +191,15 @@ function ReplayTab({ client }: { client: ApiClient }) {
                   <span
                     key={item.instrument_id}
                     className={`strategy-lab__chip strategy-lab__chip--added${selected ? " strategy-lab__chip--selected" : ""}`}
+                    style={selected
+                      ? { background: "#0a8f4c", color: "#ffffff", borderColor: "#0a8f4c" }
+                      : { background: "#ffffff", color: "#172327", borderColor: "#cbd7d7" }}
                   >
                     <button
                       type="button"
                       className="strategy-lab__chip-select"
                       aria-pressed={selected}
+                      style={selected ? { color: "#ffffff" } : undefined}
                       onClick={() => toggleSelected(item.instrument_id)}
                     >
                       {item.name}
