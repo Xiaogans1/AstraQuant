@@ -161,21 +161,20 @@ function ReplayTab({ client }: { client: ApiClient }) {
             {seeded.length === 0 ? (
               <span className="strategy-lab__picked-empty">暂无</span>
             ) : (
-              seeded.map((item) => (
-                <button
-                  key={item.instrument_id}
-                  type="button"
-                  className="strategy-lab__chip"
-                  data-selected={selectedIds.includes(item.instrument_id)}
-                  aria-pressed={selectedIds.includes(item.instrument_id)}
-                  onClick={() => toggleSelected(item.instrument_id)}
-                >
-                  <span className="strategy-lab__chip-mark" aria-hidden="true">
-                    {selectedIds.includes(item.instrument_id) ? "✓" : ""}
-                  </span>
-                  {item.name}
-                </button>
-              ))
+              seeded.map((item) => {
+                const selected = selectedIds.includes(item.instrument_id);
+                return (
+                  <button
+                    key={item.instrument_id}
+                    type="button"
+                    className={`strategy-lab__chip${selected ? " strategy-lab__chip--selected" : ""}`}
+                    aria-pressed={selected}
+                    onClick={() => toggleSelected(item.instrument_id)}
+                  >
+                    {item.name}
+                  </button>
+                );
+              })
             )}
           </div>
           <div className="strategy-lab__picked">
@@ -183,35 +182,34 @@ function ReplayTab({ client }: { client: ApiClient }) {
             {added.length === 0 ? (
               <span className="strategy-lab__picked-empty">暂无</span>
             ) : (
-              added.map((item) => (
-                <span
-                  key={item.instrument_id}
-                  className="strategy-lab__chip strategy-lab__chip--added"
-                  data-selected={selectedIds.includes(item.instrument_id)}
-                >
-                  <button
-                    type="button"
-                    className="strategy-lab__chip-select"
-                    aria-pressed={selectedIds.includes(item.instrument_id)}
-                    onClick={() => toggleSelected(item.instrument_id)}
+              added.map((item) => {
+                const selected = selectedIds.includes(item.instrument_id);
+                return (
+                  <span
+                    key={item.instrument_id}
+                    className={`strategy-lab__chip strategy-lab__chip--added${selected ? " strategy-lab__chip--selected" : ""}`}
                   >
-                    <span className="strategy-lab__chip-mark" aria-hidden="true">
-                      {selectedIds.includes(item.instrument_id) ? "✓" : ""}
-                    </span>
-                    {item.name}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`移除 ${item.name}`}
-                    onClick={() => {
-                      setAdded((items) => items.filter((i) => i.instrument_id !== item.instrument_id));
-                      setSelectedIds((ids) => ids.filter((id) => id !== item.instrument_id));
-                    }}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))
+                    <button
+                      type="button"
+                      className="strategy-lab__chip-select"
+                      aria-pressed={selected}
+                      onClick={() => toggleSelected(item.instrument_id)}
+                    >
+                      {item.name}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`移除 ${item.name}`}
+                      onClick={() => {
+                        setAdded((items) => items.filter((i) => i.instrument_id !== item.instrument_id));
+                        setSelectedIds((ids) => ids.filter((id) => id !== item.instrument_id));
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })
             )}
           </div>
           <div className="strategy-lab__form-row">
