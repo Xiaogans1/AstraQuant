@@ -3482,8 +3482,14 @@ code {
 }
 
 
+.strategy-lab__pairs-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 .strategy-lab__pairs {
   width: 100%;
+  min-width: 860px;
   border-collapse: collapse;
   font-size: 12.5px;
 }
@@ -3501,6 +3507,12 @@ code {
 .strategy-lab__pairs th:nth-child(4),
 .strategy-lab__pairs td:nth-child(4) {
   text-align: left;
+}
+
+.strategy-lab__pairs th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
 }
 
 .strategy-lab__pairs tbody tr[data-pnl="up"] td:last-child,

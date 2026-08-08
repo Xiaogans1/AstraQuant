@@ -925,8 +925,9 @@ function TradePairsTable({ trades }: { trades: ReplayTrade[] }) {
     return <p className="strategy-lab__empty">该时段没有触发交易。</p>;
   }
   return (
-    <table className="strategy-lab__pairs">
-      <thead>
+    <div className="strategy-lab__pairs-wrap">
+      <table className="strategy-lab__pairs">
+        <thead>
         <tr>
           <th>买入时间</th>
           <th>买入价</th>
@@ -965,6 +966,7 @@ function TradePairsTable({ trades }: { trades: ReplayTrade[] }) {
         })}
       </tbody>
     </table>
+    </div>
   );
 }
 
