@@ -303,6 +303,8 @@ def build_research_router(
                         quantity=trade.quantity,
                         pnl=trade.pnl,
                         proba=trade.proba,
+                        features=trade.features,
+                        decision_note=trade.decision_note,
                     )
                     for trade in result.trades
                 ],

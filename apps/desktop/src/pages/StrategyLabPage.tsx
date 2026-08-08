@@ -162,14 +162,19 @@ function ReplayTab({ client }: { client: ApiClient }) {
               <span className="strategy-lab__picked-empty">暂无</span>
             ) : (
               seeded.map((item) => (
-                <label key={item.instrument_id} className="strategy-lab__chip">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(item.instrument_id)}
-                    onChange={() => toggleSelected(item.instrument_id)}
-                  />
+                <button
+                  key={item.instrument_id}
+                  type="button"
+                  className="strategy-lab__chip"
+                  data-selected={selectedIds.includes(item.instrument_id)}
+                  aria-pressed={selectedIds.includes(item.instrument_id)}
+                  onClick={() => toggleSelected(item.instrument_id)}
+                >
+                  <span className="strategy-lab__chip-mark" aria-hidden="true">
+                    {selectedIds.includes(item.instrument_id) ? "✓" : ""}
+                  </span>
                   {item.name}
-                </label>
+                </button>
               ))
             )}
           </div>
@@ -179,15 +184,22 @@ function ReplayTab({ client }: { client: ApiClient }) {
               <span className="strategy-lab__picked-empty">暂无</span>
             ) : (
               added.map((item) => (
-                <span key={item.instrument_id} className="strategy-lab__chip strategy-lab__chip--added">
-                  <label className="strategy-lab__chip-check">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(item.instrument_id)}
-                      onChange={() => toggleSelected(item.instrument_id)}
-                    />
-                  </label>
-                  {item.name}
+                <span
+                  key={item.instrument_id}
+                  className="strategy-lab__chip strategy-lab__chip--added"
+                  data-selected={selectedIds.includes(item.instrument_id)}
+                >
+                  <button
+                    type="button"
+                    className="strategy-lab__chip-select"
+                    aria-pressed={selectedIds.includes(item.instrument_id)}
+                    onClick={() => toggleSelected(item.instrument_id)}
+                  >
+                    <span className="strategy-lab__chip-mark" aria-hidden="true">
+                      {selectedIds.includes(item.instrument_id) ? "✓" : ""}
+                    </span>
+                    {item.name}
+                  </button>
                   <button
                     type="button"
                     aria-label={`移除 ${item.name}`}
@@ -274,6 +286,23 @@ function ReplayResultView({
   const [activeSignalId, setActiveSignalId] = useState<string | null>(null);
   const bars = useMemo(() => toChartBars(result.bars), [result.bars]);
   const pairs = useMemo(() => tradePairs(result.trades), [result.trades]);
+  const isTrades = useMemo(() => {
+    // 做T = 同一天内先卖后买（底仓回补），买入价低于前一笔卖出价时降成本
+    const flags = new Map<number, { isT: boolean; tDelta: number }>();
+    for (let index = 1; index < result.trades.length; index += 1) {
+      const previous = result.trades[index - 1];
+      const trade = result.trades[index];
+      if (trade.side !== "BUY" || previous.side !== "SELL") continue;
+      const sameDay = Date.parse(trade.timestamp).toString().slice(0, 10)
+        === Date.parse(previous.timestamp).toString().slice(0, 10);
+      if (!sameDay) continue;
+      flags.set(trade.index, {
+        isT: true,
+        tDelta: Number(previous.price) - Number(trade.price),
+      });
+    }
+    return flags;
+  }, [result.trades]);
   const signals = useMemo<MarketSignalMarker[]>(
     () =>
       result.trades
@@ -284,6 +313,7 @@ function ReplayResultView({
           const extra = pair === undefined || pair.sell === null
             ? ""
             : ` · 配对买入 @ ${pair.buyPrice.toFixed(4)} · 盈亏 ${formatSignedMoney(String(pair.pnl))}（${pair.pnlPercent >= 0 ? "+" : ""}${pair.pnlPercent.toFixed(1)}%）`;
+          const tFlag = trade.side === "BUY" ? isTrades.get(trade.index) : undefined;
           return {
             id: `replay-${trade.index}`,
             timestamp: Date.parse(trade.timestamp),
@@ -291,12 +321,14 @@ function ReplayResultView({
             price: Number(trade.price),
             quantity: trade.quantity,
             pnl: trade.side === "SELL" ? Number(trade.pnl) : undefined,
-            label: `${trade.side === "BUY" ? "回放买入" : "回放卖出"} ${trade.quantity} 份 @ ${trade.price}（概率 ${(trade.proba * 100).toFixed(0)}%）${extra}`,
+            isT: tFlag?.isT,
+            tDelta: tFlag?.tDelta,
+            label: `${trade.side === "BUY" ? "回放买入" : "回放卖出"} ${trade.quantity} 份 @ ${trade.price}（概率 ${(trade.proba * 100).toFixed(0)}%）${tFlag?.isT ? ` · 做T（前卖出 @ ${result.trades.find((item) => item.index === trade.index - 1)?.price ?? "?"}，价差 ${tFlag.tDelta >= 0 ? "+" : ""}${tFlag.tDelta.toFixed(4)}）` : ""}${extra}`,
             source: "REPLAY" as const,
           };
         })
         .filter((item) => Number.isFinite(item.timestamp) && Number.isFinite(item.price)),
-    [result.trades, pairs],
+    [result.trades, pairs, isTrades],
   );
   const activePairKey = useMemo(() => {
     if (activeSignalId === null) return null;
@@ -357,6 +389,9 @@ function ReplayResultView({
     [result.equity_points],
   );
   const model = models.find((item) => item.model_id === result.model_id);
+  const activeTrade = activeSignalId === null
+    ? undefined
+    : result.trades.find((trade) => `replay-${trade.index}` === activeSignalId);
 
   return (
     <>
@@ -414,6 +449,9 @@ function ReplayResultView({
       </Panel>
 
       <Panel title="交易盈亏对比（点击行跳到图上对应买卖点）" eyebrow="TRADES / PAIRED PNL">
+        {activeTrade === undefined ? null : (
+          <DecisionDetail trade={activeTrade} />
+        )}
         <TradePairsTable
           trades={result.trades}
           activeKey={activePairKey}
@@ -422,6 +460,10 @@ function ReplayResultView({
             setActiveSignalId(signalId);
           }}
         />
+      </Panel>
+
+      <Panel title="决策统计：买入画像 vs 卖出画像" eyebrow="DECISION / FEATURE PROFILES">
+        <DecisionProfiles trades={result.trades} />
       </Panel>
 
       <Panel title="权益曲线：策略 vs 买入持有" eyebrow="EQUITY / VS BUY & HOLD">
@@ -1057,6 +1099,132 @@ interface TradePair {
   sell: ReplayTrade | null;
   pnl: number;
   pnlPercent: number;
+}
+
+const FEATURE_META: Record<string, { label: string; unit: string; positive: string; negative: string }> = {
+  return_1: { label: "1分钟动量", unit: "%", positive: "刚上涨", negative: "刚下跌" },
+  return_3: { label: "3分钟动量", unit: "%", positive: "短线上涨", negative: "短线下跌" },
+  return_5: { label: "5分钟动量", unit: "%", positive: "近5分钟上涨", negative: "近5分钟下跌" },
+  return_10: { label: "10分钟动量", unit: "%", positive: "近10分钟上涨", negative: "近10分钟下跌" },
+  volatility_5: { label: "5分钟波动率", unit: "%", positive: "波动放大", negative: "波动收窄" },
+  vwap_deviation: { label: "VWAP偏离", unit: "%", positive: "高于均价", negative: "低于均价" },
+  volume_ratio: { label: "量比", unit: "x", positive: "放量", negative: "缩量" },
+  day_high_position: { label: "日内位置", unit: "", positive: "接近日内高点", negative: "接近日内低点" },
+  ma5_gap: { label: "MA5偏离", unit: "%", positive: "站上5均线", negative: "跌破5均线" },
+  ma20_gap: { label: "MA20偏离", unit: "%", positive: "站上20均线", negative: "跌破20均线" },
+};
+
+function DecisionProfiles({ trades }: { trades: ReplayTrade[] }) {
+  const profile = useMemo(() => {
+    const buys = trades.filter((trade) => trade.side === "BUY");
+    const sells = trades.filter((trade) => trade.side === "SELL");
+    const names = Object.keys(FEATURE_META);
+    const average = (group: ReplayTrade[]) => (key: string) => {
+      const values = group.map((trade) => (trade.features ?? {})[key]).filter((value) => Number.isFinite(value));
+      if (values.length === 0) return 0;
+      return values.reduce((total, value) => total + value, 0) / values.length;
+    };
+    return {
+      names,
+      buyAverage: names.map((name) => ({ name, value: average(buys)(name) })),
+      sellAverage: names.map((name) => ({ name, value: average(sells)(name) })),
+      buyCount: buys.length,
+      sellCount: sells.length,
+    };
+  }, [trades]);
+  if (profile.buyCount === 0 && profile.sellCount === 0) {
+    return <p className="strategy-lab__empty">该时段没有交易，无决策画像。</p>;
+  }
+  const extremes = (name: string) => {
+    const values = [
+      profile.buyAverage.find((item) => item.name === name)?.value ?? 0,
+      profile.sellAverage.find((item) => item.name === name)?.value ?? 0,
+    ];
+    const magnitude = Math.max(Math.abs(values[0]), Math.abs(values[1]));
+    return { values, magnitude: Math.max(magnitude, 1e-9) };
+  };
+  return (
+    <div className="strategy-lab__profiles">
+      <p className="strategy-lab__note">
+        全部 {profile.buyCount} 笔买入与 {profile.sellCount} 笔卖出时的模型特征均值对比（正 = 看多特征，负 = 看空特征）。
+        若"买入画像"动量/均线偏离为负，说明模型在下跌中接刀——这就是高买低卖的根因。
+      </p>
+      <table className="strategy-lab__profiles-table">
+        <thead>
+          <tr><th>特征</th><th>买入时均值</th><th>卖出时均值</th><th>买入 vs 卖出</th></tr>
+        </thead>
+        <tbody>
+          {profile.names.map((name) => {
+            const meta = FEATURE_META[name];
+            const { values, magnitude } = extremes(name);
+            const buyBar = (values[0] / magnitude) * 50;
+            const sellBar = (values[1] / magnitude) * 50;
+            return (
+              <tr key={name}>
+                <td>{meta.label}</td>
+                <td className={values[0] >= 0 ? "paper-trend-up" : "paper-trend-down"}>
+                  {formatFeature(name, values[0])}
+                </td>
+                <td className={values[1] >= 0 ? "paper-trend-up" : "paper-trend-down"}>
+                  {formatFeature(name, values[1])}
+                </td>
+                <td>
+                  <div className="strategy-lab__profile-bars">
+                    <div className="strategy-lab__profile-bar strategy-lab__profile-bar--buy" style={{ width: `${Math.abs(buyBar)}%` }} />
+                    <div className="strategy-lab__profile-bar strategy-lab__profile-bar--sell" style={{ width: `${Math.abs(sellBar)}%` }} />
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="strategy-lab__note">
+        绿条 = 买入时均值，橙条 = 卖出时均值（同尺度）。趋势方向见数值正负。
+      </p>
+    </div>
+  );
+}
+
+function formatFeature(name: string, value: number): string {
+  const meta = FEATURE_META[name];
+  if (meta === undefined) return value.toFixed(3);
+  if (name === "day_high_position") return (value * 100).toFixed(0) + "%";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}${meta.unit}`;
+}
+
+function DecisionDetail({ trade }: { trade: ReplayTrade }) {
+  const meta = Object.entries(FEATURE_META);
+  const maxAbs = Math.max(
+    ...meta.map(([name]) => Math.abs(trade.features[name] ?? 0)),
+    1e-9,
+  );
+  return (
+    <div className="strategy-lab__decision">
+      <p className="strategy-lab__decision-note">{trade.decision_note}</p>
+      <div className="strategy-lab__decision-bars">
+        {meta.map(([name, info]) => {
+          const value = (trade.features ?? {})[name] ?? 0;
+          const width = (Math.abs(value) / maxAbs) * 50;
+          return (
+            <div key={name} className="strategy-lab__decision-bar">
+              <span>{info.label}</span>
+              <div className="strategy-lab__profile-bars">
+                <div
+                  className="strategy-lab__profile-bar"
+                  data-tone={value >= 0 ? "up" : "down"}
+                  style={{ width: `${width}%` }}
+                />
+              </div>
+              <strong className={value >= 0 ? "paper-trend-up" : "paper-trend-down"}>
+                {formatFeature(name, value)}
+              </strong>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function tradePairs(trades: ReplayTrade[]): TradePair[] {

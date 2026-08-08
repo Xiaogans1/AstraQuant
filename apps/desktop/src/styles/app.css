@@ -3250,17 +3250,41 @@ code {
 .strategy-lab__chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 5px;
+  padding: 5px 12px;
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: 999px;
   font-size: 12px;
+  cursor: pointer;
+}
+
+.strategy-lab__chip[data-selected="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-1));
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.strategy-lab__chip-mark {
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.strategy-lab__chip-select {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  padding: 0;
 }
 
 .strategy-lab__chip--added {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface-1));
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
 }
 
 .strategy-lab__chip button {
@@ -3755,20 +3779,90 @@ code {
 }
 
 
-.strategy-lab__chip label,
-.strategy-lab__chip-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
+
+
+.strategy-lab__profiles-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  margin: 8px 0 4px;
 }
 
-.strategy-lab__chip input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  accent-color: var(--accent);
-  margin: 0;
-  min-height: 0;
-  padding: 0;
-  cursor: pointer;
+.strategy-lab__profiles-table th,
+.strategy-lab__profiles-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+}
+
+.strategy-lab__profiles-table th:first-child,
+.strategy-lab__profiles-table td:first-child {
+  text-align: left;
+}
+
+.strategy-lab__profile-bars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 12px;
+}
+
+.strategy-lab__profile-bar {
+  height: 9px;
+  border-radius: 3px;
+  min-width: 2px;
+}
+
+.strategy-lab__profile-bar--buy {
+  background: var(--positive, #0a8f4c);
+}
+
+.strategy-lab__profile-bar--sell {
+  background: #e67e22;
+}
+
+.strategy-lab__profile-bar[data-tone="up"] {
+  background: var(--negative, #c0392b);
+}
+
+.strategy-lab__profile-bar[data-tone="down"] {
+  background: var(--positive, #0a8f4c);
+}
+
+.strategy-lab__decision {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+}
+
+.strategy-lab__decision-note {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.strategy-lab__decision-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.strategy-lab__decision-bar {
+  display: grid;
+  grid-template-columns: 110px 1fr 90px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.strategy-lab__decision-bar > span {
+  color: var(--text-muted);
+}
+
+.strategy-lab__decision-bar strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }

@@ -35,6 +35,8 @@ export interface ReplayTrade {
   quantity: number;
   pnl: string;
   proba: number;
+  features: Record<string, number>;
+  decision_note: string;
 }
 
 export interface ReplayBar {

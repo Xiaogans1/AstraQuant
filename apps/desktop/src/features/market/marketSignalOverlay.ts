@@ -7,6 +7,8 @@ export interface MarketSignalMarker {
   source: "QUANT" | "PAPER_FILL" | "REPLAY";
   quantity?: number;
   pnl?: number;
+  isT?: boolean;
+  tDelta?: number;
 }
 
 export interface MarketSignalOverlay {

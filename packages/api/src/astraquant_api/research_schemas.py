@@ -47,6 +47,8 @@ class ReplayTradeView(BaseModel):
     quantity: int
     pnl: Decimal
     proba: float
+    features: dict[str, float] = {}
+    decision_note: str = ""
 
 
 class ReplayBarView(BaseModel):

@@ -145,8 +145,8 @@ test("strategy lab lists watchlist as selectable checkboxes without auto-selecti
   expect(screen.getByRole("button", { name: /批量运行 0 只/ })).toBeDisabled();
 
   const user = userEvent.setup();
-  await user.click(screen.getByRole("checkbox", { name: "半导体设备ETF" }));
-  await user.click(screen.getByRole("checkbox", { name: "纳指ETF" }));
+  await user.click(screen.getByRole("button", { name: /半导体设备ETF/ }));
+  await user.click(screen.getByRole("button", { name: /纳指ETF/ }));
   expect(screen.getByRole("button", { name: "批量运行 2 只" })).toBeVisible();
 });
 

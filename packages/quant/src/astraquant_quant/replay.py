@@ -9,12 +9,14 @@ always produce the same trades and equity curve.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 
 from astraquant_data.market_bars import MarketBar
 from astraquant_domain import InstrumentId, OrderSide
+from astraquant_quant.research_features import build_feature_rows
+from astraquant_quant.strategy_layer import MODEL_FEATURE_COLUMNS
 
 _WINDOW = 30
 
@@ -28,6 +30,8 @@ class ReplayTrade:
     quantity: int
     pnl: Decimal
     proba: float = 0.0
+    features: dict[str, float] = field(default_factory=dict)
+    decision_note: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +125,26 @@ class ReplayResult:
 
 
 Predictor = Callable[[list[MarketBar]], float]
+
+
+def _features_at(bars: list[MarketBar], index: int) -> dict[str, float]:
+    """Feature snapshot at a completed bar (the inputs the model saw)."""
+    try:
+        row = build_feature_rows(bars[: index + 1])[-1]
+    except Exception:
+        return {}
+    return {key: float(row[key]) for key in MODEL_FEATURE_COLUMNS if key in row}
+
+
+def _decision_note(
+    proba: float,
+    buy_threshold: float,
+    sell_threshold: float,
+    side: str,
+) -> str:
+    if side == "BUY":
+        return f"上涨概率 {proba:.3f} ≥ 买入阈值 {buy_threshold:.2f}"
+    return f"上涨概率 {proba:.3f} ≤ 卖出阈值 {sell_threshold:.2f}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,6 +247,8 @@ def replay_bars(
                         quantity=lot_size,
                         pnl=Decimal("0"),
                         proba=proba,
+                        features=_features_at(bars, index),
+                        decision_note=_decision_note(proba, buy_threshold, sell_threshold, "BUY"),
                     )
                 )
         elif proba <= sell_threshold and position_qty > 0 and available_qty >= lot_size:
@@ -243,6 +269,8 @@ def replay_bars(
                     quantity=sell_qty,
                     pnl=pnl,
                     proba=proba,
+                    features=_features_at(bars, index),
+                    decision_note=_decision_note(proba, buy_threshold, sell_threshold, "SELL"),
                 )
             )
             if position_qty == 0:

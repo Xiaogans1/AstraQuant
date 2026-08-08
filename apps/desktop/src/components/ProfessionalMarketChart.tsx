@@ -427,7 +427,7 @@ export function ProfessionalMarketChart({
               y1={cost.y1}
               x2={cost.x2}
               y2={cost.y2}
-              stroke="#e67e22"
+              stroke="#ffb02e"
               strokeWidth={2}
               strokeDasharray="3 5"
               opacity={0.85}
@@ -436,7 +436,7 @@ export function ProfessionalMarketChart({
             </line>
           ))}
           {signalLayer.costs.length > 0 ? (
-            <text x={AXIS_LEFT_SIGNAL} y={signalLayer.costs[0].y1 - 6} fontSize="11" fill="#e67e22" fontWeight="600">
+            <text x={AXIS_LEFT_SIGNAL} y={signalLayer.costs[0].y1 - 6} fontSize="11" fill="#ffb02e" fontWeight="600">
               成本
             </text>
           ) : null}
@@ -451,7 +451,7 @@ export function ProfessionalMarketChart({
                 y1={from.y}
                 x2={to.x}
                 y2={to.y}
-                stroke={connection.pnl >= 0 ? "#ef5b5b" : "#21ad76"}
+                stroke={connection.pnl >= 0 ? "#f23645" : "#21ad76"}
                 strokeWidth={1.5}
                 strokeDasharray="6 4"
                 opacity={0.7}
@@ -462,7 +462,9 @@ export function ProfessionalMarketChart({
           })}
           {signalLayer.markers.map(({ signal, x, y }, index) => {
             const isBuy = signal.side === "BUY";
-            const color = isBuy ? "#21ad76" : "#ef5b5b";
+            const color = isBuy
+              ? (signal.isT ? "#ffb02e" : "#f23645")
+              : "#2962ff";
             const isActive = index === activeSignalIndex;
             return (
               <g
@@ -488,28 +490,40 @@ export function ProfessionalMarketChart({
                   fontWeight="bold"
                   fill="#ffffff"
                 >
-                  {isBuy ? "B" : "S"}
+                  {signal.isT ? "T" : isBuy ? "B" : "S"}
                 </text>
                 {signal.quantity !== undefined ? (
                   <text
                     x={x}
-                    y={isBuy ? y - 14 : y + 19}
+                    y={y - 14}
                     textAnchor="middle"
                     fontSize="9.5"
                     fontWeight="600"
                     fill={color}
                   >
-                    {signal.quantity}份
+                    {signal.isT ? `做T ${signal.quantity}份` : `${signal.quantity}份`}
                   </text>
                 ) : null}
-                {signal.pnl !== undefined && Math.abs(signal.pnl) > 0 ? (
+                {signal.isT && signal.tDelta !== undefined ? (
                   <text
                     x={x}
-                    y={y + (isBuy ? 19 : 30)}
+                    y={y + 19}
                     textAnchor="middle"
                     fontSize="9.5"
                     fontWeight="600"
-                    fill={signal.pnl >= 0 ? "#ef5b5b" : "#21ad76"}
+                    fill={signal.tDelta >= 0 ? "#f23645" : "#21ad76"}
+                  >
+                    {signal.tDelta >= 0 ? "+" : ""}{signal.tDelta.toFixed(4)}
+                  </text>
+                ) : null}
+                {!isBuy && signal.pnl !== undefined && Math.abs(signal.pnl) > 0 ? (
+                  <text
+                    x={x}
+                    y={y + 19}
+                    textAnchor="middle"
+                    fontSize="9.5"
+                    fontWeight="600"
+                    fill={signal.pnl >= 0 ? "#f23645" : "#21ad76"}
                   >
                     {signal.pnl >= 0 ? "+" : ""}{signal.pnl.toFixed(0)}
                   </text>
