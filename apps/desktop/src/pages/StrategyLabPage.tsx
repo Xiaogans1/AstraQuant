@@ -279,6 +279,8 @@ function ReplayResultView({
             timestamp: Date.parse(trade.timestamp),
             side: trade.side,
             price: Number(trade.price),
+            quantity: trade.quantity,
+            pnl: trade.side === "SELL" ? Number(trade.pnl) : undefined,
             label: `${trade.side === "BUY" ? "回放买入" : "回放卖出"} ${trade.quantity} 份 @ ${trade.price}（概率 ${(trade.proba * 100).toFixed(0)}%）${extra}`,
             source: "REPLAY" as const,
           };
@@ -306,6 +308,37 @@ function ReplayResultView({
         })),
     [pairs],
   );
+
+  const costSegments = useMemo(() => {
+    const segments: Array<{ startTimestamp: number; endTimestamp: number; cost: number }> = [];
+    let qty = 0;
+    let cost = 0;
+    let segmentStart = 0;
+    for (const trade of result.trades) {
+      const timestamp = Date.parse(trade.timestamp);
+      if (!Number.isFinite(timestamp)) continue;
+      if (trade.side === "BUY") {
+        const buyCost = (cost * qty + Number(trade.price) * trade.quantity) / (qty + trade.quantity);
+        if (qty === 0) {
+          cost = Number(trade.price);
+          segmentStart = timestamp;
+        } else {
+          cost = buyCost;
+        }
+        qty += trade.quantity;
+      } else {
+        if (qty > 0 && cost > 0) {
+          segments.push({ startTimestamp: segmentStart, endTimestamp: timestamp, cost });
+        }
+        qty = Math.max(qty - trade.quantity, 0);
+        if (qty === 0) {
+          cost = 0;
+          segmentStart = 0;
+        }
+      }
+    }
+    return segments;
+  }, [result.trades]);
   const equity = useMemo(
     () =>
       result.equity_points
@@ -360,6 +393,7 @@ function ReplayResultView({
             activeSignalId={activeSignalId}
             onSignalSelect={setActiveSignalId}
             connections={connections}
+            costSegments={costSegments}
           />
         </div>
         <p className="strategy-lab__note">

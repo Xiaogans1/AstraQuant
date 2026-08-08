@@ -30,11 +30,23 @@ const CANDLE_PANE_ID = "candle_pane";
 const SECONDARY_PANE_ID = "astraquant_secondary_pane";
 const MINIMUM_KLINE_BAR_SPACE = 2.5;
 const OVERVIEW_KLINE_BAR_SPACE = 0.1;
+const AXIS_LEFT_SIGNAL = 12;
 
 interface SignalConnection {
   fromId: string;
   toId: string;
   pnl: number;
+}
+
+interface CostSegment {
+  startTimestamp: number;
+  endTimestamp: number;
+  cost: number;
+}
+
+interface SignalLayer {
+  markers: Array<{ signal: MarketSignalMarker; x: number; y: number }>;
+  costs: Array<{ x1: number; y1: number; x2: number; y2: number }>;
 }
 
 interface ProfessionalMarketChartProps {
@@ -49,6 +61,7 @@ interface ProfessionalMarketChartProps {
   activeSignalId?: string | null;
   onSignalSelect?: (signalId: string | null) => void;
   connections?: SignalConnection[];
+  costSegments?: CostSegment[];
 }
 
 export function ProfessionalMarketChart({
@@ -63,6 +76,7 @@ export function ProfessionalMarketChart({
   activeSignalId = null,
   onSignalSelect,
   connections = [],
+  costSegments = [],
 }: ProfessionalMarketChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart | null>(null);
@@ -218,13 +232,12 @@ export function ProfessionalMarketChart({
     refreshSignalMarkers();
   }, [bars, period]);
 
-  const [signalMarkers, setSignalMarkers] = useState<
-    Array<{ signal: MarketSignalMarker; x: number; y: number }>
-  >([]);
-  const signalMarkersRef = useRef(signalMarkers);
-  signalMarkersRef.current = signalMarkers;
+  const [signalLayer, setSignalLayer] = useState<SignalLayer>({ markers: [], costs: [] });
+  const signalLayerRef = useRef(signalLayer);
+  signalLayerRef.current = signalLayer;
   const retryRef = useRef(0);
   const lastActiveSignalIdRef = useRef<string | null>(null);
+  const chartClickRef = useRef(false);
 
   const activeSignalIndex = activeSignalId === null
     ? -1
@@ -235,6 +248,9 @@ export function ProfessionalMarketChart({
       onSignalSelect?.(null);
       return;
     }
+    // Clicking a marker on the chart must not scroll the view (the marker is
+    // already visible); only table/navigation driven changes should scroll.
+    chartClickRef.current = true;
     onSignalSelect?.(signals[index].id);
   };
 
@@ -249,6 +265,11 @@ export function ProfessionalMarketChart({
 
   useEffect(() => {
     if (activeSignalId === null || activeSignalId === lastActiveSignalIdRef.current) return;
+    if (chartClickRef.current) {
+      chartClickRef.current = false;
+      lastActiveSignalIdRef.current = activeSignalId;
+      return;
+    }
     lastActiveSignalIdRef.current = activeSignalId;
     const chart = chartRef.current;
     if (chart === null) return;
@@ -282,11 +303,11 @@ export function ProfessionalMarketChart({
   const refreshSignalMarkers = () => {
     const chart = chartRef.current;
     if (chart === null) {
-      setSignalMarkers([]);
+      setSignalLayer({ markers: [], costs: [] });
       return;
     }
     if (!showQuantSignals) {
-      setSignalMarkers([]);
+      setSignalLayer({ markers: [], costs: [] });
       return;
     }
     const mapped = signals
@@ -302,7 +323,31 @@ export function ProfessionalMarketChart({
         return { signal, x: pixel.x, y: pixel.y };
       })
       .filter((item): item is { signal: MarketSignalMarker; x: number; y: number } => item !== null);
-    if (mapped.length < signals.length && retryRef.current < 120) {
+    const costs = costSegments
+      .map((segment) => {
+        const pixels = chart.convertToPixel(
+          [
+            { timestamp: segment.startTimestamp, value: segment.cost },
+            { timestamp: segment.endTimestamp, value: segment.cost },
+          ],
+          { paneId: CANDLE_PANE_ID },
+        ) as Array<Partial<Coordinate>>;
+        const start = pixels[0];
+        const end = pixels[1];
+        if (
+          start === undefined
+          || end === undefined
+          || !Number.isFinite(start.x)
+          || !Number.isFinite(start.y)
+          || !Number.isFinite(end.x)
+          || !Number.isFinite(end.y)
+        ) {
+          return null;
+        }
+        return { x1: start.x, y1: start.y, x2: end.x, y2: end.y };
+      })
+      .filter((item): item is { x1: number; y1: number; x2: number; y2: number } => item !== null);
+    if ((mapped.length < signals.length || costs.length < costSegments.length) && retryRef.current < 120) {
       // resetData() delivers bars asynchronously; keep retrying on animation
       // frames until convertToPixel can resolve the timestamps.
       retryRef.current += 1;
@@ -310,19 +355,27 @@ export function ProfessionalMarketChart({
       return;
     }
     retryRef.current = 0;
-    const previous = signalMarkersRef.current;
+    const previous = signalLayerRef.current;
     if (
-      previous.length === mapped.length
+      previous.markers.length === mapped.length
+      && previous.costs.length === costs.length
       && mapped.every(
         (item, index) =>
-          previous[index]?.signal.id === item.signal.id
-          && previous[index]?.x === item.x
-          && previous[index]?.y === item.y,
+          previous.markers[index]?.signal.id === item.signal.id
+          && previous.markers[index]?.x === item.x
+          && previous.markers[index]?.y === item.y,
+      )
+      && costs.every(
+        (item, index) =>
+          previous.costs[index]?.x1 === item.x1
+          && previous.costs[index]?.y1 === item.y1
+          && previous.costs[index]?.x2 === item.x2
+          && previous.costs[index]?.y2 === item.y2,
       )
     ) {
       return;
     }
-    setSignalMarkers(mapped);
+    setSignalLayer({ markers: mapped, costs });
   };
 
   useEffect(() => {
@@ -362,14 +415,34 @@ export function ProfessionalMarketChart({
       aria-label={`${instrumentId}${period === "intraday" ? "分时" : "K线"}行情图`}
     >
       <div ref={hostRef} className="professional-market-chart__surface" />
-      {signalMarkers.length === 0 ? null : (
+      {signalLayer.markers.length === 0 && signalLayer.costs.length === 0 ? null : (
         <svg
           className="professional-market-chart__signals"
           aria-hidden="true"
         >
+          {signalLayer.costs.map((cost, index) => (
+            <line
+              key={`cost-${index}`}
+              x1={cost.x1}
+              y1={cost.y1}
+              x2={cost.x2}
+              y2={cost.y2}
+              stroke="#e67e22"
+              strokeWidth={2}
+              strokeDasharray="3 5"
+              opacity={0.85}
+            >
+              <title>持仓成本线</title>
+            </line>
+          ))}
+          {signalLayer.costs.length > 0 ? (
+            <text x={AXIS_LEFT_SIGNAL} y={signalLayer.costs[0].y1 - 6} fontSize="11" fill="#e67e22" fontWeight="600">
+              成本
+            </text>
+          ) : null}
           {connections.map((connection) => {
-            const from = signalMarkers.find((marker) => marker.signal.id === connection.fromId);
-            const to = signalMarkers.find((marker) => marker.signal.id === connection.toId);
+            const from = signalLayer.markers.find((marker) => marker.signal.id === connection.fromId);
+            const to = signalLayer.markers.find((marker) => marker.signal.id === connection.toId);
             if (from === undefined || to === undefined) return null;
             return (
               <line
@@ -387,7 +460,7 @@ export function ProfessionalMarketChart({
               </line>
             );
           })}
-          {signalMarkers.map(({ signal, x, y }, index) => {
+          {signalLayer.markers.map(({ signal, x, y }, index) => {
             const isBuy = signal.side === "BUY";
             const color = isBuy ? "#ef5b5b" : "#21ad76";
             const isActive = index === activeSignalIndex;
@@ -417,12 +490,36 @@ export function ProfessionalMarketChart({
                 >
                   {isBuy ? "B" : "S"}
                 </text>
+                {signal.quantity !== undefined ? (
+                  <text
+                    x={x}
+                    y={isBuy ? y - 14 : y + 19}
+                    textAnchor="middle"
+                    fontSize="9.5"
+                    fontWeight="600"
+                    fill={color}
+                  >
+                    {signal.quantity}份
+                  </text>
+                ) : null}
+                {signal.pnl !== undefined && Math.abs(signal.pnl) > 0 ? (
+                  <text
+                    x={x}
+                    y={y + (isBuy ? 19 : 30)}
+                    textAnchor="middle"
+                    fontSize="9.5"
+                    fontWeight="600"
+                    fill={signal.pnl >= 0 ? "#21ad76" : "#ef5b5b"}
+                  >
+                    {signal.pnl >= 0 ? "+" : ""}{signal.pnl.toFixed(0)}
+                  </text>
+                ) : null}
               </g>
             );
           })}
         </svg>
       )}
-      {signalMarkers.length === 0 ? null : (
+      {signalLayer.markers.length === 0 ? null : (
         <div className="professional-market-chart__signalbar" role="toolbar" aria-label="买卖点导航">
           <button
             type="button"

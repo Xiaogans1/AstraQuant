@@ -5,6 +5,8 @@ export interface MarketSignalMarker {
   price: number;
   label: string;
   source: "QUANT" | "PAPER_FILL" | "REPLAY";
+  quantity?: number;
+  pnl?: number;
 }
 
 export interface MarketSignalOverlay {
