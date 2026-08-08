@@ -3682,3 +3682,74 @@ code {
   pointer-events: none;
   z-index: 5;
 }
+
+
+.professional-market-chart__signal {
+  cursor: pointer;
+}
+
+.professional-market-chart__signal circle {
+  pointer-events: auto;
+}
+
+.professional-market-chart__signalbar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(4px);
+  font-size: 12px;
+}
+
+.professional-market-chart__signalbar button {
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.professional-market-chart__signalbar button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.professional-market-chart__signalbar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.professional-market-chart__signalbar-index {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.professional-market-chart__signalbar-detail {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+.strategy-lab__pairs tbody tr {
+  cursor: pointer;
+}
+
+.strategy-lab__pairs tbody tr[data-active="true"] {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  outline: 1px solid var(--accent);
+}

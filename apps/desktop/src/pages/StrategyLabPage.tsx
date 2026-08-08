@@ -261,21 +261,39 @@ function ReplayResultView({
   result: ReplayResult;
   models: ModelRegistryView[];
 }) {
+  const [activeSignalId, setActiveSignalId] = useState<string | null>(null);
   const bars = useMemo(() => toChartBars(result.bars), [result.bars]);
+  const pairs = useMemo(() => tradePairs(result.trades), [result.trades]);
   const signals = useMemo<MarketSignalMarker[]>(
     () =>
       result.trades
-        .map((trade) => ({
-          id: `replay-${trade.index}`,
-          timestamp: Date.parse(trade.timestamp),
-          side: trade.side,
-          price: Number(trade.price),
-          label: `${trade.side === "BUY" ? "回放买入" : "回放卖出"} ${trade.quantity} 份 @ ${trade.price}（概率 ${(trade.proba * 100).toFixed(0)}%）`,
-          source: "REPLAY" as const,
-        }))
+        .map((trade) => {
+          const pair = trade.side === "SELL"
+            ? pairs.find((item) => item.sell?.index === trade.index)
+            : pairs.find((item) => item.buyIndex === trade.index && item.sell === null);
+          const extra = pair === undefined || pair.sell === null
+            ? ""
+            : ` · 配对买入 @ ${pair.buyPrice.toFixed(4)} · 盈亏 ${formatSignedMoney(String(pair.pnl))}（${pair.pnlPercent >= 0 ? "+" : ""}${pair.pnlPercent.toFixed(1)}%）`;
+          return {
+            id: `replay-${trade.index}`,
+            timestamp: Date.parse(trade.timestamp),
+            side: trade.side,
+            price: Number(trade.price),
+            label: `${trade.side === "BUY" ? "回放买入" : "回放卖出"} ${trade.quantity} 份 @ ${trade.price}（概率 ${(trade.proba * 100).toFixed(0)}%）${extra}`,
+            source: "REPLAY" as const,
+          };
+        })
         .filter((item) => Number.isFinite(item.timestamp) && Number.isFinite(item.price)),
-    [result.trades],
+    [result.trades, pairs],
   );
+  const activePairKey = useMemo(() => {
+    if (activeSignalId === null) return null;
+    const index = Number(activeSignalId.slice("replay-".length));
+    const pair = pairs.find(
+      (item) => item.sell?.index === index || (item.sell === null && item.buyIndex === index),
+    );
+    return pair === undefined ? null : `${pair.buyIndex}-${pair.sell?.index ?? "open"}`;
+  }, [activeSignalId, pairs]);
   const equity = useMemo(
     () =>
       result.equity_points
@@ -327,12 +345,26 @@ function ReplayResultView({
             showQuantSignals
             bars={bars}
             signals={signals}
+            activeSignalId={activeSignalId}
+            onSignalSelect={setActiveSignalId}
           />
         </div>
         <p className="strategy-lab__note">
-          整段区间一张图：**按住拖动平移，滚轮缩放**，可逐段查看任意时段；红 B / 绿 S 为全部真实模型信号（悬停查看时间与上涨概率）。
+          整段区间一张图：**按住拖动平移，滚轮缩放**（"显示整体"可看全区间）；红 B / 绿 S 为全部真实模型信号。
+          点击标记或在下方交易表中点击任意一行，图上会自动跳到对应买卖点并高亮。
           数据实际覆盖 {formatTime(result.start)} ~ {formatTime(result.end)}，共 {result.trades.length} 笔信号。
         </p>
+      </Panel>
+
+      <Panel title="交易盈亏对比（点击行跳到图上对应买卖点）" eyebrow="TRADES / PAIRED PNL">
+        <TradePairsTable
+          trades={result.trades}
+          activeKey={activePairKey}
+          onSelect={(pair) => {
+            const signalId = pair.sell !== null ? `replay-${pair.sell.index}` : `replay-${pair.buyIndex}`;
+            setActiveSignalId(signalId);
+          }}
+        />
       </Panel>
 
       <Panel title="权益曲线：策略 vs 买入持有" eyebrow="EQUITY / VS BUY & HOLD">
@@ -350,19 +382,14 @@ function ReplayResultView({
         </p>
       </Panel>
 
-      <div className="strategy-lab__grid">
-        <Panel title="交易盈亏对比" eyebrow="TRADES / PAIRED PNL">
-          <TradePairsTable trades={result.trades} />
-        </Panel>
-        <Panel title="说明" eyebrow="NOTES / HONESTY">
-          <ul className="strategy-lab__notes">
-            <li>确定性回放：同输入同输出，可复现。</li>
-            <li>费用口径：佣金万 2.5 + 过户费（双边），未含滑点；不模拟涨跌停/停牌。</li>
-            <li>信号基于已完成 1 分钟 K 线，无未来函数。</li>
-            <li>模型训练区间与回放区间可能重叠，结果偏乐观；样本外以模拟盘验证为准。</li>
-          </ul>
-        </Panel>
-      </div>
+      <Panel title="说明" eyebrow="NOTES / HONESTY">
+        <ul className="strategy-lab__notes">
+          <li>确定性回放：同输入同输出，可复现。</li>
+          <li>费用口径：佣金万 2.5 + 过户费（双边），未含滑点；不模拟涨跌停/停牌。</li>
+          <li>信号基于已完成 1 分钟 K 线，无未来函数。</li>
+          <li>模型训练区间与回放区间可能重叠，结果偏乐观；样本外以模拟盘验证为准。</li>
+        </ul>
+      </Panel>
 
       <Panel title="持仓金额曲线" eyebrow="POSITION VALUE / REPLAY">
         <PositionValueCurve
@@ -854,7 +881,7 @@ function EquityCurve({ points, initial }: { points: Array<readonly [number, numb
   );
 }
 
-function tradePairs(trades: ReplayTrade[]): Array<{
+interface TradePair {
   buyIndex: number;
   buyTime: string;
   buyPrice: number;
@@ -862,16 +889,10 @@ function tradePairs(trades: ReplayTrade[]): Array<{
   sell: ReplayTrade | null;
   pnl: number;
   pnlPercent: number;
-}> {
-  const rows: Array<{
-    buyIndex: number;
-    buyTime: string;
-    buyPrice: number;
-    quantity: number;
-    sell: ReplayTrade | null;
-    pnl: number;
-    pnlPercent: number;
-  }> = [];
+}
+
+function tradePairs(trades: ReplayTrade[]): TradePair[] {
+  const rows: TradePair[] = [];
   let openQty = 0;
   let openCost = 0;
   let openIndex = -1;
@@ -919,11 +940,20 @@ function tradePairs(trades: ReplayTrade[]): Array<{
   return rows;
 }
 
-function TradePairsTable({ trades }: { trades: ReplayTrade[] }) {
+function TradePairsTable({
+  trades,
+  activeKey = null,
+  onSelect,
+}: {
+  trades: ReplayTrade[];
+  activeKey?: string | null;
+  onSelect?: (pair: TradePair) => void;
+}) {
   const pairs = useMemo(() => tradePairs(trades), [trades]);
   if (pairs.length === 0) {
     return <p className="strategy-lab__empty">该时段没有触发交易。</p>;
   }
+  const pairKey = (pair: TradePair) => `${pair.buyIndex}-${pair.sell?.index ?? "open"}`;
   return (
     <div className="strategy-lab__pairs-wrap">
       <table className="strategy-lab__pairs">
@@ -952,7 +982,12 @@ function TradePairsTable({ trades }: { trades: ReplayTrade[] }) {
               ? `${Math.round(holdMinutes)}分钟`
               : `${(holdMinutes / 60).toFixed(1)}小时`;
           return (
-            <tr key={`${pair.buyIndex}-${pair.sell?.index ?? "open"}`} data-pnl={pair.sell === null ? "open" : pair.pnl >= 0 ? "up" : "down"}>
+            <tr
+              key={`${pair.buyIndex}-${pair.sell?.index ?? "open"}`}
+              data-pnl={pair.sell === null ? "open" : pair.pnl >= 0 ? "up" : "down"}
+              data-active={pairKey(pair) === activeKey}
+              onClick={() => onSelect?.(pair)}
+            >
               <td>{fromOpening ? "期初持仓" : formatTime(pair.buyTime)}</td>
               <td>{fromOpening ? "—" : pair.buyPrice.toFixed(4)}</td>
               <td>{pair.quantity}</td>

@@ -29,6 +29,7 @@ const QUANT_SIGNAL_GROUP_ID = "astraquant-quant-signals";
 const CANDLE_PANE_ID = "candle_pane";
 const SECONDARY_PANE_ID = "astraquant_secondary_pane";
 const MINIMUM_KLINE_BAR_SPACE = 2.5;
+const OVERVIEW_KLINE_BAR_SPACE = 0.1;
 
 interface ProfessionalMarketChartProps {
   instrumentId: string;
@@ -39,6 +40,8 @@ interface ProfessionalMarketChartProps {
   bars: MarketBar[];
   signals?: MarketSignalMarker[];
   onCrosshairBarChange?: (bar: MarketBar | null) => void;
+  activeSignalId?: string | null;
+  onSignalSelect?: (signalId: string | null) => void;
 }
 
 export function ProfessionalMarketChart({
@@ -50,6 +53,8 @@ export function ProfessionalMarketChart({
   bars,
   signals = [],
   onCrosshairBarChange,
+  activeSignalId = null,
+  onSignalSelect,
 }: ProfessionalMarketChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart | null>(null);
@@ -80,7 +85,7 @@ export function ProfessionalMarketChart({
       styles: marketChartTheme,
       layout: {
         barSpaceLimit: {
-          min: MINIMUM_KLINE_BAR_SPACE,
+          min: OVERVIEW_KLINE_BAR_SPACE,
           max: 50,
         },
       },
@@ -211,6 +216,54 @@ export function ProfessionalMarketChart({
   const signalMarkersRef = useRef(signalMarkers);
   signalMarkersRef.current = signalMarkers;
   const retryRef = useRef(0);
+  const lastActiveSignalIdRef = useRef<string | null>(null);
+
+  const activeSignalIndex = activeSignalId === null
+    ? -1
+    : signals.findIndex((signal) => signal.id === activeSignalId);
+
+  const selectSignal = (index: number) => {
+    if (index < 0 || index >= signals.length) {
+      onSignalSelect?.(null);
+      return;
+    }
+    onSignalSelect?.(signals[index].id);
+  };
+
+  const jumpToSignal = (index: number) => {
+    const chart = chartRef.current;
+    if (chart === null || index < 0 || index >= signals.length) return;
+    selectSignal(index);
+    chart.scrollToTimestamp(signals[index].timestamp, 200);
+  };
+
+  useEffect(() => {
+    if (activeSignalId === null || activeSignalId === lastActiveSignalIdRef.current) return;
+    lastActiveSignalIdRef.current = activeSignalId;
+    const chart = chartRef.current;
+    if (chart === null) return;
+    const signal = signals.find((item) => item.id === activeSignalId);
+    if (signal !== undefined) {
+      chart.scrollToTimestamp(signal.timestamp, 200);
+    }
+  }, [activeSignalId, signals]);
+
+  const zoomToOverview = () => {
+    const chart = chartRef.current;
+    const host = hostRef.current;
+    if (chart === null || host === null || bars.length === 0) return;
+    const plotWidth = Math.max(host.clientWidth - 64, 960);
+    chart.setBarSpace(Math.max(plotWidth / bars.length, OVERVIEW_KLINE_BAR_SPACE));
+    chart.scrollToRealTime(0);
+  };
+
+  const zoomToRecent = () => {
+    const chart = chartRef.current;
+    const host = hostRef.current;
+    if (chart === null || host === null) return;
+    chart.setBarSpace(minimumBarSpace(host, period));
+    chart.scrollToRealTime(0);
+  };
 
   const refreshSignalMarkers = () => {
     const chart = chartRef.current;
@@ -300,12 +353,24 @@ export function ProfessionalMarketChart({
           className="professional-market-chart__signals"
           aria-hidden="true"
         >
-          {signalMarkers.map(({ signal, x, y }) => {
+          {signalMarkers.map(({ signal, x, y }, index) => {
             const isBuy = signal.side === "BUY";
             const color = isBuy ? "#ef5b5b" : "#21ad76";
+            const isActive = index === activeSignalIndex;
             return (
-              <g key={signal.id}>
-                <circle cx={x} cy={y} r={9} fill={color}>
+              <g
+                key={signal.id}
+                className="professional-market-chart__signal"
+                onClick={() => selectSignal(index)}
+              >
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={isActive ? 12 : 9}
+                  fill={color}
+                  stroke={isActive ? "#ffffff" : "none"}
+                  strokeWidth={2}
+                >
                   <title>{signal.label}</title>
                 </circle>
                 <text
@@ -322,6 +387,32 @@ export function ProfessionalMarketChart({
             );
           })}
         </svg>
+      )}
+      {signalMarkers.length === 0 ? null : (
+        <div className="professional-market-chart__signalbar" role="toolbar" aria-label="买卖点导航">
+          <button
+            type="button"
+            disabled={signals.length === 0}
+            onClick={() => jumpToSignal(activeSignalIndex - 1)}
+          >
+            ← 上一个
+          </button>
+          <span className="professional-market-chart__signalbar-index">
+            {activeSignalIndex >= 0 ? activeSignalIndex + 1 : "—"} / {signals.length}
+          </span>
+          <button
+            type="button"
+            disabled={signals.length === 0}
+            onClick={() => jumpToSignal(activeSignalIndex + 1)}
+          >
+            下一个 →
+          </button>
+          <strong className="professional-market-chart__signalbar-detail">
+            {activeSignalIndex >= 0 ? signals[activeSignalIndex].label : "点击图上 B/S 标记查看详情"}
+          </strong>
+          <button type="button" onClick={zoomToOverview}>显示整体</button>
+          <button type="button" onClick={zoomToRecent}>回到最近</button>
+        </div>
       )}
       {crosshairQuote === null ? null : (
         <>

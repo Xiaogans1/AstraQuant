@@ -356,7 +356,7 @@ it("prevents wheel zoom from shrinking an intraday session below the canvas", ()
     expect.any(HTMLDivElement),
     expect.objectContaining({
       layout: {
-        barSpaceLimit: expect.objectContaining({ min: 2.5 }),
+        barSpaceLimit: expect.objectContaining({ min: 0.1 }),
       },
     }),
   );
