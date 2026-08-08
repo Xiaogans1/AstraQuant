@@ -28,6 +28,12 @@ as a local-first, privacy-safe desktop infrastructure for China's markets.
                     → 买卖点/风险提示 → Paper 模拟 → 外部手动交易 → 复盘
 ```
 
+### 界面预览 · Preview
+
+![AstraQuant 回测总览](docs/screenshots/backtest-overview.png)
+
+*回测工作台：标的切换、绩效统计、K 线买卖信号标记与权益曲线同屏联动。*
+
 ---
 
 ## 核心亮点 · Highlights
