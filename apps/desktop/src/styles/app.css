@@ -3253,17 +3253,17 @@ code {
   gap: 5px;
   padding: 5px 12px;
   background: #ffffff;
-  border: 1px solid var(--border);
+  border: 1px solid #cbd7d7;
   border-radius: 999px;
   font-size: 12px;
-  color: var(--text);
+  color: #172327;
   cursor: pointer;
 }
 
 .strategy-lab__chip--selected,
 .strategy-lab__chip--selected.strategy-lab__chip--added {
-  border-color: var(--positive, #0a8f4c);
-  background: var(--positive, #0a8f4c);
+  border-color: #0a8f4c;
+  background: #0a8f4c;
   color: #ffffff;
   font-weight: 600;
 }
