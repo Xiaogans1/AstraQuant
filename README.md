@@ -280,7 +280,7 @@ AstraQuant 正在寻找志同道合的伙伴，共同把国内量化研究基础
 
 都欢迎通过以下方式联系我们：
 
-- 📮 邮件：**2440035176@qq.com**
+- 📮 邮件：**yyh2440035176@gmail.com**
 - 🐦 QQ：**2440035176**
 - 💬 GitHub：在 [Issues](https://github.com/Xiaogans1/AstraQuant/issues) 中提问或讨论
 
