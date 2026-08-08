@@ -1,6 +1,6 @@
 # AstraQuant
 
-> 面向中国 A 股与国内期货的本地优先、AI 主导量化研究与实时决策辅助平台。
+> 本地优先 · AI 驱动 · 全程可审计的国内量化研究平台。
 > A local-first, AI-native quantitative research and real-time decision support
 > platform for China A-shares and domestic futures.
 
@@ -10,15 +10,17 @@
 
 ## 简介 · About
 
-AstraQuant 是一个**真正能跑起来**的量化研究平台：桌面端已接通真实 A 股/ETF/指数行情，
-内置确定性量化引擎与本地模拟账户（Paper Trading），并围绕“研究 → 信号 → 模拟 → 复盘”
-建立了完整闭环。它不是传统量化软件末端挂一个 AI 聊天框，而是让 AI 贯穿研究、特征发现、
-模型训练、信号生成与复盘，同时由确定性系统负责数据一致性、核算与风险边界。
+在量化投资领域,研究与执行长期割裂:研究工具缺乏真实市场数据,执行系统缺乏可解释的
+研究过程。AstraQuant 用一套统一的版本化信号契约,将 AI 驱动的离线研究与确定性驱动的
+实时执行连接为完整闭环——从真实行情到可审计决策,从模拟撮合到交易复盘,为国内市场
+构建本地优先、隐私安全的桌面级量化基础设施。
 
-AstraQuant is an **open, runnable** quantitative research platform for China markets:
-real A-share/ETF/index quotes via a desktop app, a deterministic quant engine, and a
-local paper-trading ledger, connected end-to-end around
-"research → signals → simulation → review".
+AstraQuant bridges the long-standing gap between research and execution in
+quantitative investing: research tools lack real market data, while execution
+systems lack explainable research. Through a unified, versioned signal contract,
+it connects AI-driven offline research with deterministic real-time execution —
+from live market data to auditable decisions, from paper trading to full review —
+as a local-first, privacy-safe desktop infrastructure for China's markets.
 
 ```text
 离线循环 Offline loop：历史数据 → 特征工程 → AI 训练 → 回测验证 → 模型发布
@@ -63,21 +65,84 @@ local paper-trading ledger, connected end-to-end around
 ## 架构 · Architecture
 
 ```mermaid
-flowchart LR
-    UI["Tauri 桌面端<br/>React + TypeScript"] --> API["本地控制服务<br/>Loopback FastAPI"]
-    API --> Research["AI 研究与模型服务"]
-    API --> Engine["回测 / Paper 模拟引擎"]
-    Research --> Data["本地数据层<br/>Parquet + DuckDB"]
-    Data --> Stream["历史批处理 / 实时行情流"]
-    Stream --> Research
-    Research --> Signal["版本化 SignalFrame"]
-    Signal --> Advice["买卖点 / 风险提示"]
-    Signal --> Engine
-    Engine --> Data
-    Advice --> Manual["用户在外部交易软件手动操作"]
-    Engine --> Audit["信号、模拟成交与复盘日志"]
-    Audit --> UI
+flowchart TB
+    subgraph CLIENT["桌面客户端 · Desktop Client"]
+        UI["Tauri 桌面<br/>React + TypeScript"]
+        WS["行情 / 数据 / 策略执行 / Paper 账户 / 复盘 工作区"]
+    end
+
+    subgraph SERVICE["本地控制服务 · Loopback FastAPI"]
+        direction LR
+        API["REST API<br/>Bearer 会话认证"]
+        SUP["Worker 监督<br/>任务生命周期"]
+        SEC["凭据隔离<br/>系统钥匙串"]
+    end
+
+    subgraph OFFLINE["离线研究循环 · Offline Research Loop"]
+        direction TB
+        Q1["特征工程<br/>训练 / 验证切分"]
+        Q2["模型训练与注册<br/>评估门槛"]
+        Q3["确定性回测与回放<br/>防未来数据泄漏"]
+    end
+
+    subgraph ONLINE["在线执行循环 · Online Execution Loop"]
+        direction TB
+        L1["在线特征<br/>仅用已完成分钟线"]
+        L2["版本化 SignalFrame<br/>原因码 · 置信度 · 有效期"]
+        L3["Paper 模拟撮合<br/>T+1 · 仓位 · 现金约束"]
+    end
+
+    subgraph DATA["本地数据层 · Local Data"]
+        direction LR
+        D1["不可变 Parquet<br/>+ SQLite"]
+        D2["DuckDB as-of 查询<br/>时点一致性"]
+        D3["审计日志<br/>决策留痕"]
+    end
+
+    subgraph EXT["外部边界 · External Boundary"]
+        direction LR
+        M1["东财掘金<br/>真实只读行情"]
+        M2["外部交易软件<br/>用户手动下单"]
+    end
+
+    WS --> API
+    API --> Q1
+    API --> L1
+    API --> SUP
+    API --> SEC
+
+    M1 --> D1
+    D1 --> D2
+    D2 --> Q1
+    D2 --> L1
+
+    Q1 --> Q2 --> Q3 --> L2
+    L1 --> L2 --> L3
+
+    L3 --> D3
+    L3 --> M2
+    D3 --> API
+    API --> WS
+
+    classDef cli fill:#7c5cf0,stroke:#7c5cf0,color:#ffffff
+    classDef srv fill:#3b82f6,stroke:#3b82f6,color:#ffffff
+    classDef off fill:#06b6d4,stroke:#06b6d4,color:#ffffff
+    classDef onl fill:#10b981,stroke:#10b981,color:#ffffff
+    classDef dat fill:#f59e0b,stroke:#f59e0b,color:#ffffff
+    classDef ext fill:#64748b,stroke:#64748b,color:#ffffff
+    class UI,WS cli
+    class API,SUP,SEC srv
+    class Q1,Q2,Q3 off
+    class L1,L2,L3 onl
+    class D1,D2,D3 dat
+    class M1,M2 ext
 ```
+
+- **双循环解耦**：离线研究循环（青色）与在线执行循环（绿色）通过版本化信号契约衔接，
+  研究与实盘推理互不阻塞。
+- **数据单向流动**：真实行情 → 本地数据层 → 特征与信号 → 模拟撮合 → 审计日志，
+  任何环节都不向真实交易通道发送委托。
+- **全程可审计**：信号、决策、模拟成交与复盘日志贯穿链路，凭据隔离在系统钥匙串中。
 
 技术栈：Python 3.12 (FastAPI / SQLAlchemy / DuckDB) · Tauri 2 / Rust · React 19 /
 TypeScript / Vite · pnpm / uv 双锁文件工作区。
