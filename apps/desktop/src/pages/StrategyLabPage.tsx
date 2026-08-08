@@ -781,6 +781,17 @@ function toChartBars(bars: ReplayBar[]): MarketBar[] {
   }));
 }
 
+const AXIS_LEFT = 84;
+const AXIS_BOTTOM = 34;
+
+function axisTicks(min: number, max: number): number[] {
+  const ticks: number[] = [];
+  for (let index = 0; index <= 4; index += 1) {
+    ticks.push(min + ((max - min) * index) / 4);
+  }
+  return ticks;
+}
+
 function DualEquityCurve({
   strategy,
   buyHold,
@@ -790,6 +801,7 @@ function DualEquityCurve({
   buyHold: Array<readonly [number, number]>;
   initial: number;
 }) {
+  const [hover, setHover] = useState<{ index: number; x: number } | null>(null);
   if (strategy.length < 2) {
     return <p className="strategy-lab__empty">等待回放数据生成权益曲线</p>;
   }
@@ -799,17 +811,61 @@ function DualEquityCurve({
   const range = Math.max(max - min, 1);
   const width = 1200;
   const height = 400;
+  const plotWidth = width - AXIS_LEFT - 12;
+  const plotHeight = height - AXIS_BOTTOM - 16;
+  const xOf = (index: number, total: number) => AXIS_LEFT + (index / Math.max(total - 1, 1)) * plotWidth;
+  const yOf = (value: number) => 8 + ((max - value) / range) * plotHeight;
   const project = (points: Array<readonly [number, number]>) =>
-    points.map(([, value], index) => {
-      const x = (index / (points.length - 1)) * width;
-      const y = height - ((value - min) / range) * (height - 40) - 20;
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    });
+    points.map(([, value], index) => `${xOf(index, points.length).toFixed(2)},${yOf(value).toFixed(2)}`);
+  const ticks = axisTicks(min, max);
+  const hoverIndex = hover?.index ?? -1;
+  const hoverX = hover === null ? null : xOf(hoverIndex, strategy.length);
+  const hoverStrategy = hoverIndex >= 0 ? strategy[hoverIndex] : undefined;
+  const hoverBuyHold = hoverIndex >= 0 ? buyHold[hoverIndex] : undefined;
   return (
-    <svg className="strategy-lab__equity" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="策略权益与买入持有基准对比曲线">
-      <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="var(--border)" />
+    <svg
+      className="strategy-lab__equity"
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="策略权益与买入持有基准对比曲线"
+      onMouseLeave={() => setHover(null)}
+      onMouseMove={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * width;
+        const index = Math.round(((x - AXIS_LEFT) / plotWidth) * (strategy.length - 1));
+        setHover({ index: Math.max(0, Math.min(strategy.length - 1, index)), x: Math.max(0, Math.min(width, x)) });
+      }}
+    >
+      {ticks.map((tick) => {
+        const y = yOf(tick);
+        return (
+          <g key={tick}>
+            <line x1={AXIS_LEFT} y1={y} x2={width - 12} y2={y} stroke="var(--border)" strokeWidth="0.6" strokeDasharray="4 4" opacity="0.5" />
+            <text x={AXIS_LEFT - 8} y={y + 5} textAnchor="end" fontSize="13" fill="var(--text-muted)">
+              {formatMoneyLocal(tick)}
+            </text>
+          </g>
+        );
+      })}
+      <text x={AXIS_LEFT} y={height - 10} fontSize="13" fill="var(--text-muted)">
+        {formatTimeShort(strategy[0][0])}
+      </text>
+      <text x={width - 12} y={height - 10} textAnchor="end" fontSize="13" fill="var(--text-muted)">
+        {formatTimeShort(strategy[strategy.length - 1][0])}
+      </text>
       <polyline points={project(buyHold).join(" ")} fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeDasharray="5 5" />
       <polyline points={project(strategy).join(" ")} fill="none" stroke="var(--accent)" strokeWidth="3" />
+      {hoverX === null || hoverStrategy === undefined ? null : (
+        <>
+          <line x1={hoverX} y1={8} x2={hoverX} y2={8 + plotHeight} stroke="var(--text-muted)" strokeWidth="0.8" opacity="0.6" />
+          <circle cx={hoverX} cy={yOf(hoverStrategy[1])} r="5" fill="var(--accent)" />
+          {hoverBuyHold === undefined ? null : <circle cx={hoverX} cy={yOf(hoverBuyHold[1])} r="4" fill="var(--text-muted)" />}
+          <text x={Math.min(hoverX + 8, width - 220)} y={30} fontSize="13" fill="var(--text)">
+            {formatTimeShort(hoverStrategy[0])} · 策略 {formatMoneyLocal(hoverStrategy[1])} · 持有 {hoverBuyHold === undefined ? "—" : formatMoneyLocal(hoverBuyHold[1])}
+          </text>
+        </>
+      )}
     </svg>
   );
 }
@@ -821,6 +877,7 @@ function PositionValueCurve({
   points: Array<[string, string]>;
   trades: ReplayTrade[];
 }) {
+  const [hover, setHover] = useState<{ index: number; x: number } | null>(null);
   const parsed = useMemo(
     () =>
       points
@@ -837,24 +894,55 @@ function PositionValueCurve({
   const range = Math.max(max - min, 1);
   const width = 1200;
   const height = 400;
-  const coords = parsed.map(([, value], index) => {
-    const x = (index / (parsed.length - 1)) * width;
-    const y = height - ((value - min) / range) * (height - 40) - 20;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  });
+  const plotWidth = width - AXIS_LEFT - 12;
+  const plotHeight = height - AXIS_BOTTOM - 16;
+  const xOf = (index: number) => AXIS_LEFT + (index / Math.max(parsed.length - 1, 1)) * plotWidth;
+  const yOf = (value: number) => 8 + ((max - value) / range) * plotHeight;
+  const coords = parsed.map(([, value], index) => `${xOf(index).toFixed(2)},${yOf(value).toFixed(2)}`);
+  const ticks = axisTicks(min, max);
+  const hoverIndex = hover?.index ?? -1;
+  const hoverX = hover === null ? null : xOf(hoverIndex);
+  const hoverPoint = hoverIndex >= 0 ? parsed[hoverIndex] : undefined;
   const markers = trades
     .map((trade) => {
       const time = Date.parse(trade.timestamp);
       const barIndex = parsed.findIndex(([timestamp]) => timestamp === time);
       if (barIndex < 0) return null;
-      const x = (barIndex / (parsed.length - 1)) * width;
-      const y = height - ((parsed[barIndex][1] - min) / range) * (height - 40) - 20;
-      return { trade, x, y };
+      return { trade, x: xOf(barIndex), y: yOf(parsed[barIndex][1]) };
     })
     .filter((item): item is { trade: ReplayTrade; x: number; y: number } => item !== null);
   return (
-    <svg className="strategy-lab__equity strategy-lab__equity--value" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="持仓市值曲线">
-      <line x1="0" y1={height / 2} x2={width} y2={height / 2} stroke="var(--border)" />
+    <svg
+      className="strategy-lab__equity strategy-lab__equity--value"
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="持仓市值曲线"
+      onMouseLeave={() => setHover(null)}
+      onMouseMove={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * width;
+        const index = Math.round(((x - AXIS_LEFT) / plotWidth) * (parsed.length - 1));
+        setHover({ index: Math.max(0, Math.min(parsed.length - 1, index)), x: Math.max(0, Math.min(width, x)) });
+      }}
+    >
+      {ticks.map((tick) => {
+        const y = yOf(tick);
+        return (
+          <g key={tick}>
+            <line x1={AXIS_LEFT} y1={y} x2={width - 12} y2={y} stroke="var(--border)" strokeWidth="0.6" strokeDasharray="4 4" opacity="0.5" />
+            <text x={AXIS_LEFT - 8} y={y + 5} textAnchor="end" fontSize="13" fill="var(--text-muted)">
+              {formatMoneyLocal(tick)}
+            </text>
+          </g>
+        );
+      })}
+      <text x={AXIS_LEFT} y={height - 10} fontSize="13" fill="var(--text-muted)">
+        {formatTimeShort(parsed[0][0])}
+      </text>
+      <text x={width - 12} y={height - 10} textAnchor="end" fontSize="13" fill="var(--text-muted)">
+        {formatTimeShort(parsed[parsed.length - 1][0])}
+      </text>
       <polyline points={coords.join(" ")} fill="none" stroke="var(--accent)" strokeWidth="2.5" />
       {markers.map(({ trade, x, y }) => (
         <circle
@@ -867,8 +955,31 @@ function PositionValueCurve({
           <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（${formatTime(trade.timestamp)}）`}</title>
         </circle>
       ))}
+      {hoverX === null || hoverPoint === undefined ? null : (
+        <>
+          <line x1={hoverX} y1={8} x2={hoverX} y2={8 + plotHeight} stroke="var(--text-muted)" strokeWidth="0.8" opacity="0.6" />
+          <circle cx={hoverX} cy={yOf(hoverPoint[1])} r="5" fill="var(--accent)" />
+          <text x={Math.min(hoverX + 8, width - 260)} y={30} fontSize="13" fill="var(--text)">
+            {formatTimeShort(hoverPoint[0])} · 持仓市值 {formatMoneyLocal(hoverPoint[1])}
+          </text>
+        </>
+      )}
     </svg>
   );
+}
+
+function formatTimeShort(timestamp: number): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(timestamp));
+}
+
+function formatMoneyLocal(value: number): string {
+  return value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function EquityCurve({ points, initial }: { points: Array<readonly [number, number]>; initial: number }) {
