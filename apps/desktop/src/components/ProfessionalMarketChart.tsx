@@ -196,6 +196,7 @@ export function ProfessionalMarketChart({
     chart.setDataLoader({
       getBars: ({ callback }) => {
         callback(chartData, { backward: false, forward: false });
+        requestAnimationFrame(() => refreshSignalMarkers());
       },
     });
     const host = hostRef.current;
@@ -209,6 +210,7 @@ export function ProfessionalMarketChart({
   >([]);
   const signalMarkersRef = useRef(signalMarkers);
   signalMarkersRef.current = signalMarkers;
+  const retryRef = useRef(0);
 
   const refreshSignalMarkers = () => {
     const chart = chartRef.current;
@@ -233,6 +235,14 @@ export function ProfessionalMarketChart({
         return { signal, x: pixel.x, y: pixel.y };
       })
       .filter((item): item is { signal: MarketSignalMarker; x: number; y: number } => item !== null);
+    if (mapped.length < signals.length && retryRef.current < 120) {
+      // resetData() delivers bars asynchronously; keep retrying on animation
+      // frames until convertToPixel can resolve the timestamps.
+      retryRef.current += 1;
+      requestAnimationFrame(refreshSignalMarkers);
+      return;
+    }
+    retryRef.current = 0;
     const previous = signalMarkersRef.current;
     if (
       previous.length === mapped.length
