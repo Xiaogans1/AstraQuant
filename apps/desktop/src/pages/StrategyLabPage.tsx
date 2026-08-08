@@ -294,6 +294,18 @@ function ReplayResultView({
     );
     return pair === undefined ? null : `${pair.buyIndex}-${pair.sell?.index ?? "open"}`;
   }, [activeSignalId, pairs]);
+
+  const connections = useMemo(
+    () =>
+      pairs
+        .filter((pair) => pair.sell !== null && pair.buyIndex >= 0)
+        .map((pair) => ({
+          fromId: `replay-${pair.buyIndex}`,
+          toId: `replay-${(pair.sell as ReplayTrade).index}`,
+          pnl: pair.pnl,
+        })),
+    [pairs],
+  );
   const equity = useMemo(
     () =>
       result.equity_points
@@ -347,6 +359,7 @@ function ReplayResultView({
             signals={signals}
             activeSignalId={activeSignalId}
             onSignalSelect={setActiveSignalId}
+            connections={connections}
           />
         </div>
         <p className="strategy-lab__note">

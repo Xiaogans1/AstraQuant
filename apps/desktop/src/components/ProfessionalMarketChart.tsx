@@ -31,6 +31,12 @@ const SECONDARY_PANE_ID = "astraquant_secondary_pane";
 const MINIMUM_KLINE_BAR_SPACE = 2.5;
 const OVERVIEW_KLINE_BAR_SPACE = 0.1;
 
+interface SignalConnection {
+  fromId: string;
+  toId: string;
+  pnl: number;
+}
+
 interface ProfessionalMarketChartProps {
   instrumentId: string;
   period: MarketPeriod;
@@ -42,6 +48,7 @@ interface ProfessionalMarketChartProps {
   onCrosshairBarChange?: (bar: MarketBar | null) => void;
   activeSignalId?: string | null;
   onSignalSelect?: (signalId: string | null) => void;
+  connections?: SignalConnection[];
 }
 
 export function ProfessionalMarketChart({
@@ -55,6 +62,7 @@ export function ProfessionalMarketChart({
   onCrosshairBarChange,
   activeSignalId = null,
   onSignalSelect,
+  connections = [],
 }: ProfessionalMarketChartProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<Chart | null>(null);
@@ -353,6 +361,26 @@ export function ProfessionalMarketChart({
           className="professional-market-chart__signals"
           aria-hidden="true"
         >
+          {connections.map((connection) => {
+            const from = signalMarkers.find((marker) => marker.signal.id === connection.fromId);
+            const to = signalMarkers.find((marker) => marker.signal.id === connection.toId);
+            if (from === undefined || to === undefined) return null;
+            return (
+              <line
+                key={`${connection.fromId}-${connection.toId}`}
+                x1={from.x}
+                y1={from.y}
+                x2={to.x}
+                y2={to.y}
+                stroke={connection.pnl >= 0 ? "#21ad76" : "#ef5b5b"}
+                strokeWidth={1.5}
+                strokeDasharray="6 4"
+                opacity={0.7}
+              >
+                <title>{`配对盈亏 ${connection.pnl >= 0 ? "+" : ""}${formatMoneyLocal(connection.pnl)}（${connection.pnl >= 0 ? "盈" : "亏"}）`}</title>
+              </line>
+            );
+          })}
           {signalMarkers.map(({ signal, x, y }, index) => {
             const isBuy = signal.side === "BUY";
             const color = isBuy ? "#ef5b5b" : "#21ad76";
@@ -440,6 +468,10 @@ export function ProfessionalMarketChart({
       )}
     </div>
   );
+}
+
+function formatMoneyLocal(value: number): string {
+  return value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function mainIndicatorCreate(
