@@ -243,6 +243,8 @@ export function ProfessionalMarketChart({
     if (chart === null || index < 0 || index >= signals.length) return;
     selectSignal(index);
     chart.scrollToTimestamp(signals[index].timestamp, 200);
+    requestAnimationFrame(() => refreshSignalMarkers());
+    requestAnimationFrame(() => requestAnimationFrame(() => refreshSignalMarkers()));
   };
 
   useEffect(() => {
@@ -263,6 +265,8 @@ export function ProfessionalMarketChart({
     const plotWidth = Math.max(host.clientWidth - 64, 960);
     chart.setBarSpace(Math.max(plotWidth / bars.length, OVERVIEW_KLINE_BAR_SPACE));
     chart.scrollToRealTime(0);
+    requestAnimationFrame(() => refreshSignalMarkers());
+    requestAnimationFrame(() => requestAnimationFrame(() => refreshSignalMarkers()));
   };
 
   const zoomToRecent = () => {
@@ -271,6 +275,8 @@ export function ProfessionalMarketChart({
     if (chart === null || host === null) return;
     chart.setBarSpace(minimumBarSpace(host, period));
     chart.scrollToRealTime(0);
+    requestAnimationFrame(() => refreshSignalMarkers());
+    requestAnimationFrame(() => requestAnimationFrame(() => refreshSignalMarkers()));
   };
 
   const refreshSignalMarkers = () => {
