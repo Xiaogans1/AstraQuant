@@ -128,7 +128,7 @@ test("strategy lab loads approved models and disables batch run without picks", 
   expect(screen.getByRole("button", { name: /批量运行 0 只/ })).toBeDisabled();
 });
 
-test("strategy lab presets the home watchlist instruments", async () => {
+test("strategy lab lists watchlist as selectable checkboxes without auto-selecting", async () => {
   const client = baseClient();
   client.getMarketHome = vi.fn().mockResolvedValue({
     connection: { state: "LIVE" },
@@ -142,6 +142,11 @@ test("strategy lab presets the home watchlist instruments", async () => {
 
   await screen.findByText(/半导体设备ETF/);
   expect(screen.getByText(/纳指ETF/)).toBeVisible();
+  expect(screen.getByRole("button", { name: /批量运行 0 只/ })).toBeDisabled();
+
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("checkbox", { name: "半导体设备ETF" }));
+  await user.click(screen.getByRole("checkbox", { name: "纳指ETF" }));
   expect(screen.getByRole("button", { name: "批量运行 2 只" })).toBeVisible();
 });
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   dispose,
   init,
@@ -451,7 +451,7 @@ export function ProfessionalMarketChart({
                 y1={from.y}
                 x2={to.x}
                 y2={to.y}
-                stroke={connection.pnl >= 0 ? "#21ad76" : "#ef5b5b"}
+                stroke={connection.pnl >= 0 ? "#ef5b5b" : "#21ad76"}
                 strokeWidth={1.5}
                 strokeDasharray="6 4"
                 opacity={0.7}
@@ -462,7 +462,7 @@ export function ProfessionalMarketChart({
           })}
           {signalLayer.markers.map(({ signal, x, y }, index) => {
             const isBuy = signal.side === "BUY";
-            const color = isBuy ? "#ef5b5b" : "#21ad76";
+            const color = isBuy ? "#21ad76" : "#ef5b5b";
             const isActive = index === activeSignalIndex;
             return (
               <g
@@ -509,7 +509,7 @@ export function ProfessionalMarketChart({
                     textAnchor="middle"
                     fontSize="9.5"
                     fontWeight="600"
-                    fill={signal.pnl >= 0 ? "#21ad76" : "#ef5b5b"}
+                    fill={signal.pnl >= 0 ? "#ef5b5b" : "#21ad76"}
                   >
                     {signal.pnl >= 0 ? "+" : ""}{signal.pnl.toFixed(0)}
                   </text>

@@ -3753,3 +3753,22 @@ code {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   outline: 1px solid var(--accent);
 }
+
+
+.strategy-lab__chip label,
+.strategy-lab__chip-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.strategy-lab__chip input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+  margin: 0;
+  min-height: 0;
+  padding: 0;
+  cursor: pointer;
+}

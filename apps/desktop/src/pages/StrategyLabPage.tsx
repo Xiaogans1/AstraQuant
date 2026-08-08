@@ -86,7 +86,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
   const home = useMarketHomeQuery(client);
   const replay = useResearchReplayMutation(client);
   const [added, setAdded] = usePersistentState<InstrumentSelection[]>("astraquant.lab.addedInstruments", []);
-  const [removedSeeded, setRemovedSeeded] = usePersistentState<string[]>("astraquant.lab.removedSeeded", []);
+  const [selectedIds, setSelectedIds] = usePersistentState<string[]>("astraquant.lab.selectedInstruments", []);
   const [startDate, setStartDate] = usePersistentState<string>("astraquant.lab.startDate", "");
   const [endDate, setEndDate] = usePersistentState<string>("astraquant.lab.endDate", "");
   const [modelId, setModelId] = usePersistentState<string>("astraquant.lab.modelId", "");
@@ -98,16 +98,21 @@ function ReplayTab({ client }: { client: ApiClient }) {
 
   const seeded: InstrumentSelection[] = useMemo(
     () =>
-      (home.data?.watchlist ?? [])
-        .filter((item) => !removedSeeded.includes(item.instrument_id))
-        .map((item) => ({
-          instrument_id: item.instrument_id,
-          name: item.name,
-          kind: item.kind,
-        })),
-    [home.data, removedSeeded],
+      (home.data?.watchlist ?? []).map((item) => ({
+        instrument_id: item.instrument_id,
+        name: item.name,
+        kind: item.kind,
+      })),
+    [home.data],
   );
-  const instruments = [...seeded, ...added];
+  const toggleSelected = (instrumentId: string) => {
+    setSelectedIds((ids) =>
+      ids.includes(instrumentId)
+        ? ids.filter((id) => id !== instrumentId)
+        : [...ids, instrumentId]);
+  };
+  const instruments = [...seeded, ...added].filter((item) => selectedIds.includes(item.instrument_id));
+  const allAvailable = [...seeded, ...added];
 
   useEffect(() => {
     if (selectedIndex >= instruments.length) {
@@ -136,7 +141,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
       <Panel title="批量回放" eyebrow="REPLAY / ANY INSTRUMENT">
         <div className="strategy-lab__form">
           <label>
-            添加股票（首页自选已自动预设）
+            添加股票（自选已列出，勾选要回放的标的）
             <InstrumentSearchPicker
               client={client}
               value={null}
@@ -144,8 +149,9 @@ function ReplayTab({ client }: { client: ApiClient }) {
               placeholder="输入代码或名称，添加后回车选择"
               onChange={(selection) => {
                 if (selection === null) return;
-                if (!instruments.some((item) => item.instrument_id === selection.instrument_id)) {
+                if (!allAvailable.some((item) => item.instrument_id === selection.instrument_id)) {
                   setAdded((items) => [...items, selection]);
+                  setSelectedIds((ids) => [...ids, selection.instrument_id]);
                 }
               }}
             />
@@ -156,18 +162,14 @@ function ReplayTab({ client }: { client: ApiClient }) {
               <span className="strategy-lab__picked-empty">暂无</span>
             ) : (
               seeded.map((item) => (
-                <span key={item.instrument_id} className="strategy-lab__chip">
+                <label key={item.instrument_id} className="strategy-lab__chip">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(item.instrument_id)}
+                    onChange={() => toggleSelected(item.instrument_id)}
+                  />
                   {item.name}
-                  <button
-                    type="button"
-                    aria-label={`移除 ${item.name}`}
-                    onClick={() =>
-                      setRemovedSeeded((ids) => [...ids, item.instrument_id])
-                    }
-                  >
-                    ×
-                  </button>
-                </span>
+                </label>
               ))
             )}
           </div>
@@ -178,13 +180,21 @@ function ReplayTab({ client }: { client: ApiClient }) {
             ) : (
               added.map((item) => (
                 <span key={item.instrument_id} className="strategy-lab__chip strategy-lab__chip--added">
+                  <label className="strategy-lab__chip-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(item.instrument_id)}
+                      onChange={() => toggleSelected(item.instrument_id)}
+                    />
+                  </label>
                   {item.name}
                   <button
                     type="button"
                     aria-label={`移除 ${item.name}`}
-                    onClick={() =>
-                      setAdded((items) => items.filter((i) => i.instrument_id !== item.instrument_id))
-                    }
+                    onClick={() => {
+                      setAdded((items) => items.filter((i) => i.instrument_id !== item.instrument_id));
+                      setSelectedIds((ids) => ids.filter((id) => id !== item.instrument_id));
+                    }}
                   >
                     ×
                   </button>
@@ -397,7 +407,7 @@ function ReplayResultView({
           />
         </div>
         <p className="strategy-lab__note">
-          整段区间一张图：**按住拖动平移，滚轮缩放**（"显示整体"可看全区间）；红 B / 绿 S 为全部真实模型信号。
+          整段区间一张图：**按住拖动平移，滚轮缩放**（"显示整体"可看全区间）；绿 B / 红 S 为全部真实模型信号。
           点击标记或在下方交易表中点击任意一行，图上会自动跳到对应买卖点并高亮。
           数据实际覆盖 {formatTime(result.start)} ~ {formatTime(result.end)}，共 {result.trades.length} 笔信号。
         </p>
@@ -984,7 +994,7 @@ function PositionValueCurve({
           cx={x}
           cy={y}
           r="5"
-          fill={trade.side === "BUY" ? "#ef5b5b" : "#21ad76"}
+          fill={trade.side === "BUY" ? "#21ad76" : "#ef5b5b"}
         >
           <title>{`${trade.side === "BUY" ? "模型买入" : "模型卖出"} ${trade.quantity} 份 @ ${trade.price}（${formatTime(trade.timestamp)}）`}</title>
         </circle>
