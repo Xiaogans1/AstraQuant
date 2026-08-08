@@ -1,4 +1,23 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+
+function usePersistentState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? initial : (JSON.parse(raw) as T);
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // storage unavailable: keep the in-memory value
+    }
+  }, [key, value]);
+  return [value, setValue];
+}
 
 import type { ApiClient } from "../api/client";
 import type { MarketBar } from "../api/market-contracts";
@@ -66,32 +85,35 @@ function ReplayTab({ client }: { client: ApiClient }) {
   const modelsQuery = usePaperModelsQuery(client);
   const home = useMarketHomeQuery(client);
   const replay = useResearchReplayMutation(client);
-  const [instruments, setInstruments] = useState<InstrumentSelection[]>([]);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [modelId, setModelId] = useState("");
-  const [cash, setCash] = useState("100000");
-  const [fullyInvested, setFullyInvested] = useState(true);
+  const [added, setAdded] = usePersistentState<InstrumentSelection[]>("astraquant.lab.addedInstruments", []);
+  const [removedSeeded, setRemovedSeeded] = usePersistentState<string[]>("astraquant.lab.removedSeeded", []);
+  const [startDate, setStartDate] = usePersistentState<string>("astraquant.lab.startDate", "");
+  const [endDate, setEndDate] = usePersistentState<string>("astraquant.lab.endDate", "");
+  const [modelId, setModelId] = usePersistentState<string>("astraquant.lab.modelId", "");
+  const [cash, setCash] = usePersistentState<string>("astraquant.lab.cash", "100000");
+  const [fullyInvested, setFullyInvested] = usePersistentState<boolean>("astraquant.lab.fullyInvested", true);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const seededRef = useRef(false);
   const models = modelsQuery.data ?? [];
   const results = replay.data;
 
-  useEffect(() => {
-    if (seededRef.current || home.isLoading) return;
-    const list = home.data?.watchlist ?? [];
-    if (list.length > 0) {
-      setInstruments(
-        list.map((item) => ({
+  const seeded: InstrumentSelection[] = useMemo(
+    () =>
+      (home.data?.watchlist ?? [])
+        .filter((item) => !removedSeeded.includes(item.instrument_id))
+        .map((item) => ({
           instrument_id: item.instrument_id,
           name: item.name,
           kind: item.kind,
         })),
-      );
-      setSelectedIndex(0);
+    [home.data, removedSeeded],
+  );
+  const instruments = [...seeded, ...added];
+
+  useEffect(() => {
+    if (selectedIndex >= instruments.length) {
+      setSelectedIndex(Math.max(instruments.length - 1, 0));
     }
-    seededRef.current = true;
-  }, [home.data, home.isLoading]);
+  }, [instruments.length, selectedIndex]);
 
   const run = () => {
     if (instruments.length === 0 || modelId === "") return;
@@ -114,7 +136,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
       <Panel title="批量回放" eyebrow="REPLAY / ANY INSTRUMENT">
         <div className="strategy-lab__form">
           <label>
-            股票（已预设首页自选，可继续添加）
+            添加股票（首页自选已自动预设）
             <InstrumentSearchPicker
               client={client}
               value={null}
@@ -123,41 +145,70 @@ function ReplayTab({ client }: { client: ApiClient }) {
               onChange={(selection) => {
                 if (selection === null) return;
                 if (!instruments.some((item) => item.instrument_id === selection.instrument_id)) {
-                  setInstruments((items) => [...items, selection]);
+                  setAdded((items) => [...items, selection]);
                 }
               }}
             />
           </label>
           <div className="strategy-lab__picked">
-            {instruments.map((item) => (
-              <span key={item.instrument_id} className="strategy-lab__chip">
-                {item.name}
-                <button
-                  type="button"
-                  aria-label={`移除 ${item.name}`}
-                  onClick={() => {
-                    setInstruments((items) => items.filter((i) => i.instrument_id !== item.instrument_id));
-                    setSelectedIndex(0);
-                  }}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
+            <span className="strategy-lab__picked-title">自选（首页）</span>
+            {seeded.length === 0 ? (
+              <span className="strategy-lab__picked-empty">暂无</span>
+            ) : (
+              seeded.map((item) => (
+                <span key={item.instrument_id} className="strategy-lab__chip">
+                  {item.name}
+                  <button
+                    type="button"
+                    aria-label={`移除 ${item.name}`}
+                    onClick={() =>
+                      setRemovedSeeded((ids) => [...ids, item.instrument_id])
+                    }
+                  >
+                    ×
+                  </button>
+                </span>
+              ))
+            )}
           </div>
-          <label>起始日期<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
-          <label>结束日期<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
-          <label>模型
-            <select value={modelId} onChange={(event) => setModelId(event.target.value)}>
-              <option value="">选择模型…</option>
-              {models.map((item) => (
-                <option key={item.model_id} value={item.model_id}>
-                  {item.model_id} · {item.strategy_version}{item.status === "DRAFT" ? "（未批准）" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>初始资金<input type="number" min="0" step="10000" value={cash} onChange={(event) => setCash(event.target.value)} /></label>
+          <div className="strategy-lab__picked">
+            <span className="strategy-lab__picked-title">手动添加</span>
+            {added.length === 0 ? (
+              <span className="strategy-lab__picked-empty">暂无</span>
+            ) : (
+              added.map((item) => (
+                <span key={item.instrument_id} className="strategy-lab__chip strategy-lab__chip--added">
+                  {item.name}
+                  <button
+                    type="button"
+                    aria-label={`移除 ${item.name}`}
+                    onClick={() =>
+                      setAdded((items) => items.filter((i) => i.instrument_id !== item.instrument_id))
+                    }
+                  >
+                    ×
+                  </button>
+                </span>
+              ))
+            )}
+          </div>
+          <div className="strategy-lab__form-row">
+            <label>起始日期<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+            <label>结束日期<input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>
+          </div>
+          <div className="strategy-lab__form-row">
+            <label>模型
+              <select value={modelId} onChange={(event) => setModelId(event.target.value)}>
+                <option value="">选择模型…</option>
+                {models.map((item) => (
+                  <option key={item.model_id} value={item.model_id}>
+                    {item.model_id} · {item.strategy_version}{item.status === "DRAFT" ? "（未批准）" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>初始资金<input type="number" min="0" step="10000" value={cash} onChange={(event) => setCash(event.target.value)} /></label>
+          </div>
           <label className="strategy-lab__mode">
             <input
               type="checkbox"

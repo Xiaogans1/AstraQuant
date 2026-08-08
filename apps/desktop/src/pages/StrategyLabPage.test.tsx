@@ -97,6 +97,10 @@ function renderLab(client: ApiClient) {
   );
 }
 
+beforeEach(() => {
+  localStorage.clear();
+});
+
 function baseClient() {
   return {
     listResearchDatasets: vi.fn().mockResolvedValue([]),
@@ -174,7 +178,24 @@ test("replay with fully-invested opening sells renders without crashing", async 
   expect(screen.getByText(/\+18.5/)).toBeVisible();
 });
 
-test("running batch replay submits instruments, model and window", async () => {  const runResearchReplay = vi.fn().mockResolvedValue([result]);
+test("strategy lab restores persisted form state", async () => {
+  localStorage.setItem("astraquant.lab.modelId", JSON.stringify("lgbm-minute-001"));
+  localStorage.setItem(
+    "astraquant.lab.addedInstruments",
+    JSON.stringify([{ instrument_id: "159599.SZSE", name: "创业板ETF", kind: "equity" }]),
+  );
+  localStorage.setItem("astraquant.lab.startDate", JSON.stringify("2026-07-01"));
+  const client = baseClient();
+  renderLab(client);
+
+  await screen.findByText(/lgbm-minute-001 · lgbm-v1/);
+  expect(screen.getByText(/创业板ETF/)).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "模型" })).toHaveValue("lgbm-minute-001");
+  expect(screen.getByLabelText("起始日期")).toHaveValue("2026-07-01");
+});
+
+test("running batch replay submits instruments, model and window", async () => {
+  const runResearchReplay = vi.fn().mockResolvedValue([result]);
   const client = baseClient();
   client.runResearchReplay = runResearchReplay;
   renderLab(client);
