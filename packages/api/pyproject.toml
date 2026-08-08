@@ -1,0 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astraquant-api"
+version = "0.1.0"
+description = "Local control service for AstraQuant"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "alembic>=1.18,<2",
+  "astraquant-data",
+  "astraquant-domain",
+  "astraquant-paper",
+  "astraquant-quant",
+  "fastapi>=0.140,<1",
+  "keyring>=25.7,<26",
+  "pydantic>=2.13,<3",
+  "sqlalchemy>=2.0,<3",
+  "structlog>=26.1,<27",
+  "uvicorn>=0.51,<1",
+]
+
+[project.scripts]
+astraquant-api = "astraquant_api.cli:main"
+
+[tool.uv.sources]
+astraquant-data = { workspace = true }
+astraquant-domain = { workspace = true }
+astraquant-paper = { workspace = true }
+astraquant-quant = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astraquant_api"]

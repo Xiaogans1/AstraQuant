@@ -1,4 +1,4 @@
-"""Order values shared by backtest, Paper, and Live environments."""
+"""Virtual order values used only by deterministic backtest and Paper simulation."""
 
 from dataclasses import dataclass
 from decimal import Decimal
@@ -11,7 +11,6 @@ from astraquant_domain.identifiers import InstrumentId
 class Environment(StrEnum):
     BACKTEST = "BACKTEST"
     PAPER = "PAPER"
-    LIVE = "LIVE"
 
 
 class OrderSide(StrEnum):

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from pathlib import Path
 from uuid import UUID
 
 import pytest
@@ -16,6 +17,13 @@ from astraquant_domain.orders import (
 
 ORDER_ID = UUID("00000000-0000-0000-0000-000000000001")
 INSTRUMENT = InstrumentId.parse("RB2610.SHFE")
+
+
+def test_virtual_order_environments_never_include_live_trading() -> None:
+    assert {environment.value for environment in Environment} == {"BACKTEST", "PAPER"}
+    assert "LIVE" not in Path("packages/domain/src/astraquant_domain/orders.py").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_create_limit_order() -> None:

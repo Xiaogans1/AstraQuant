@@ -96,7 +96,7 @@ README.md                            Phase 1 development quick start
 - Modify: `uv.lock`
 - Create: `pnpm-lock.yaml`
 
-- [ ] **Step 1: Mark the approved design**
+- [x] **Step 1: Mark the approved design**
 
 Change the specification header to:
 
@@ -105,7 +105,7 @@ Change the specification header to:
 状态：已批准
 ```
 
-- [ ] **Step 2: Add the root Node workspace**
+- [x] **Step 2: Add the root Node workspace**
 
 Create `package.json`:
 
@@ -134,7 +134,7 @@ packages:
   - apps/*
 ```
 
-- [ ] **Step 3: Register the API package in uv**
+- [x] **Step 3: Register the API package in uv**
 
 Update the root workspace:
 
@@ -212,7 +212,7 @@ Create `packages/api/src/astraquant_api/__init__.py`:
 __version__ = "0.1.0"
 ```
 
-- [ ] **Step 4: Lock and synchronize both ecosystems**
+- [x] **Step 4: Lock and synchronize both ecosystems**
 
 Run:
 
@@ -225,7 +225,7 @@ uv run python -c "import astraquant_api; print(astraquant_api.__version__)"
 
 Expected: dependency synchronization succeeds and prints `0.1.0`.
 
-- [ ] **Step 5: Run existing gates**
+- [x] **Step 5: Run existing gates**
 
 Run:
 
@@ -239,7 +239,7 @@ git diff --check
 
 Expected: existing 29 tests pass and repository policy passes.
 
-- [ ] **Step 6: Commit the workspace**
+- [x] **Step 6: Commit the workspace**
 
 ```powershell
 git add docs/superpowers/specs/2026-07-27-phase-1-desktop-platform-design.md `
@@ -254,7 +254,7 @@ git commit -m "build: 扩展桌面平台工作区"
 - Create: `packages/api/src/astraquant_api/task_model.py`
 - Modify: `packages/api/src/astraquant_api/__init__.py`
 
-- [ ] **Step 1: Write failing task-state tests**
+- [x] **Step 1: Write failing task-state tests**
 
 Create `tests/api/test_task_model.py`:
 
@@ -333,7 +333,7 @@ def test_progress_must_be_bounded() -> None:
         )
 ```
 
-- [ ] **Step 2: Run the tests and observe the missing module**
+- [x] **Step 2: Run the tests and observe the missing module**
 
 Run:
 
@@ -343,7 +343,7 @@ uv run pytest tests/api/test_task_model.py -v
 
 Expected: collection fails with `ModuleNotFoundError: astraquant_api.task_model`.
 
-- [ ] **Step 3: Implement the task model**
+- [x] **Step 3: Implement the task model**
 
 Create `packages/api/src/astraquant_api/task_model.py`:
 
@@ -466,7 +466,7 @@ class TaskRecord:
 
 Export the stable symbols from `astraquant_api.__init__`.
 
-- [ ] **Step 4: Run the task tests**
+- [x] **Step 4: Run the task tests**
 
 Run:
 
@@ -478,7 +478,7 @@ uv run mypy
 
 Expected: all task-model tests pass and static checks succeed.
 
-- [ ] **Step 5: Commit task contracts**
+- [x] **Step 5: Commit task contracts**
 
 ```powershell
 git add packages/api/src/astraquant_api tests/api/test_task_model.py
@@ -496,7 +496,7 @@ git commit -m "feat(api): 定义平台任务状态契约"
 - Create: `packages/api/src/astraquant_api/repository.py`
 - Create: `tests/api/test_repository.py`
 
-- [ ] **Step 1: Write failing persistence tests**
+- [x] **Step 1: Write failing persistence tests**
 
 Create `tests/api/test_repository.py`:
 
@@ -542,9 +542,7 @@ def test_recover_active_tasks_as_interrupted(tmp_path: Path) -> None:
     task = TaskRecord.create("demo.self_check", "idem-recover")
     repository.create(task, event_type="task.created")
     running = task.evolve(status=TaskStatus.RUNNING, current_step="working")
-    assert repository.update(
-        running, expected_revision=0, event_type="task.started"
-    )
+    assert repository.update(running, expected_revision=0, event_type="task.started")
 
     recovered = repository.interrupt_active_tasks("service_restarted")
 
@@ -564,7 +562,7 @@ def test_round_trip_settings(tmp_path: Path) -> None:
     assert repository.get_setting("theme") == "astra-light"
 ```
 
-- [ ] **Step 2: Run the tests and verify missing persistence modules**
+- [x] **Step 2: Run the tests and verify missing persistence modules**
 
 Run:
 
@@ -574,7 +572,7 @@ uv run pytest tests/api/test_repository.py -v
 
 Expected: collection fails because `astraquant_api.database` is missing.
 
-- [ ] **Step 3: Implement engine and migration entry points**
+- [x] **Step 3: Implement engine and migration entry points**
 
 `database.py` must:
 
@@ -641,7 +639,7 @@ def downgrade() -> None:
     op.drop_table("tasks")
 ```
 
-- [ ] **Step 4: Implement repository operations**
+- [x] **Step 4: Implement repository operations**
 
 `repository.py` exposes exactly these operations:
 
@@ -683,7 +681,7 @@ Serialize datetimes as UTC-aware values and JSON with deterministic key ordering
 `interrupt_active_tasks` loads active rows, applies the public transition function, sets
 `finished_at=datetime.now(UTC)`, and persists one `task.interrupted` event per row.
 
-- [ ] **Step 5: Run persistence checks**
+- [x] **Step 5: Run persistence checks**
 
 Run:
 
@@ -695,7 +693,7 @@ uv run mypy
 
 Expected: persistence and recovery tests pass.
 
-- [ ] **Step 6: Commit persistence**
+- [x] **Step 6: Commit persistence**
 
 ```powershell
 git add packages/api/alembic.ini packages/api/migrations `
@@ -712,7 +710,7 @@ git commit -m "feat(api): 增加任务持久化与恢复"
 - Create: `tests/api/test_worker.py`
 - Create: `tests/api/test_supervisor.py`
 
-- [ ] **Step 1: Write failing worker protocol tests**
+- [x] **Step 1: Write failing worker protocol tests**
 
 Create `tests/api/test_worker.py`:
 
@@ -768,7 +766,7 @@ Create `tests/api/test_supervisor.py` using a temporary repository. Verify:
   `error_code="worker_exited"`;
 - `shutdown` cancels all live jobs and joins them within the supplied timeout.
 
-- [ ] **Step 2: Run tests and observe missing worker modules**
+- [x] **Step 2: Run tests and observe missing worker modules**
 
 Run:
 
@@ -778,7 +776,7 @@ uv run pytest tests/api/test_worker.py tests/api/test_supervisor.py -v
 
 Expected: collection fails because worker modules are missing.
 
-- [ ] **Step 3: Implement the process-safe worker protocol**
+- [x] **Step 3: Implement the process-safe worker protocol**
 
 `worker.py` must define picklable top-level values:
 
@@ -825,7 +823,7 @@ WorkerMessage(
 Catch ordinary exceptions and emit a redacted `FAILED` message. Do not include tracebacks or
 environment values in the queue payload.
 
-- [ ] **Step 4: Implement the supervisor**
+- [x] **Step 4: Implement the supervisor**
 
 `supervisor.py` must:
 
@@ -840,7 +838,7 @@ environment values in the queue payload.
 
 Keep process objects out of Pydantic models and SQLite.
 
-- [ ] **Step 5: Run worker and supervisor tests**
+- [x] **Step 5: Run worker and supervisor tests**
 
 Run:
 
@@ -852,7 +850,7 @@ uv run mypy
 
 Expected: spawned-process tests pass on Windows.
 
-- [ ] **Step 6: Commit workers**
+- [x] **Step 6: Commit workers**
 
 ```powershell
 git add packages/api/src/astraquant_api/worker.py `
@@ -871,7 +869,7 @@ git commit -m "feat(api): 增加示例 Worker 生命周期"
 - Create: `tests/api/test_logging.py`
 - Create: `tests/api/test_schemas.py`
 
-- [ ] **Step 1: Write failing configuration tests**
+- [x] **Step 1: Write failing configuration tests**
 
 Create `tests/api/test_config.py` with:
 
@@ -920,7 +918,7 @@ def test_redacts_nested_sensitive_values(tmp_path: Path) -> None:
     assert record["password"] == "[REDACTED]"
 ```
 
-- [ ] **Step 2: Run tests and observe missing modules**
+- [x] **Step 2: Run tests and observe missing modules**
 
 ```powershell
 uv run pytest tests/api/test_config.py tests/api/test_logging.py tests/api/test_schemas.py -v
@@ -928,7 +926,7 @@ uv run pytest tests/api/test_config.py tests/api/test_logging.py tests/api/test_
 
 Expected: missing-module failures.
 
-- [ ] **Step 3: Implement validated runtime configuration**
+- [x] **Step 3: Implement validated runtime configuration**
 
 `RuntimeConfig` is a frozen dataclass with:
 
@@ -943,7 +941,7 @@ shutdown_grace_seconds: float = 5.0
 Derived paths are `state/astraquant.sqlite3` and `logs/`. Resolve and create only descendants of
 `state_dir`; reject tokens shorter than 43 characters and ports outside `0..65535`.
 
-- [ ] **Step 4: Implement logging and API schemas**
+- [x] **Step 4: Implement logging and API schemas**
 
 Use Structlog processors to add UTC ISO timestamps and JSON output. Add a recursive redaction
 processor before the JSON renderer. Maintain an in-memory `deque[ActivityItem]` capped at 200 items
@@ -958,7 +956,7 @@ model_config = ConfigDict(extra="forbid")
 
 Task responses convert datetimes to UTC ISO 8601 and expose no database implementation fields.
 
-- [ ] **Step 5: Run configuration checks**
+- [x] **Step 5: Run configuration checks**
 
 ```powershell
 uv run pytest tests/api/test_config.py tests/api/test_logging.py tests/api/test_schemas.py -v
@@ -968,7 +966,7 @@ uv run mypy
 
 Expected: all new tests pass.
 
-- [ ] **Step 6: Commit platform configuration**
+- [x] **Step 6: Commit platform configuration**
 
 ```powershell
 git add packages/api/src/astraquant_api/config.py `
@@ -986,7 +984,7 @@ git commit -m "feat(api): 增加本地配置与脱敏日志"
 - Create: `tests/api/test_app.py`
 - Create: `tests/api/test_cli.py`
 
-- [ ] **Step 1: Write failing API tests**
+- [x] **Step 1: Write failing API tests**
 
 Build the app with a temporary database and a fake supervisor. Test:
 
@@ -1003,9 +1001,7 @@ def test_health_is_public(client: TestClient) -> None:
 
 def test_v1_requires_bearer_token(client: TestClient) -> None:
     assert client.get("/v1/runtime").status_code == 401
-    assert client.get(
-        "/v1/runtime", headers={"Authorization": "Bearer wrong"}
-    ).status_code == 401
+    assert client.get("/v1/runtime", headers={"Authorization": "Bearer wrong"}).status_code == 401
 
 
 def test_create_demo_task_is_idempotent(auth_client: TestClient) -> None:
@@ -1044,7 +1040,7 @@ assert its keys equal `{"type", "protocol_version", "host", "port", "pid"}`, `po
 seeded task is `INTERRUPTED` before terminating the service through the authenticated shutdown
 endpoint.
 
-- [ ] **Step 2: Run tests and observe missing app**
+- [x] **Step 2: Run tests and observe missing app**
 
 ```powershell
 uv run pytest tests/api/test_app.py tests/api/test_cli.py -v
@@ -1052,7 +1048,7 @@ uv run pytest tests/api/test_app.py tests/api/test_cli.py -v
 
 Expected: missing-module failures.
 
-- [ ] **Step 3: Implement dependency-owned application state**
+- [x] **Step 3: Implement dependency-owned application state**
 
 Define:
 
@@ -1076,7 +1072,7 @@ class AppState:
 - `Idempotency-Key` validation between 8 and 200 visible ASCII characters;
 - exception handlers returning stable `{"code", "message"}` payloads.
 
-- [ ] **Step 4: Implement CLI lifecycle and ready handshake**
+- [x] **Step 4: Implement CLI lifecycle and ready handshake**
 
 `cli.main()` must:
 
@@ -1092,7 +1088,7 @@ class AppState:
 
 Logs and Uvicorn access output go to stderr or the JSONL sink, never stdout.
 
-- [ ] **Step 5: Run API and full Python gates**
+- [x] **Step 5: Run API and full Python gates**
 
 ```powershell
 uv run pytest tests/api/test_app.py tests/api/test_cli.py -v
@@ -1105,7 +1101,7 @@ uv run python -m tools.repository_policy
 
 Expected: all Python tests and repository policy pass.
 
-- [ ] **Step 6: Commit the API**
+- [x] **Step 6: Commit the API**
 
 ```powershell
 git add packages/api/src/astraquant_api/app.py `
@@ -1134,7 +1130,7 @@ git commit -m "feat(api): 提供本地控制服务"
 - Modify: `pnpm-lock.yaml`
 - Create: `apps/desktop/src-tauri/Cargo.lock`
 
-- [ ] **Step 1: Create the frontend package**
+- [x] **Step 1: Create the frontend package**
 
 Use exact dependency families:
 
@@ -1178,7 +1174,7 @@ with `src/test/setup.ts`.
 Use a temporary `App.tsx` that renders `AstraQuant desktop bootstrap` so Rust work can be tested
 before the full UI.
 
-- [ ] **Step 2: Write failing Rust handshake tests**
+- [x] **Step 2: Write failing Rust handshake tests**
 
 Create `apps/desktop/src-tauri/Cargo.toml` before writing the test:
 
@@ -1266,7 +1262,7 @@ fn rejects_wrong_protocol_or_pid() {
 }
 ```
 
-- [ ] **Step 3: Run Rust tests and observe missing types**
+- [x] **Step 3: Run Rust tests and observe missing types**
 
 ```powershell
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml handshake
@@ -1274,7 +1270,7 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml handshake
 
 Expected: compilation fails because handshake types are not implemented.
 
-- [ ] **Step 4: Implement handshake validation**
+- [x] **Step 4: Implement handshake validation**
 
 Use Serde with `deny_unknown_fields`. Accept only:
 
@@ -1286,7 +1282,7 @@ Use Serde with `deny_unknown_fields`. Accept only:
 
 Expose only `base_url` and protocol version to the frontend; never expose the child PID.
 
-- [ ] **Step 5: Implement process ownership**
+- [x] **Step 5: Implement process ownership**
 
 `runtime.rs` must define:
 
@@ -1314,7 +1310,9 @@ Startup behavior:
 
 - generate a 32-byte token with the operating-system RNG and URL-safe base64;
 - resolve the repository root from `CARGO_MANIFEST_DIR`;
-- start `uv run astraquant-api serve` in the repository root;
+- start the final managed Python interpreter directly in the repository root so the supervised PID
+  equals the ready-message PID (on Windows resolve the base interpreter from `pyvenv.cfg` and use
+  the workspace virtual environment through an explicit `PYTHONPATH`);
 - pass `ASTRAQUANT_SESSION_TOKEN` and `.astraquant` state directory through environment variables;
 - pipe stdout/stderr;
 - read exactly one stdout line with a 10-second timeout;
@@ -1336,7 +1334,7 @@ fn open_log_directory(state: tauri::State<'_, RuntimeManager>)
 On application exit, send authenticated `POST /internal/shutdown`, wait up to five seconds, then
 kill and wait for the child if it remains alive.
 
-- [ ] **Step 6: Run Rust and frontend bootstrap checks**
+- [x] **Step 6: Run Rust and frontend bootstrap checks**
 
 ```powershell
 pnpm install
@@ -1349,7 +1347,7 @@ cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
 
 Expected: TypeScript and Rust checks pass.
 
-- [ ] **Step 7: Commit desktop process management**
+- [x] **Step 7: Commit desktop process management**
 
 ```powershell
 git add apps/desktop package.json pnpm-lock.yaml
@@ -1365,7 +1363,7 @@ git commit -m "feat(desktop): 管理本地服务生命周期"
 - Create: `apps/desktop/src/api/queries.ts`
 - Create: `apps/desktop/src/runtime/tauri.ts`
 
-- [ ] **Step 1: Write failing client tests**
+- [x] **Step 1: Write failing client tests**
 
 Use a mocked `fetch` and verify:
 
@@ -1409,7 +1407,7 @@ it("maps structured API errors", async () => {
 });
 ```
 
-- [ ] **Step 2: Run frontend tests and observe missing client**
+- [x] **Step 2: Run frontend tests and observe missing client**
 
 ```powershell
 pnpm --dir apps/desktop test -- src/api/client.test.ts
@@ -1417,7 +1415,7 @@ pnpm --dir apps/desktop test -- src/api/client.test.ts
 
 Expected: module resolution fails.
 
-- [ ] **Step 3: Implement exact frontend contracts**
+- [x] **Step 3: Implement exact frontend contracts**
 
 Define discriminated string unions matching Python:
 
@@ -1457,7 +1455,7 @@ export interface Task {
 
 Add corresponding `Health`, `Runtime`, `ActivityItem`, and `Settings` interfaces.
 
-- [ ] **Step 4: Implement authenticated fetch and Query hooks**
+- [x] **Step 4: Implement authenticated fetch and Query hooks**
 
 `ApiClient` must set authorization centrally, require JSON responses, map non-2xx responses to
 `ApiError`, and implement every public `/v1` endpoint.
@@ -1473,7 +1471,7 @@ Query behavior:
 The Tauri adapter contains the only direct `invoke("runtime_connection")` and
 `invoke("open_log_directory")` calls.
 
-- [ ] **Step 5: Run client checks**
+- [x] **Step 5: Run client checks**
 
 ```powershell
 pnpm --dir apps/desktop test -- src/api/client.test.ts
@@ -1482,7 +1480,7 @@ pnpm --dir apps/desktop check
 
 Expected: client tests and strict TypeScript pass.
 
-- [ ] **Step 6: Commit frontend contracts**
+- [x] **Step 6: Commit frontend contracts**
 
 ```powershell
 git add apps/desktop/src/api apps/desktop/src/runtime
@@ -1503,7 +1501,7 @@ git commit -m "feat(ui): 接入类型化本地 API"
 - Modify: `apps/desktop/src/App.tsx`
 - Modify: `apps/desktop/src/main.tsx`
 
-- [ ] **Step 1: Write failing theme tests**
+- [x] **Step 1: Write failing theme tests**
 
 Verify:
 
@@ -1526,7 +1524,7 @@ it("keeps safety tokens outside theme overrides", () => {
 });
 ```
 
-- [ ] **Step 2: Implement the token hierarchy**
+- [x] **Step 2: Implement the token hierarchy**
 
 `:root` defines immutable safety colors. `[data-theme="astra-minimal"]` and
 `[data-theme="astra-light"]` define only:
@@ -1540,7 +1538,7 @@ it("keeps safety tokens outside theme overrides", () => {
 Add `prefers-reduced-motion` and `[data-reduced-motion="true"]` rules that reduce transitions to
 near-zero without hiding progress state.
 
-- [ ] **Step 3: Implement the workspace shell**
+- [x] **Step 3: Implement the workspace shell**
 
 Build the visual structure approved in the browser mockup:
 
@@ -1554,7 +1552,7 @@ Build the visual structure approved in the browser mockup:
 
 Navigation remains local React state in Phase 1; do not add a router.
 
-- [ ] **Step 4: Run theme and shell checks**
+- [x] **Step 4: Run theme and shell checks**
 
 ```powershell
 pnpm --dir apps/desktop test -- src/theme/theme.test.ts
@@ -1564,7 +1562,7 @@ pnpm --dir apps/desktop build
 
 Expected: tests, strict typing and production frontend build pass.
 
-- [ ] **Step 5: Commit themes and shell**
+- [x] **Step 5: Commit themes and shell**
 
 ```powershell
 git add apps/desktop/src/theme apps/desktop/src/styles `
@@ -1587,7 +1585,7 @@ git commit -m "feat(ui): 建立 Astra 工作区与主题"
 - Create: `apps/desktop/src/components/ServiceError.tsx`
 - Modify: `apps/desktop/src/App.tsx`
 
-- [ ] **Step 1: Write failing page tests**
+- [x] **Step 1: Write failing page tests**
 
 Overview tests:
 
@@ -1625,7 +1623,7 @@ sidebar collapse and background effect, submit once, assert the mutation receive
 `Settings` object, resolve the mutation, and then assert `document.documentElement.dataset.theme`
 changed. A second test rejects the mutation and asserts the previously applied theme remains.
 
-- [ ] **Step 2: Run page tests and observe failures**
+- [x] **Step 2: Run page tests and observe failures**
 
 ```powershell
 pnpm --dir apps/desktop test -- src/pages
@@ -1633,7 +1631,7 @@ pnpm --dir apps/desktop test -- src/pages
 
 Expected: missing-page module failures.
 
-- [ ] **Step 3: Build overview and task pages**
+- [x] **Step 3: Build overview and task pages**
 
 Overview:
 
@@ -1653,7 +1651,7 @@ Tasks:
 - copyable task and correlation IDs;
 - cancel only for active states.
 
-- [ ] **Step 4: Build activity and settings pages**
+- [x] **Step 4: Build activity and settings pages**
 
 Activity displays timestamp, component, event name, task ID and correlation ID. It never displays
 raw JSON or environment data.
@@ -1673,7 +1671,7 @@ interface Settings {
 `QueryClientProvider`. Startup, offline and protocol errors use `ServiceError` with retry and
 open-log-directory actions.
 
-- [ ] **Step 5: Run frontend gates**
+- [x] **Step 5: Run frontend gates**
 
 ```powershell
 pnpm --dir apps/desktop test
@@ -1683,7 +1681,7 @@ pnpm --dir apps/desktop build
 
 Expected: all UI tests and production build pass.
 
-- [ ] **Step 6: Commit pages**
+- [x] **Step 6: Commit pages**
 
 ```powershell
 git add apps/desktop/src
@@ -1699,7 +1697,7 @@ git commit -m "feat(ui): 完成任务运行工作区"
 - Create: `docs/architecture/adr/0002-desktop-runtime.md`
 - Modify: `docs/superpowers/plans/2026-07-27-phase-1-desktop-platform.md`
 
-- [ ] **Step 1: Add a real service round-trip test**
+- [x] **Step 1: Add a real service round-trip test**
 
 The integration test must start the CLI with:
 
@@ -1721,7 +1719,7 @@ assert list((state_dir / "logs").glob("*.jsonl"))
 Add a second test that terminates the service during a running task, restarts it with the same
 state directory, and asserts that the task is `INTERRUPTED`.
 
-- [ ] **Step 2: Run the integration tests**
+- [x] **Step 2: Run the integration tests**
 
 ```powershell
 uv run pytest tests/integration/test_runtime_round_trip.py -v
@@ -1729,7 +1727,7 @@ uv run pytest tests/integration/test_runtime_round_trip.py -v
 
 Expected: complete and recovery round trips pass on Windows.
 
-- [ ] **Step 3: Extend CI**
+- [x] **Step 3: Extend CI**
 
 Keep the existing Python matrix and add:
 
@@ -1766,7 +1764,7 @@ Keep the existing Python matrix and add:
 The Windows Python job runs the process round-trip tests; Ubuntu excludes only tests explicitly
 marked `windows_runtime`.
 
-- [ ] **Step 4: Document development startup**
+- [x] **Step 4: Document development startup**
 
 README must state:
 
@@ -1790,7 +1788,7 @@ ADR 0002 records:
 - SQLite has one writer;
 - abnormal recovery produces `INTERRUPTED`.
 
-- [ ] **Step 5: Run every local gate**
+- [x] **Step 5: Run every local gate**
 
 ```powershell
 uv sync --locked --all-packages
@@ -1811,7 +1809,7 @@ git diff --check
 
 Expected: every command exits zero and no runtime data is tracked.
 
-- [ ] **Step 6: Run the desktop manually**
+- [x] **Step 6: Run the desktop manually**
 
 Run:
 
@@ -1828,7 +1826,7 @@ Verify:
 5. theme survives restart;
 6. closing the window leaves no `astraquant-api` or demo Worker process.
 
-- [ ] **Step 7: Record completion and commit**
+- [x] **Step 7: Record completion and commit**
 
 Mark every executed checkbox in this plan, then:
 
@@ -1837,7 +1835,7 @@ git add .github/workflows/ci.yml README.md docs tests/integration
 git commit -m "ci: 验证 Phase 1 桌面闭环"
 ```
 
-- [ ] **Step 8: Push and open a Draft PR**
+- [x] **Step 8: Push and open a Draft PR**
 
 ```powershell
 git push -u origin feature/phase-1-desktop-platform

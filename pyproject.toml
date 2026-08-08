@@ -2,13 +2,21 @@
 name = "astraquant-workspace"
 version = "0.0.0"
 requires-python = ">=3.12,<3.13"
-dependencies = ["astraquant-domain"]
+dependencies = [
+  "astraquant-api",
+  "astraquant-data[akshare]",
+  "astraquant-domain",
+  "astraquant-paper",
+  "astraquant-quant",
+]
 
 [dependency-groups]
 dev = [
-  "mypy>=1.17,<2",
-  "pytest>=8.4,<10",
-  "ruff>=0.12,<1",
+  "httpx>=0.28,<1",
+  "httpx2>=2.9,<3",
+  "mypy>=1.19,<2",
+  "pytest>=9.1,<10",
+  "ruff>=0.14,<1",
 ]
 
 [tool.uv]
@@ -16,26 +24,49 @@ package = false
 
 [tool.uv.sources]
 astraquant-domain = { workspace = true }
+astraquant-paper = { workspace = true }
+astraquant-quant = { workspace = true }
+astraquant-data = { workspace = true }
+astraquant-api = { workspace = true }
 
 [tool.uv.workspace]
-members = ["packages/domain"]
+members = ["packages/domain", "packages/data", "packages/api", "packages/quant", "packages/paper"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+  "windows_runtime: process lifecycle coverage that is required on Windows CI",
+]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+src = ["packages/domain/src", "packages/data/src", "packages/api/src", "packages/quant/src", "packages/paper/src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["astraquant_domain", "tools"]
+known-first-party = [
+  "astraquant_api",
+  "astraquant_data",
+  "astraquant_domain",
+  "astraquant_paper",
+  "astraquant_quant",
+  "tools",
+]
 
 [tool.mypy]
 python_version = "3.12"
 strict = true
-files = ["packages/domain/src", "tools", "tests"]
+files = [
+  "packages/domain/src",
+  "packages/paper/src",
+  "packages/data/src",
+  "packages/api/src",
+  "packages/quant/src",
+  "tools",
+  "tests",
+]

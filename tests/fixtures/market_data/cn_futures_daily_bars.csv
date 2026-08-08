@@ -1,0 +1,2 @@
+instrument_id,trading_date,event_time,available_time,open,high,low,close,volume,turnover,open_interest,settlement,adjustment,availability_estimated
+RB0.SHFE,2026-07-24,2026-07-24T07:00:00Z,2026-07-24T07:01:00Z,3510,3540,3500,3520,220,,310,3515,none,true

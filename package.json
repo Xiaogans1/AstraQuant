@@ -1,0 +1,15 @@
+{
+  "name": "astraquant",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "npm --prefix apps/desktop run tauri -- dev",
+    "frontend:check": "pnpm --dir apps/desktop check",
+    "frontend:test": "pnpm --dir apps/desktop test",
+    "rust:check": "cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "rust:test": "cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml"
+  }
+}
