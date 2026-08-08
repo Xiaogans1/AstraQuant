@@ -170,7 +170,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
                     className={`strategy-lab__chip${selected ? " strategy-lab__chip--selected" : ""}`}
                     aria-pressed={selected}
                     style={selected
-                      ? { background: "#0a8f4c", color: "#ffffff", borderColor: "#0a8f4c", fontWeight: 600 }
+                      ? { background: "var(--accent)", color: "#ffffff", borderColor: "var(--accent)", fontWeight: 600 }
                       : { background: "#ffffff", color: "#172327", borderColor: "#cbd7d7" }}
                     onClick={() => toggleSelected(item.instrument_id)}
                   >
@@ -192,7 +192,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
                     key={item.instrument_id}
                     className={`strategy-lab__chip strategy-lab__chip--added${selected ? " strategy-lab__chip--selected" : ""}`}
                     style={selected
-                      ? { background: "#0a8f4c", color: "#ffffff", borderColor: "#0a8f4c" }
+                      ? { background: "var(--accent)", color: "#ffffff", borderColor: "var(--accent)" }
                       : { background: "#ffffff", color: "#172327", borderColor: "#cbd7d7" }}
                   >
                     <button

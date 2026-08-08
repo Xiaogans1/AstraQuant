@@ -3262,8 +3262,8 @@ code {
 
 .strategy-lab__chip--selected,
 .strategy-lab__chip--selected.strategy-lab__chip--added {
-  border-color: #0a8f4c;
-  background: #0a8f4c;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #ffffff;
   font-weight: 600;
 }
