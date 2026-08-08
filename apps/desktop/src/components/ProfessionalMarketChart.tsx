@@ -246,8 +246,23 @@ export function ProfessionalMarketChart({
     });
     const host = hostRef.current;
     chart.resetData();
+    // resetData() delivers the bars synchronously, so overlays created right
+    // after it are guaranteed to resolve their timestamps against the data.
+    chart.removeOverlay({ groupId: QUANT_SIGNAL_GROUP_ID });
+    if (showQuantSignals) {
+      for (const signal of toSignalOverlays(signals)) {
+        chart.createOverlay({
+          name: quantSignalOverlay.name,
+          groupId: QUANT_SIGNAL_GROUP_ID,
+          paneId: CANDLE_PANE_ID,
+          lock: true,
+          points: [{ timestamp: signal.timestamp, value: signal.price }],
+          extendData: signal,
+        });
+      }
+    }
     if (host !== null) applyChartLayout(chart, host, period, lastTimestamp);
-  }, [bars, period]);
+  }, [bars, period, showQuantSignals, signals]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -266,18 +281,28 @@ export function ProfessionalMarketChart({
   useEffect(() => {
     const chart = chartRef.current;
     if (chart === null) return;
-    chart.removeOverlay({ groupId: QUANT_SIGNAL_GROUP_ID });
-    if (!showQuantSignals) return;
-    for (const signal of toSignalOverlays(signals)) {
-      chart.createOverlay({
-        name: quantSignalOverlay.name,
-        groupId: QUANT_SIGNAL_GROUP_ID,
-        paneId: CANDLE_PANE_ID,
-        lock: true,
-        points: [{ timestamp: signal.timestamp, value: signal.price }],
-        extendData: signal,
-      });
-    }
+    const apply = () => {
+      chart.removeOverlay({ groupId: QUANT_SIGNAL_GROUP_ID });
+      if (!showQuantSignals) return;
+      for (const signal of toSignalOverlays(signals)) {
+        chart.createOverlay({
+          name: quantSignalOverlay.name,
+          groupId: QUANT_SIGNAL_GROUP_ID,
+          paneId: CANDLE_PANE_ID,
+          lock: true,
+          points: [{ timestamp: signal.timestamp, value: signal.price }],
+          extendData: signal,
+        });
+      }
+    };
+    apply();
+    // klinecharts resolves overlay points against the loaded data; when
+    // signals arrive before the data (e.g. replay results), re-apply once
+    // the visible range has been computed.
+    chart.subscribeAction("onVisibleRangeChange", apply);
+    return () => {
+      chart.unsubscribeAction("onVisibleRangeChange", apply);
+    };
   }, [showQuantSignals, signals]);
 
   return (
