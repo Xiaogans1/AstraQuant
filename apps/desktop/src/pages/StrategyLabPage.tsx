@@ -86,7 +86,7 @@ function ReplayTab({ client }: { client: ApiClient }) {
   const home = useMarketHomeQuery(client);
   const replay = useResearchReplayMutation(client);
   const [added, setAdded] = usePersistentState<InstrumentSelection[]>("astraquant.lab.addedInstruments", []);
-  const [selectedIds, setSelectedIds] = usePersistentState<string[]>("astraquant.lab.selectedInstruments", []);
+  const [selectedIds, setSelectedIds] = usePersistentState<string[]>("astraquant.lab.selectedInstruments.v2", []);
   const [startDate, setStartDate] = usePersistentState<string>("astraquant.lab.startDate", "");
   const [endDate, setEndDate] = usePersistentState<string>("astraquant.lab.endDate", "");
   const [modelId, setModelId] = usePersistentState<string>("astraquant.lab.modelId", "");
