@@ -3,6 +3,7 @@
 from astraquant_domain.clocks import Clock, FixedClock, SystemClock
 from astraquant_domain.events import EventEnvelope
 from astraquant_domain.features import FeatureFrame, FeatureRow
+from astraquant_domain.fees import FeeBreakdown, FeeSchedule
 from astraquant_domain.identifiers import InstrumentId, Venue
 from astraquant_domain.live_market import LiveQuote, MarketEventQuality, QuoteLevel
 from astraquant_domain.market_data import Adjustment, Bar, BarFrequency, Tick
@@ -41,6 +42,8 @@ __all__ = [
     "EventEnvelope",
     "FeatureFrame",
     "FeatureRow",
+    "FeeBreakdown",
+    "FeeSchedule",
     "FixedClock",
     "InstrumentId",
     "LiveQuote",

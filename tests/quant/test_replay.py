@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from astraquant_data.market_bars import MarketBar
-from astraquant_domain import InstrumentId, OrderSide
+from astraquant_domain import FeeSchedule, InstrumentId, OrderSide
 from astraquant_quant.replay import OpeningPosition, replay_bars
 
 
@@ -41,7 +41,7 @@ def test_replay_is_deterministic_and_tracks_round_trip() -> None:
         predict=predict,
         buy_threshold=0.5,
         sell_threshold=0.4,
-        fee_rate=Decimal("0.00025"),
+        fee_schedule=FeeSchedule(),
         initial_cash=Decimal("10000"),
     )
     second = replay_bars(
@@ -50,7 +50,7 @@ def test_replay_is_deterministic_and_tracks_round_trip() -> None:
         predict=predict,
         buy_threshold=0.5,
         sell_threshold=0.4,
-        fee_rate=Decimal("0.00025"),
+        fee_schedule=FeeSchedule(),
         initial_cash=Decimal("10000"),
     )
 
@@ -89,7 +89,7 @@ def test_replay_buys_on_high_probability_and_sells_on_low() -> None:
         predict=predict,
         buy_threshold=0.5,
         sell_threshold=0.4,
-        fee_rate=Decimal("0.00025"),
+        fee_schedule=FeeSchedule(),
         initial_cash=Decimal("10000"),
     )
 
@@ -120,7 +120,7 @@ def test_replay_never_sees_future_bars() -> None:
         predict=predict,
         buy_threshold=0.5,
         sell_threshold=0.4,
-        fee_rate=Decimal("0.00025"),
+        fee_schedule=FeeSchedule(),
         initial_cash=Decimal("10000"),
     )
 
@@ -141,7 +141,7 @@ def test_replay_with_opening_position_seeds_equity_and_limits_sell_to_available(
         predict=predict,
         buy_threshold=0.5,
         sell_threshold=0.4,
-        fee_rate=Decimal("0.00025"),
+        fee_schedule=FeeSchedule(),
         initial_cash=Decimal("5000"),
         opening=OpeningPosition(
             quantity=1000,
@@ -183,7 +183,7 @@ def test_replay_top_up_buys_are_frozen_until_next_day() -> None:
         predict=predict,
         buy_threshold=0.5,
         sell_threshold=0.4,
-        fee_rate=Decimal("0.00025"),
+        fee_schedule=FeeSchedule(),
         initial_cash=Decimal("5000"),
         opening=OpeningPosition(
             quantity=1000,
@@ -209,7 +209,7 @@ def test_replay_fully_invested_starts_with_position_and_buy_hold_benchmark() -> 
         predict=predict,
         buy_threshold=0.5,
         sell_threshold=0.4,
-        fee_rate=Decimal("0.00025"),
+        fee_schedule=FeeSchedule(),
         initial_cash=Decimal("100000"),
         fully_invested=True,
     )
@@ -236,7 +236,7 @@ def test_replay_default_starts_cash_only() -> None:
         predict=predict,
         buy_threshold=0.5,
         sell_threshold=0.4,
-        fee_rate=Decimal("0.00025"),
+        fee_schedule=FeeSchedule(),
         initial_cash=Decimal("100000"),
     )
 
@@ -272,7 +272,7 @@ def test_replay_fully_invested_holds_through_sell_signals_until_next_day() -> No
         predict=predict,
         buy_threshold=0.5,
         sell_threshold=0.4,
-        fee_rate=Decimal("0.00025"),
+        fee_schedule=FeeSchedule(),
         initial_cash=Decimal("100000"),
         fully_invested=True,
     )
@@ -280,3 +280,79 @@ def test_replay_fully_invested_holds_through_sell_signals_until_next_day() -> No
     assert result.position_remaining == 0  # sold after the day boundary unlocked it
     assert len([trade for trade in result.trades if trade.side is OrderSide.SELL]) >= 1
     assert result.net_return_percent < 0  # sold at 9.8 after buying at 10
+
+
+def test_replay_holds_when_predictor_has_no_information() -> None:
+    bars = _bars(["10"] * 35 + ["10.05"] * 20)
+    instrument = InstrumentId.parse("159516.SZSE")
+
+    def predict(_completed: list[MarketBar]) -> float | None:
+        return None
+
+    result = replay_bars(
+        bars,
+        instrument_id=instrument,
+        predict=predict,
+        buy_threshold=0.5,
+        sell_threshold=0.4,
+        fee_schedule=FeeSchedule(),
+        initial_cash=Decimal("10000"),
+    )
+
+    assert result.buys == 0
+    assert result.sells == 0
+    assert result.final_cash == Decimal("10000")
+
+
+def test_replay_charges_user_fee_schedule_precisely() -> None:
+    # User profile: ETF, no minimum commission, 0.02% commission, stamp duty exempt.
+    day_one = _bars(["10"] * 35 + ["10"] * 5)
+    day_two = [
+        MarketBar(
+            timestamp=bar.timestamp + timedelta(days=1),
+            open=bar.open,
+            high=bar.high,
+            low=bar.low,
+            close=bar.close,
+            volume=bar.volume,
+            turnover=bar.turnover,
+            previous_close=bar.previous_close,
+        )
+        for bar in _bars(["11"] * 30)
+    ]
+    bars = [*day_one, *day_two]
+    instrument = InstrumentId.parse("159516.SZSE")
+    first_day_end = day_one[-1].timestamp
+    fees = FeeSchedule(
+        commission_rate=Decimal("0.0002"),
+        minimum_commission=Decimal("0"),
+        stamp_duty_rate=Decimal("0.0005"),
+        transfer_fee_rate=Decimal("0.00001"),
+    )
+
+    def predict(completed: list[MarketBar]) -> float:
+        return 0.9 if completed[-1].timestamp <= first_day_end else 0.1
+
+    result = replay_bars(
+        bars,
+        instrument_id=instrument,
+        predict=predict,
+        buy_threshold=0.5,
+        sell_threshold=0.4,
+        fee_schedule=fees,
+        initial_cash=Decimal("20000"),
+        stamp_duty_exempt=True,
+    )
+
+    assert result.buys == 1
+    assert result.sells == 1
+    buy = result.trades[0]
+    sell = result.trades[1]
+    # 2000 shares at 10 cost 20000 + fees (4.20) > cash, so one lot is dropped.
+    assert buy.quantity == 1900
+    # buy: 19000 gross + 3.80 commission + 0.19 transfer = 19003.99
+    # sell: 20900 gross - 4.18 commission - 0.21 transfer
+    assert result.final_cash == Decimal("21891.62")
+    # sell pnl: (11 - 10) * 1900 - buy fee 3.99 - sell fee 4.39 = 1891.62
+    assert sell.pnl == Decimal("1891.62")
+    assert result.realized_pnl == Decimal("1891.62")

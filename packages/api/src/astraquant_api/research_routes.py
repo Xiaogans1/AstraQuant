@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Callable
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -14,6 +13,7 @@ from fastapi import APIRouter
 
 from astraquant_api.app import ApiProblem
 from astraquant_api.paper_repository import ExperimentRecord, ModelRegistryRecord
+from astraquant_api.repository import TaskRepository
 from astraquant_api.research_schemas import (
     DatasetSummaryView,
     ExperimentSummaryView,
@@ -35,10 +35,30 @@ from astraquant_data.research_store import (
     market_bars_to_domain,
     publish_dataset,
 )
-from astraquant_domain import InstrumentId
+from astraquant_domain import FeeSchedule, InstrumentId
+from astraquant_quant.model_predictor import make_model_predictor
 from astraquant_quant.replay import OpeningPosition, replay_bars
-from astraquant_quant.research_features import build_feature_rows, build_training_rows
+from astraquant_quant.research_features import build_training_rows
 from astraquant_quant.strategy_layer import MODEL_FEATURE_COLUMNS
+
+_FEE_CONFIG_KEY = "paper.fee_schedule"
+
+
+def _load_fee_schedule(settings_store: TaskRepository | None) -> FeeSchedule:
+    if settings_store is None:
+        return FeeSchedule()
+    stored = settings_store.get_setting(_FEE_CONFIG_KEY)
+    if not isinstance(stored, dict):
+        return FeeSchedule()
+    try:
+        return FeeSchedule(
+            commission_rate=Decimal(str(stored["commission_rate"])),
+            minimum_commission=Decimal(str(stored["minimum_commission"])),
+            stamp_duty_rate=Decimal(str(stored["stamp_duty_rate"])),
+            transfer_fee_rate=Decimal(str(stored["transfer_fee_rate"])),
+        )
+    except (KeyError, TypeError, ValueError):
+        return FeeSchedule()
 
 
 class ModelLookup(Protocol):
@@ -59,6 +79,7 @@ def build_research_router(
     models: ModelLookup,
     authenticated: Any,
     market_service: Any = None,
+    settings_store: TaskRepository | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/research", dependencies=[authenticated])
 
@@ -240,10 +261,10 @@ def build_research_router(
             params = json.loads(model.params_json)
         except (TypeError, ValueError):
             params = {}
-        predictor = _model_predictor(model)
+        predictor = make_model_predictor(model.artifact_path)
         buy_threshold = float(params.get("buy_threshold", 0.6))
         sell_threshold = float(params.get("sell_threshold", 0.4))
-        fee_rate = Decimal("0.00025")
+        fee_schedule = _load_fee_schedule(settings_store)
 
         async def run_one(item: ReplayInstrumentInput) -> ReplayView:
             try:
@@ -268,7 +289,7 @@ def build_research_router(
                 predict=predictor,
                 buy_threshold=buy_threshold,
                 sell_threshold=sell_threshold,
-                fee_rate=fee_rate,
+                fee_schedule=fee_schedule,
                 initial_cash=request.initial_cash,
                 opening=opening,
                 fully_invested=request.fully_invested,
@@ -450,30 +471,6 @@ def _best_thresholds(
         else max(results, key=lambda item: item["net_return"])
     )
     return best
-
-
-def _model_predictor(
-    model: ModelRegistryRecord,
-) -> Callable[[list[MarketBar]], float]:
-    from pathlib import Path
-
-    import lightgbm as lgb
-
-    artifact = Path(model.artifact_path)
-    if not artifact.exists():
-        raise ApiProblem(409, "model_artifact_missing", "模型工件文件不存在")
-    booster = lgb.Booster(model_file=str(artifact))
-
-    def predict(completed: list[MarketBar]) -> float:
-        window = completed[-60:]
-        features = build_feature_rows(window)
-        if not features:
-            return 0.0
-        latest = features[-1]
-        proba = booster.predict([[float(latest[key]) for key in MODEL_FEATURE_COLUMNS]])
-        return float(proba[0])
-
-    return predict
 
 
 def _filter_bars(

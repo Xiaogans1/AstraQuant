@@ -2,8 +2,8 @@
 
 The replay advances one completed bar at a time: at each bar the predictor sees
 only bars[0..i] (never the future), a trade decision is made, and the paper
-ledger moves with configurable fees. The same bars + predictor + parameters
-always produce the same trades and equity curve.
+ledger moves with the user-configured fee schedule. The same bars + predictor +
+parameters always produce the same trades and equity curve.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from astraquant_data.market_bars import MarketBar
-from astraquant_domain import InstrumentId, OrderSide
+from astraquant_domain import FeeSchedule, InstrumentId, OrderSide
 from astraquant_quant.research_features import build_feature_rows
 from astraquant_quant.strategy_layer import MODEL_FEATURE_COLUMNS
 
@@ -124,7 +124,7 @@ class ReplayResult:
         return float(wins / losses)
 
 
-Predictor = Callable[[list[MarketBar]], float]
+Predictor = Callable[[list[MarketBar]], float | None]
 
 
 def _features_at(bars: list[MarketBar], index: int) -> dict[str, float]:
@@ -154,6 +154,20 @@ class OpeningPosition:
     average_cost: Decimal
 
 
+def _order_fees(
+    schedule: FeeSchedule,
+    side: OrderSide,
+    gross: Decimal,
+    *,
+    stamp_duty_exempt: bool,
+) -> Decimal:
+    return schedule.calculate(
+        side=side,
+        gross_amount=gross,
+        stamp_duty_exempt=stamp_duty_exempt,
+    ).total
+
+
 def replay_bars(
     bars: list[MarketBar],
     *,
@@ -161,13 +175,18 @@ def replay_bars(
     predict: Predictor,
     buy_threshold: float,
     sell_threshold: float,
-    fee_rate: Decimal,
+    fee_schedule: FeeSchedule,
     initial_cash: Decimal,
+    stamp_duty_exempt: bool = True,
     lot_size: int = 100,
     opening: OpeningPosition | None = None,
     fully_invested: bool = False,
 ) -> ReplayResult:
     """Replay the signal over completed bars with a single-position paper book.
+
+    ``predict`` returns the model's up-probability or ``None`` when no
+    decision can be made (insufficient point-in-time features); ``None`` is
+    always treated as HOLD — no information, no action.
 
     ``opening`` seeds the replay with an existing holding (mirroring the paper
     account): equity starts at cash + opening market value, SELL is limited to
@@ -188,13 +207,24 @@ def replay_bars(
     position_qty = 0 if opening is None else opening.quantity
     available_qty = 0 if opening is None else opening.available_quantity
     entry_price: Decimal | None = None if opening is None else opening.average_cost
+    total_bought_qty = 0 if opening is None else opening.quantity
+    total_buy_fees = Decimal("0")
     if fully_invested:
         quantity = int(cash / first_price / lot_size) * lot_size
         if quantity >= lot_size:
-            cash -= quantity * first_price * (Decimal("1") + fee_rate)
+            gross = quantity * first_price
+            fees = _order_fees(
+                fee_schedule,
+                OrderSide.BUY,
+                gross,
+                stamp_duty_exempt=stamp_duty_exempt,
+            )
+            cash -= gross + fees
             position_qty += quantity
             available_qty = 0  # T+1: bought today, cannot sell until tomorrow
             entry_price = first_price
+            total_bought_qty = quantity
+            total_buy_fees = fees
     trades: list[ReplayTrade] = []
     equity_points: list[tuple[datetime, Decimal]] = []
     position_value_points: list[tuple[datetime, Decimal]] = []
@@ -207,17 +237,39 @@ def replay_bars(
         completed = bars[: index + 1]
         price = bar.close
         proba = predict(completed)
+        if proba is None:
+            continue  # no information, no action
         if proba >= buy_threshold:
             if position_qty == 0:
                 quantity = max(
                     lot_size,
                     int(cash / price / lot_size) * lot_size,
                 )
-                if quantity >= lot_size and cash >= quantity * price:
-                    cash -= quantity * price * (Decimal("1") + fee_rate)
+                while quantity >= lot_size:
+                    gross = quantity * price
+                    fees = _order_fees(
+                        fee_schedule,
+                        OrderSide.BUY,
+                        gross,
+                        stamp_duty_exempt=stamp_duty_exempt,
+                    )
+                    if cash >= gross + fees:
+                        break
+                    quantity -= lot_size
+                if quantity >= lot_size:
+                    gross = quantity * price
+                    fees = _order_fees(
+                        fee_schedule,
+                        OrderSide.BUY,
+                        gross,
+                        stamp_duty_exempt=stamp_duty_exempt,
+                    )
+                    cash -= gross + fees
                     position_qty = quantity
                     available_qty = 0
                     entry_price = price
+                    total_bought_qty = quantity
+                    total_buy_fees = fees
                     trades.append(
                         ReplayTrade(
                             index=index,
@@ -231,13 +283,21 @@ def replay_bars(
                     )
             elif cash >= lot_size * price:
                 # top-up: buy one lot, frozen until the next trading day
-                cost = lot_size * price * (Decimal("1") + fee_rate)
-                cash -= cost
+                gross = lot_size * price
+                fees = _order_fees(
+                    fee_schedule,
+                    OrderSide.BUY,
+                    gross,
+                    stamp_duty_exempt=stamp_duty_exempt,
+                )
+                cash -= gross + fees
                 assert entry_price is not None
-                entry_price = (
-                    entry_price * position_qty + lot_size * price * (Decimal("1") + fee_rate)
-                ) / (position_qty + lot_size)
+                entry_price = (entry_price * position_qty + lot_size * price) / (
+                    position_qty + lot_size
+                )
                 position_qty += lot_size
+                total_bought_qty += lot_size
+                total_buy_fees += fees
                 trades.append(
                     ReplayTrade(
                         index=index,
@@ -255,11 +315,23 @@ def replay_bars(
             assert entry_price is not None
             sell_qty = min(available_qty, position_qty)
             gross = (price - entry_price) * sell_qty
-            fees = gross * fee_rate * 2
-            pnl = gross - fees
-            cash += price * sell_qty * (Decimal("1") - fee_rate)
+            sell_fees = _order_fees(
+                fee_schedule,
+                OrderSide.SELL,
+                price * sell_qty,
+                stamp_duty_exempt=stamp_duty_exempt,
+            )
+            buy_fee_portion = (
+                total_buy_fees * sell_qty / total_bought_qty
+                if total_bought_qty > 0
+                else Decimal("0")
+            )
+            pnl = gross - buy_fee_portion - sell_fees
+            cash += price * sell_qty - sell_fees
             position_qty -= sell_qty
             available_qty -= sell_qty
+            total_bought_qty -= sell_qty
+            total_buy_fees -= buy_fee_portion
             trades.append(
                 ReplayTrade(
                     index=index,
@@ -289,15 +361,34 @@ def replay_bars(
     if position_qty > 0:
         assert entry_price is not None
         last_price = bars[-1].close
-        gross = (last_price - entry_price) * position_qty
-        final_cash += last_price * position_qty * (Decimal("1") - fee_rate)
+        gross = last_price * position_qty
+        sell_fees = _order_fees(
+            fee_schedule,
+            OrderSide.SELL,
+            gross,
+            stamp_duty_exempt=stamp_duty_exempt,
+        )
+        final_cash += gross - sell_fees
     # buy-and-hold benchmark: invest the full initial equity at the first bar
     bh_qty = int(initial_equity / first_price / lot_size) * lot_size
-    bh_cash = initial_equity - bh_qty * first_price * (Decimal("1") + fee_rate)
+    bh_gross = bh_qty * first_price
+    bh_buy_fees = _order_fees(
+        fee_schedule,
+        OrderSide.BUY,
+        bh_gross,
+        stamp_duty_exempt=stamp_duty_exempt,
+    )
+    bh_cash = initial_equity - bh_gross - bh_buy_fees
     buy_hold_points: list[tuple[datetime, Decimal]] = []
     for bar in bars[min(_WINDOW, len(bars) - 1) :]:
         buy_hold_points.append((bar.timestamp, bh_cash + bh_qty * bar.close))
-    bh_final = bh_cash + bh_qty * bars[-1].close * (Decimal("1") - fee_rate)
+    bh_sell_fees = _order_fees(
+        fee_schedule,
+        OrderSide.SELL,
+        bh_qty * bars[-1].close,
+        stamp_duty_exempt=stamp_duty_exempt,
+    )
+    bh_final = bh_cash + bh_qty * bars[-1].close - bh_sell_fees
     buy_hold_return = (
         float((bh_final - initial_equity) / initial_equity * 100) if initial_equity > 0 else 0.0
     )
