@@ -3,11 +3,10 @@ import {
   dispose,
   init,
   registerIndicator,
-  registerOverlay,
   type Chart,
+  type Coordinate,
   type Crosshair,
   type IndicatorCreate,
-  type OverlayTemplate,
   type Period,
   type Point,
 } from "klinecharts";
@@ -24,56 +23,12 @@ import {
 import { normalizeMarketBars } from "../features/market/marketChartData";
 import { marketChartTheme } from "../features/market/marketChartTheme";
 import { intradayAverageIndicator } from "../features/market/intradayAverage";
-import {
-  toSignalOverlays,
-  type MarketSignalMarker,
-  type MarketSignalOverlay,
-} from "../features/market/marketSignalOverlay";
+import type { MarketSignalMarker } from "../features/market/marketSignalOverlay";
 
 const QUANT_SIGNAL_GROUP_ID = "astraquant-quant-signals";
 const CANDLE_PANE_ID = "candle_pane";
 const SECONDARY_PANE_ID = "astraquant_secondary_pane";
 const MINIMUM_KLINE_BAR_SPACE = 2.5;
-
-const quantSignalOverlay: OverlayTemplate<MarketSignalOverlay> = {
-  name: "astraquantSignal",
-  totalStep: 2,
-  lock: true,
-  needDefaultPointFigure: false,
-  needDefaultXAxisFigure: false,
-  needDefaultYAxisFigure: false,
-  createPointFigures: ({ overlay, coordinates }) => {
-    const point = coordinates[0];
-    if (point === undefined) return [];
-    const signal = overlay.extendData;
-    const color = signal.side === "BUY" ? "#ef5b5b" : "#21ad76";
-    const y = point.y + (signal.side === "BUY" ? 22 : -22);
-    return [
-      {
-        type: "circle",
-        attrs: { x: point.x, y, r: 11 },
-        styles: { style: "fill", color },
-        ignoreEvent: true,
-      },
-      {
-        type: "text",
-        attrs: {
-          x: point.x,
-          y,
-          text: signal.tag,
-          align: "center",
-          baseline: "middle",
-        },
-        styles: {
-          color: "#ffffff",
-          size: 11,
-          weight: "bold",
-        },
-        ignoreEvent: true,
-      },
-    ];
-  },
-};
 
 interface ProfessionalMarketChartProps {
   instrumentId: string;
@@ -132,7 +87,6 @@ export function ProfessionalMarketChart({
     });
     if (chart === null) return;
     registerIndicator(intradayAverageIndicator);
-    registerOverlay(quantSignalOverlay);
     chartRef.current = chart;
     chart.setTimezone("Asia/Shanghai");
     const handleCrosshairChange = (value?: unknown) => {
@@ -246,23 +200,69 @@ export function ProfessionalMarketChart({
     });
     const host = hostRef.current;
     chart.resetData();
-    // resetData() delivers the bars synchronously, so overlays created right
-    // after it are guaranteed to resolve their timestamps against the data.
-    chart.removeOverlay({ groupId: QUANT_SIGNAL_GROUP_ID });
-    if (showQuantSignals) {
-      for (const signal of toSignalOverlays(signals)) {
-        chart.createOverlay({
-          name: quantSignalOverlay.name,
-          groupId: QUANT_SIGNAL_GROUP_ID,
-          paneId: CANDLE_PANE_ID,
-          lock: true,
-          points: [{ timestamp: signal.timestamp, value: signal.price }],
-          extendData: signal,
-        });
-      }
-    }
     if (host !== null) applyChartLayout(chart, host, period, lastTimestamp);
-  }, [bars, period, showQuantSignals, signals]);
+    refreshSignalMarkers();
+  }, [bars, period]);
+
+  const [signalMarkers, setSignalMarkers] = useState<
+    Array<{ signal: MarketSignalMarker; x: number; y: number }>
+  >([]);
+  const signalMarkersRef = useRef(signalMarkers);
+  signalMarkersRef.current = signalMarkers;
+
+  const refreshSignalMarkers = () => {
+    const chart = chartRef.current;
+    if (chart === null) {
+      setSignalMarkers([]);
+      return;
+    }
+    if (!showQuantSignals) {
+      setSignalMarkers([]);
+      return;
+    }
+    const mapped = signals
+      .map((signal) => {
+        const pixels = chart.convertToPixel(
+          [{ timestamp: signal.timestamp, value: signal.price }],
+          { paneId: CANDLE_PANE_ID },
+        ) as Array<Partial<Coordinate>>;
+        const pixel = pixels[0];
+        if (pixel === undefined || !Number.isFinite(pixel.x) || !Number.isFinite(pixel.y)) {
+          return null;
+        }
+        return { signal, x: pixel.x, y: pixel.y };
+      })
+      .filter((item): item is { signal: MarketSignalMarker; x: number; y: number } => item !== null);
+    const previous = signalMarkersRef.current;
+    if (
+      previous.length === mapped.length
+      && mapped.every(
+        (item, index) =>
+          previous[index]?.signal.id === item.signal.id
+          && previous[index]?.x === item.x
+          && previous[index]?.y === item.y,
+      )
+    ) {
+      return;
+    }
+    setSignalMarkers(mapped);
+  };
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (chart === null) return;
+    const apply = () => refreshSignalMarkers();
+    apply();
+    chart.subscribeAction("onScroll", apply);
+    chart.subscribeAction("onZoom", apply);
+    chart.subscribeAction("onVisibleRangeChange", apply);
+    return () => {
+      chart.unsubscribeAction("onScroll", apply);
+      chart.unsubscribeAction("onZoom", apply);
+      chart.unsubscribeAction("onVisibleRangeChange", apply);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showQuantSignals, signals]);
 
   useEffect(() => {
     const chart = chartRef.current;
@@ -278,33 +278,6 @@ export function ProfessionalMarketChart({
     }, false);
   }, [mainIndicator, secondaryIndicator]);
 
-  useEffect(() => {
-    const chart = chartRef.current;
-    if (chart === null) return;
-    const apply = () => {
-      chart.removeOverlay({ groupId: QUANT_SIGNAL_GROUP_ID });
-      if (!showQuantSignals) return;
-      for (const signal of toSignalOverlays(signals)) {
-        chart.createOverlay({
-          name: quantSignalOverlay.name,
-          groupId: QUANT_SIGNAL_GROUP_ID,
-          paneId: CANDLE_PANE_ID,
-          lock: true,
-          points: [{ timestamp: signal.timestamp, value: signal.price }],
-          extendData: signal,
-        });
-      }
-    };
-    apply();
-    // klinecharts resolves overlay points against the loaded data; when
-    // signals arrive before the data (e.g. replay results), re-apply once
-    // the visible range has been computed.
-    chart.subscribeAction("onVisibleRangeChange", apply);
-    return () => {
-      chart.unsubscribeAction("onVisibleRangeChange", apply);
-    };
-  }, [showQuantSignals, signals]);
-
   return (
     <div
       className="professional-market-chart"
@@ -312,6 +285,34 @@ export function ProfessionalMarketChart({
       aria-label={`${instrumentId}${period === "intraday" ? "分时" : "K线"}行情图`}
     >
       <div ref={hostRef} className="professional-market-chart__surface" />
+      {signalMarkers.length === 0 ? null : (
+        <svg
+          className="professional-market-chart__signals"
+          aria-hidden="true"
+        >
+          {signalMarkers.map(({ signal, x, y }) => {
+            const isBuy = signal.side === "BUY";
+            const color = isBuy ? "#ef5b5b" : "#21ad76";
+            return (
+              <g key={signal.id}>
+                <circle cx={x} cy={y} r={9} fill={color}>
+                  <title>{signal.label}</title>
+                </circle>
+                <text
+                  x={x}
+                  y={y + 3.5}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="bold"
+                  fill="#ffffff"
+                >
+                  {isBuy ? "B" : "S"}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      )}
       {crosshairQuote === null ? null : (
         <>
           <div

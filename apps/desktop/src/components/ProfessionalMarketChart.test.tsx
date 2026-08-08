@@ -20,6 +20,7 @@ const { chart, dispose, init, registerIndicator, registerOverlay } = vi.hoisted(
     getBarSpace: vi.fn(),
     scrollToRealTime: vi.fn(),
     convertFromPixel: vi.fn(),
+    convertToPixel: vi.fn(() => [{ x: 100, y: 100 }]),
     createOverlay: vi.fn(),
     removeOverlay: vi.fn(),
     subscribeAction: vi.fn(),
@@ -300,20 +301,11 @@ it("renders only explicit quant buy and sell decisions as chart overlays", () =>
     />,
   );
 
-  expect(registerOverlay).toHaveBeenCalledWith(
-    expect.objectContaining({ name: "astraquantSignal" }),
+  expect(chart.convertToPixel).toHaveBeenCalledWith(
+    [{ timestamp: Date.parse("2026-08-06T09:30:00+08:00"), value: 0.705 }],
+    { paneId: "candle_pane" },
   );
-  expect(chart.removeOverlay).toHaveBeenCalledWith({
-    groupId: "astraquant-quant-signals",
-  });
-  expect(chart.createOverlay).toHaveBeenCalledWith(
-    expect.objectContaining({
-      name: "astraquantSignal",
-      groupId: "astraquant-quant-signals",
-      points: [{ timestamp: Date.parse("2026-08-06T09:30:00+08:00"), value: 0.705 }],
-      extendData: expect.objectContaining({ tag: "B", side: "BUY" }),
-    }),
-  );
+  expect(screen.getByText("B")).toBeVisible();
 });
 
 it("hides quant overlays without removing chart indicators", () => {
@@ -336,10 +328,8 @@ it("hides quant overlays without removing chart indicators", () => {
     />,
   );
 
-  expect(chart.removeOverlay).toHaveBeenCalledWith({
-    groupId: "astraquant-quant-signals",
-  });
-  expect(chart.createOverlay).not.toHaveBeenCalled();
+  expect(chart.convertToPixel).not.toHaveBeenCalled();
+  expect(screen.queryByText("B")).toBeNull();
   expect(chart.createIndicator).toHaveBeenCalledWith(
     expect.objectContaining({
       name: "BOLL",
