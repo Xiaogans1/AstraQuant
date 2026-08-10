@@ -35,12 +35,12 @@
 - Create: `packages/data/src/astraquant_data/evidence.py`
 - Create: `packages/domain/src/astraquant_domain/run_manifest.py`
 - Modify: `packages/data/src/astraquant_data/manifests.py`
-- Modify: `packages/domain/src/astraquant_domain/features.py`
+- Modify: `packages/domain/src/astraquant_domain/__init__.py`
 - Test: `tests/data/test_evidence_gate.py`
 - Create: `tests/domain/test_run_manifest.py`
 
-- [ ] 先测试 manifest v1、fixture 改名、CSV、AKShare、未知祖先、混源与未 pin snapshot 对 `RunClass.FORMAL` 全部拒绝；所有祖先已批准且 exact pin 才通过。
-- [ ] 先测试 `RunManifest` 在 SEALED 前不能启动 run；它固定 code/env/input/config/randomness/event-order/matcher/vintage/policy hashes 与 run class，canonical bytes/digest 可精确重现，seal 后任何字段不可改。
+- [x] 先测试 manifest v1、fixture 改名、CSV、AKShare、未知祖先、混源与未 pin snapshot 对 `RunClass.FORMAL` 全部拒绝；所有祖先已批准且 exact pin 才通过。
+- [x] 先测试 `RunManifest` 在 SEALED 前不能启动 run；它固定 code/env/input/config/randomness/event-order/matcher/vintage/policy hashes 与 run class，canonical bytes/digest 可精确重现，seal 后任何字段不可改。
 
 ```python
 def test_renaming_fixture_does_not_upgrade_evidence() -> None:
@@ -55,11 +55,11 @@ def test_derived_real_api_requires_closed_ancestry() -> None:
     EvidenceGate().admit(RunClass.FORMAL, roots=(feature,))
 ```
 
-- [ ] 运行 `uv run pytest tests/data/test_evidence_gate.py -q`，确认缺模块红灯。
-- [ ] 实现 shared immutable `RunManifest`/canonical serializer/seal validator，以及 typed `REAL_API_MARKET/REFERENCE/BROKER`、`OFFICIAL_RULE`、`DERIVED_REAL_API`、`TEST_ONLY/EXPLORATORY`、`LEGACY_UNVERIFIED` evidence enum/value objects、cycle detection、role-aware allowed ancestry 和 fail-closed default；名称、provider 字符串、复制路径、重算 hash 都不能升级分类。
-- [ ] v1/缺 raw parent/unknown schema 固定映射 `LEGACY_UNVERIFIED`，保持读取兼容但 formal admission 永远失败。
-- [ ] 运行 `uv run pytest tests/domain/test_run_manifest.py tests/data/test_evidence_gate.py tests/data/test_feature_snapshots.py -q`，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 建立正式证据递归准入门"`
+- [x] 运行 `uv run pytest tests/data/test_evidence_gate.py -q`，确认缺模块红灯。
+- [x] 实现 shared immutable `RunManifest`/canonical serializer/seal validator，以及 typed `REAL_API_MARKET/REFERENCE/BROKER`、`OFFICIAL_RULE`、`DERIVED_REAL_API`、`TEST_ONLY/EXPLORATORY`、`LEGACY_UNVERIFIED` evidence enum/value objects、cycle detection、role-aware allowed ancestry 和 fail-closed default；名称、provider 字符串、复制路径、重算 hash 都不能升级分类。
+- [x] v1/缺 raw parent/unknown schema 固定映射 `LEGACY_UNVERIFIED`，保持读取兼容但 formal admission 永远失败。
+- [x] 运行 `uv run pytest tests/domain/test_run_manifest.py tests/data/test_evidence_gate.py tests/data/test_feature_snapshots.py -q`，期望全绿。
+- [x] 提交：`git commit -m "feat(data): 建立正式证据递归准入门"`
 
 ## Task 3: 用 0009 迁移封存旧 snapshot/model/replay/Paper
 

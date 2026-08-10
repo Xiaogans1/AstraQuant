@@ -28,7 +28,7 @@
 - Create: `packages/domain/src/astraquant_domain/run_manifest.py`
 - Modify: `packages/domain/src/astraquant_domain/__init__.py`
 
-- [ ] **Step 1: 写 canonical identity 与 seal 红灯测试**
+- [x] **Step 1: 写 canonical identity 与 seal 红灯测试**
 
 ```python
 def test_sealed_manifest_is_canonical_and_runnable() -> None:
@@ -44,13 +44,13 @@ def test_draft_manifest_cannot_start_a_run() -> None:
         _draft().assert_runnable()
 ```
 
-- [ ] **Step 2: 运行测试并确认因模块缺失而失败**
+- [x] **Step 2: 运行测试并确认因模块缺失而失败**
 
 Run: `uv run pytest tests/domain/test_run_manifest.py -q`
 
 Expected: collection FAIL，`ModuleNotFoundError: astraquant_domain.run_manifest`。
 
-- [ ] **Step 3: 实现最小 immutable contract**
+- [x] **Step 3: 实现最小 immutable contract**
 
 ```python
 class RunClass(StrEnum):
@@ -94,7 +94,7 @@ class RunManifest:
 
 所有 mapping 在 `__post_init__` 中复制、排序并转成 `MappingProxyType`；所有 digest 必须是非全零的 `sha256:<64 lowercase hex>`。`seal()` 返回新对象，不修改 draft。
 
-- [ ] **Step 4: 增加不可变、字段敏感和 fail-closed 边界测试**
+- [x] **Step 4: 增加不可变、字段敏感和 fail-closed 边界测试**
 
 ```python
 def test_sealed_manifest_rejects_mutation() -> None:
@@ -107,10 +107,13 @@ def test_sealed_manifest_rejects_mutation() -> None:
 
 @pytest.mark.parametrize("field", MANIFEST_IDENTITY_FIELDS)
 def test_each_identity_field_changes_manifest_digest(field: str) -> None:
-    assert _draft().seal().manifest_digest != _draft(**{field: replacement(field)}).seal().manifest_digest
+    assert (
+        _draft().seal().manifest_digest
+        != _draft(**{field: replacement(field)}).seal().manifest_digest
+    )
 ```
 
-- [ ] **Step 5: 运行 domain tests、Ruff 与 mypy**
+- [x] **Step 5: 运行 domain tests、Ruff 与 mypy**
 
 Run:
 
@@ -123,7 +126,7 @@ uv run mypy packages/domain/src/astraquant_domain tests/domain
 
 Expected: 全部 exit 0，且新测试无 warning。
 
-- [ ] **Step 6: 提交 domain contract**
+- [x] **Step 6: 提交 domain contract**
 
 ```powershell
 git add packages/domain/src/astraquant_domain/run_manifest.py packages/domain/src/astraquant_domain/__init__.py tests/domain/test_run_manifest.py
@@ -137,7 +140,7 @@ git commit -m "feat(domain): 建立不可变运行清单契约"
 - Create: `tests/data/test_evidence_gate.py`
 - Create: `packages/data/src/astraquant_data/evidence.py`
 
-- [ ] **Step 1: 写 formal allow/deny 矩阵红灯测试**
+- [x] **Step 1: 写 formal allow/deny 矩阵红灯测试**
 
 ```python
 def test_derived_real_api_requires_closed_approved_ancestry() -> None:
@@ -147,19 +150,26 @@ def test_derived_real_api_requires_closed_approved_ancestry() -> None:
     assert result.root_artifact_ids == ("feature-1",)
 
 
-@pytest.mark.parametrize("bad", [EvidenceRef.fixture("renamed-real-api.parquet", DIGEST_A), EvidenceRef.exploratory("akshare", DIGEST_A), EvidenceRef.legacy("old", DIGEST_A)])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        EvidenceRef.fixture("renamed-real-api.parquet", DIGEST_A),
+        EvidenceRef.exploratory("akshare", DIGEST_A),
+        EvidenceRef.legacy("old", DIGEST_A),
+    ],
+)
 def test_nonformal_evidence_cannot_enter_formal_even_when_renamed(bad: EvidenceRef) -> None:
     with pytest.raises(FormalAdmissionError):
         EvidenceGate().admit(RunClass.FORMAL, roots=(bad,))
 ```
 
-- [ ] **Step 2: 运行测试并确认因 evidence 模块缺失而失败**
+- [x] **Step 2: 运行测试并确认因 evidence 模块缺失而失败**
 
 Run: `uv run pytest tests/data/test_evidence_gate.py -q`
 
 Expected: collection FAIL，`ModuleNotFoundError: astraquant_data.evidence`。
 
-- [ ] **Step 3: 实现 evidence value objects 与递归 gate**
+- [x] **Step 3: 实现 evidence value objects 与递归 gate**
 
 ```python
 class EvidenceClass(StrEnum):
@@ -200,7 +210,7 @@ class EvidenceGate:
 
 FORMAL 递归规则：root 必须 exact ID、sealed、schema v2；真实 API/官方规则必须引用当前 gate 的 approved authority ID；derived 必须至少有一个非规则数据祖先，全部父级 formal eligible；unknown enum/schema、空父级、循环、同 artifact ID 不同 fingerprint、TEST/EXPLORATORY/LEGACY 全部拒绝。非 FORMAL 仍验证结构和 cycle，但允许非正式 evidence。
 
-- [ ] **Step 4: 增加循环、碰撞、未 pin、未审批和角色错误红灯测试**
+- [x] **Step 4: 增加循环、碰撞、未 pin、未审批和角色错误红灯测试**
 
 ```python
 def test_formal_rejects_unpinned_root() -> None:
@@ -236,13 +246,15 @@ def test_gate_rejects_same_artifact_id_with_different_digest() -> None:
 
 
 def test_rule_only_parents_cannot_claim_derived_market_evidence() -> None:
-    rule = EvidenceRef.official_rule(artifact_id="rule-1", approval_id="rule-approval", digest=DIGEST_A)
+    rule = EvidenceRef.official_rule(
+        artifact_id="rule-1", approval_id="rule-approval", digest=DIGEST_A
+    )
     root = EvidenceRef.derived(artifact_id="feature-1", digest=DIGEST_B, parents=(rule,))
     with pytest.raises(FormalAdmissionError, match="data ancestor"):
         EvidenceGate(approved_authority_ids={"rule-approval"}).admit(RunClass.FORMAL, roots=(root,))
 ```
 
-- [ ] **Step 5: 运行 evidence tests、Ruff 与 mypy**
+- [x] **Step 5: 运行 evidence tests、Ruff 与 mypy**
 
 Run:
 
@@ -255,7 +267,7 @@ uv run mypy packages/data/src/astraquant_data/evidence.py tests/data/test_eviden
 
 Expected: 全部 exit 0。
 
-- [ ] **Step 6: 提交 recursive gate**
+- [x] **Step 6: 提交 recursive gate**
 
 ```powershell
 git add packages/data/src/astraquant_data/evidence.py tests/data/test_evidence_gate.py
@@ -270,7 +282,7 @@ git commit -m "feat(data): 建立正式证据递归准入门"
 - Modify: `tests/data/test_evidence_gate.py`
 - Test: `tests/data/test_feature_snapshots.py`
 
-- [ ] **Step 1: 写 SnapshotManifest v1 永久降级红灯测试**
+- [x] **Step 1: 写 SnapshotManifest v1 永久降级红灯测试**
 
 ```python
 def test_snapshot_manifest_v1_is_always_legacy_unverified(tmp_path: Path) -> None:
@@ -281,13 +293,13 @@ def test_snapshot_manifest_v1_is_always_legacy_unverified(tmp_path: Path) -> Non
         EvidenceGate().admit(RunClass.FORMAL, roots=(evidence,))
 ```
 
-- [ ] **Step 2: 运行单测并确认缺少 adapter**
+- [x] **Step 2: 运行单测并确认缺少 adapter**
 
 Run: `uv run pytest tests/data/test_evidence_gate.py::test_snapshot_manifest_v1_is_always_legacy_unverified -q`
 
 Expected: FAIL，`SnapshotManifest` 没有 `to_evidence_ref`。
 
-- [ ] **Step 3: 实现显式 v1 adapter**
+- [x] **Step 3: 实现显式 v1 adapter**
 
 ```python
 def to_evidence_ref(self) -> EvidenceRef:
@@ -300,7 +312,7 @@ def to_evidence_ref(self) -> EvidenceRef:
 
 该 adapter 不读取 `provider`、路径或文件名来决定等级；即使 provider 字符串改成 Eastmoney、文件复制到 formal root 或 hash 重算，schema v1 仍为 `LEGACY_UNVERIFIED`。
 
-- [ ] **Step 4: 运行兼容测试**
+- [x] **Step 4: 运行兼容测试**
 
 Run:
 
@@ -310,7 +322,7 @@ uv run pytest tests/data/test_evidence_gate.py tests/data/test_feature_snapshots
 
 Expected: 全部通过；旧 snapshot/feature 读写保持兼容，但不能进入 FORMAL。
 
-- [ ] **Step 5: 提交 legacy adapter**
+- [x] **Step 5: 提交 legacy adapter**
 
 ```powershell
 git add packages/data/src/astraquant_data/manifests.py tests/data/test_evidence_gate.py
@@ -324,7 +336,7 @@ git commit -m "fix(data): 将旧快照永久标记为未验证证据"
 - Modify: `docs/superpowers/plans/2026-08-10-quant-core-v3-phase-0-repository-ci-legacy.md`
 - Modify: `docs/superpowers/plans/2026-08-10-phase0-task2-evidence-run-manifest.md`
 
-- [ ] **Step 1: 运行 Task 2 精确验收**
+- [x] **Step 1: 运行 Task 2 精确验收**
 
 Run:
 
@@ -340,13 +352,17 @@ uv run mypy packages/domain/src packages/data/src tests/domain tests/data
 
 Expected: 全部 exit 0。
 
-- [ ] **Step 2: 运行完整共享门**
+执行记录（2026-08-10）：run `e9d007da1e8e42589dcee08fb7100cf8` 通过 47 个目标测试，以及 domain/data 全量 Ruff check、Ruff format 和 mypy。
+
+- [x] **Step 2: 运行完整共享门**
 
 Run: `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1 -Scope All`
 
 Expected: Python、Desktop、Rust、repository policy 全部通过，验证日志只写 ignored `.astraquant/test-logs/{run_id}`。
 
-- [ ] **Step 3: 检查范围并勾选 roadmap Task 2**
+执行记录（2026-08-10）：本地 `All` run `e944b38bb7c24a51ab4c347f8959d1e4` 通过 424 个 Python tests、103 个 frontend tests、6 个 Rust tests，以及 Ruff check/format、mypy、repository policy、TypeScript check、Vite build、Cargo fmt/clippy。
+
+- [x] **Step 3: 检查范围并勾选 roadmap Task 2**
 
 Run:
 
