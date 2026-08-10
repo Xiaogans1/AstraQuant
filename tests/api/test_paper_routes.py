@@ -108,6 +108,9 @@ def test_default_paper_account_is_created_once_and_reused(tmp_path: Path) -> Non
     assert first.json()["account"]["account_id"] == second.json()["account"]["account_id"]
     assert first.json()["account"]["name"] == "主模拟账户"
     assert first.json()["account"]["initial_cash"] == "100000"
+    assert first.json()["account"]["semantic_class"] == "LEGACY_SEMANTICS"
+    assert first.json()["account"]["evidence_class"] == "LEGACY_UNVERIFIED"
+    assert first.json()["account"]["run_class"] == "EXPLORATORY"
     assert len(client.get("/v1/paper/accounts").json()) == 1
 
 
@@ -401,6 +404,9 @@ def test_strategy_runs_survive_reload_and_return_newest_batch(tmp_path: Path) ->
     ]
     assert all(item["outcome"] == "HOLD" for item in payload)
     assert all(item["decision_id"].startswith("decision-") for item in payload)
+    assert all(item["semantic_class"] == "LEGACY_SEMANTICS" for item in payload)
+    assert all(item["evidence_class"] == "LEGACY_UNVERIFIED" for item in payload)
+    assert all(item["run_class"] == "EXPLORATORY" for item in payload)
 
     second_scan = client.post(f"/v1/paper/accounts/{account_id}/strategy/scan", json=request)
     assert second_scan.status_code == 200

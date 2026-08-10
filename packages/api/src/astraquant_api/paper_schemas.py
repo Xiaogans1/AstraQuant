@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -106,10 +107,21 @@ class AccountView(BaseModel):
     cash: Decimal
     created_at: datetime
     updated_at: datetime
+    semantic_class: Literal["LEGACY_SEMANTICS"] = "LEGACY_SEMANTICS"
+    evidence_class: Literal["LEGACY_UNVERIFIED"] = "LEGACY_UNVERIFIED"
+    run_class: Literal["EXPLORATORY"] = "EXPLORATORY"
 
     @classmethod
     def from_domain(cls, item: PaperAccount) -> AccountView:
-        return cls(**{field: getattr(item, field) for field in cls.model_fields})
+        return cls(
+            account_id=item.account_id,
+            name=item.name,
+            mode=item.mode,
+            initial_cash=item.initial_cash,
+            cash=item.cash,
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+        )
 
 
 class PositionView(BaseModel):
@@ -265,6 +277,9 @@ class StrategyRunView(BaseModel):
     signal: StrategySignalView
     order: OrderView | None
     fill: FillView | None
+    semantic_class: Literal["LEGACY_SEMANTICS"] = "LEGACY_SEMANTICS"
+    evidence_class: Literal["LEGACY_UNVERIFIED"] = "LEGACY_UNVERIFIED"
+    run_class: Literal["EXPLORATORY"] = "EXPLORATORY"
 
 
 class StrategyStatusView(BaseModel):
@@ -309,6 +324,9 @@ class ModelRegistryView(BaseModel):
     created_at: datetime
     updated_at: datetime
     approved_at: datetime | None
+    semantic_class: Literal["LEGACY_SEMANTICS"] = "LEGACY_SEMANTICS"
+    evidence_class: Literal["LEGACY_UNVERIFIED"] = "LEGACY_UNVERIFIED"
+    run_class: Literal["EXPLORATORY"] = "EXPLORATORY"
 
 
 class ModelRegisterRequest(BaseModel):

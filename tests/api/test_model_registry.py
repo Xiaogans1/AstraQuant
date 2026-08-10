@@ -33,6 +33,9 @@ def test_model_registration_and_approval_gate(tmp_path: Path) -> None:
     created = _register(client)
     assert created.status_code == 201
     assert created.json()["status"] == "DRAFT"
+    assert created.json()["semantic_class"] == "LEGACY_SEMANTICS"
+    assert created.json()["evidence_class"] == "LEGACY_UNVERIFIED"
+    assert created.json()["run_class"] == "EXPLORATORY"
 
     listed = client.get("/v1/paper/models").json()
     assert listed[0]["model_id"] == "lgbm-minute-001"

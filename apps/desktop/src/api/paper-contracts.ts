@@ -1,6 +1,9 @@
 export type PaperAccountMode = "PAPER" | "MIRROR";
 export type PaperOrderSide = "BUY" | "SELL";
 export type PaperOrderStatus = "FILLED" | "REJECTED";
+export type LegacySemanticClass = "LEGACY_SEMANTICS";
+export type LegacyEvidenceClass = "LEGACY_UNVERIFIED";
+export type LegacyRunClass = "EXPLORATORY";
 
 export interface PaperAccount {
   account_id: string;
@@ -10,6 +13,9 @@ export interface PaperAccount {
   cash: string;
   created_at: string;
   updated_at: string;
+  semantic_class: LegacySemanticClass;
+  evidence_class: LegacyEvidenceClass;
+  run_class: LegacyRunClass;
 }
 
 export interface PaperAccountSummary extends PaperAccount {
@@ -140,6 +146,9 @@ export interface PaperStrategyRun {
   signal: PaperStrategySignal;
   order: PaperOrder | null;
   fill: PaperFill | null;
+  semantic_class: LegacySemanticClass;
+  evidence_class: LegacyEvidenceClass;
+  run_class: LegacyRunClass;
 }
 
 export interface PaperStrategyStatus {
@@ -160,6 +169,9 @@ export interface ModelRegistryView {
   created_at: string;
   updated_at: string;
   approved_at: string | null;
+  semantic_class: LegacySemanticClass;
+  evidence_class: LegacyEvidenceClass;
+  run_class: LegacyRunClass;
 }
 
 export interface PaperFeeConfig {
