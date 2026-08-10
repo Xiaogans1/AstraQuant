@@ -17,19 +17,19 @@
 - Modify: `packages/api/src/astraquant_api/config.py`
 - Modify: `tests/api/test_config.py`
 
-- [ ] **Step 1: 写 root layout 红灯**
+- [x] **Step 1: 写 root layout 红灯**
 
 断言 `legacy_data_root == state_dir/data`，formal roots 精确位于 `state_dir/formal/{qualification,capture,publication,verification}`，全部 resolved、两两不重叠；`.astraquant/qualification` 不创建。
 
-- [ ] **Step 2: 写 symlink/junction escape 红灯**
+- [x] **Step 2: 写 symlink/junction escape 红灯**
 
 在支持符号链接的平台将 `formal/capture` 指向 state_dir 外部，`RuntimeConfig.from_environment()` 必须抛 `ValueError("escapes state directory")`；Windows 无符号链接权限时用 monkeypatch 的 `Path.resolve` 等价覆盖 canonical escape 判断。
 
-- [ ] **Step 3: 实现最小 root contract**
+- [x] **Step 3: 实现最小 root contract**
 
 新增 `legacy_data_root`、`formal_root`、`formal_qualification_root`、`formal_capture_root`、`formal_publication_root`、`formal_verification_root`；`prepare_directories()` 先创建父目录，再逐项 resolve/relative-to 检查、拒绝相等或祖先/后代重叠，最后创建合法 roots。数据库与日志目录沿用现有路径。
 
-- [ ] **Step 4: 验证并提交**
+- [x] **Step 4: 验证并提交**
 
 Run: `uv run pytest tests/api/test_config.py -q`
 
