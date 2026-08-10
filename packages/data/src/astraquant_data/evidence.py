@@ -202,7 +202,7 @@ class EvidenceRef:
     @classmethod
     def legacy(
         cls,
-        artifact_id: str,
+        artifact_id: str | None,
         digest: str,
         *,
         manifest_schema_version: int = 1,
@@ -214,6 +214,60 @@ class EvidenceRef:
             content_digest=digest,
             manifest_schema_version=manifest_schema_version,
         )
+
+    @classmethod
+    def from_manifest_metadata(
+        cls,
+        *,
+        artifact_id: str | None,
+        digest: str,
+        manifest_schema_version: int,
+        evidence_class: str | None,
+        role: str | None,
+        parents: tuple[EvidenceRef, ...] | None,
+        approval_id: str | None,
+        sealed: bool,
+    ) -> EvidenceRef:
+        """Load untrusted metadata, degrading incomplete contracts to legacy."""
+
+        if manifest_schema_version != 2:
+            return cls.legacy(
+                artifact_id,
+                digest,
+                manifest_schema_version=manifest_schema_version,
+            )
+        if evidence_class is None or role is None:
+            return cls.legacy(
+                artifact_id,
+                digest,
+                manifest_schema_version=manifest_schema_version,
+            )
+        try:
+            loaded_class = EvidenceClass(evidence_class)
+            loaded_role = EvidenceRole(role)
+        except (TypeError, ValueError):
+            return cls.legacy(
+                artifact_id,
+                digest,
+                manifest_schema_version=manifest_schema_version,
+            )
+        try:
+            return cls(
+                artifact_id=artifact_id,
+                evidence_class=loaded_class,
+                role=loaded_role,
+                content_digest=digest,
+                parents=tuple(parents or ()),
+                approval_id=approval_id,
+                sealed=sealed,
+                manifest_schema_version=manifest_schema_version,
+            )
+        except EvidenceError:
+            return cls.legacy(
+                artifact_id,
+                digest,
+                manifest_schema_version=manifest_schema_version,
+            )
 
     def require_exact_id(self) -> str:
         if self.artifact_id is None or not self.artifact_id.strip():

@@ -203,3 +203,34 @@ def test_snapshot_manifest_v1_is_always_legacy_unverified() -> None:
     assert evidence.manifest_schema_version == 1
     with pytest.raises(FormalAdmissionError, match="LEGACY_UNVERIFIED"):
         _formal_gate().admit(RunClass.FORMAL, roots=(evidence,))
+
+
+@pytest.mark.parametrize(
+    ("schema_version", "evidence_class", "role", "parents"),
+    [
+        (1, "REAL_API_MARKET", "MARKET", ()),
+        (99, "REAL_API_MARKET", "MARKET", ()),
+        (2, "UNKNOWN_FUTURE_CLASS", "MARKET", ()),
+        (2, "DERIVED_REAL_API", "DERIVED", ()),
+    ],
+)
+def test_untrusted_or_incomplete_manifest_metadata_degrades_to_legacy(
+    schema_version: int,
+    evidence_class: str,
+    role: str,
+    parents: tuple[EvidenceRef, ...],
+) -> None:
+    evidence = EvidenceRef.from_manifest_metadata(
+        artifact_id="untrusted-snapshot",
+        digest=_digest("1"),
+        manifest_schema_version=schema_version,
+        evidence_class=evidence_class,
+        role=role,
+        parents=parents,
+        approval_id="eastmoney-bars-v1",
+        sealed=True,
+    )
+
+    assert evidence.evidence_class is EvidenceClass.LEGACY_UNVERIFIED
+    with pytest.raises(FormalAdmissionError, match="LEGACY_UNVERIFIED"):
+        _formal_gate().admit(RunClass.FORMAL, roots=(evidence,))
