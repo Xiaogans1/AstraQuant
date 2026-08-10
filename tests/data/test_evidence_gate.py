@@ -1,4 +1,5 @@
 from dataclasses import replace
+from datetime import UTC, datetime
 
 import pytest
 
@@ -10,6 +11,8 @@ from astraquant_data.evidence import (
     EvidenceRef,
     FormalAdmissionError,
 )
+from astraquant_data.manifests import SnapshotFile, SnapshotManifest
+from astraquant_data.quality import QualityReport
 from astraquant_domain import RunClass
 
 
@@ -172,3 +175,31 @@ def test_exploratory_run_can_use_explicitly_nonformal_evidence() -> None:
 
     assert result.root_artifact_ids == ("fixture-bars.csv",)
     assert fixture.evidence_class is EvidenceClass.TEST_ONLY
+
+
+def test_snapshot_manifest_v1_is_always_legacy_unverified() -> None:
+    observed_at = datetime(2026, 8, 10, tzinfo=UTC)
+    manifest = SnapshotManifest.create(
+        dataset_id="renamed-formal-bars",
+        kind="bars",
+        created_at=observed_at,
+        source_fetched_at=observed_at,
+        provider={"id": "eastmoney", "approval_id": "eastmoney-bars-v1"},
+        adjustment="NONE",
+        calendar_version="calendar-v1",
+        series_kind="spot",
+        roll_policy=None,
+        availability_policy="exact",
+        row_count=1,
+        min_event_time=observed_at,
+        max_event_time=observed_at,
+        files=(SnapshotFile(path="renamed-real-api.parquet", sha256="1" * 64, rows=1),),
+        quality=QualityReport(row_count=1, issues=()),
+    )
+
+    evidence = manifest.to_evidence_ref()
+
+    assert evidence.evidence_class is EvidenceClass.LEGACY_UNVERIFIED
+    assert evidence.manifest_schema_version == 1
+    with pytest.raises(FormalAdmissionError, match="LEGACY_UNVERIFIED"):
+        _formal_gate().admit(RunClass.FORMAL, roots=(evidence,))

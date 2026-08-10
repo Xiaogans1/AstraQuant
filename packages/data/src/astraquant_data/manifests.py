@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Self
 
+from astraquant_data.evidence import EvidenceRef
 from astraquant_data.quality import (
     QualityCode,
     QualityIssue,
@@ -126,6 +127,15 @@ class SnapshotManifest:
 
     def to_json(self) -> str:
         return _canonical_json(self.to_dict()).decode() + "\n"
+
+    def to_evidence_ref(self) -> EvidenceRef:
+        """Project this legacy schema into evidence without upgrading its trust."""
+
+        return EvidenceRef.legacy(
+            artifact_id=self.snapshot_id,
+            digest=f"sha256:{self.snapshot_id}",
+            manifest_schema_version=self.schema_version,
+        )
 
     @classmethod
     def from_path(cls, path: Path) -> Self:
