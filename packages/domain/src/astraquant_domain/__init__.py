@@ -23,6 +23,12 @@ from astraquant_domain.portfolio import (
     PortfolioSnapshot,
     Position,
 )
+from astraquant_domain.run_manifest import (
+    RunClass,
+    RunManifest,
+    RunManifestState,
+    UnsealedRunManifestError,
+)
 from astraquant_domain.signals import (
     DecisionRecord,
     SignalAction,
@@ -55,12 +61,16 @@ __all__ = [
     "PortfolioSnapshot",
     "Position",
     "QuoteLevel",
+    "RunClass",
+    "RunManifest",
+    "RunManifestState",
     "SignalAction",
     "SignalFrame",
     "SignalState",
     "SystemClock",
     "Tick",
     "TimeInForce",
+    "UnsealedRunManifestError",
     "Venue",
     "transition_order",
 ]
