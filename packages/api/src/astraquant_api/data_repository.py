@@ -43,6 +43,26 @@ data_snapshots = sa.Table(
     sa.Column("provider_id", sa.String(100), nullable=False),
     sa.Column("manifest_path", sa.Text(), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column(
+        "semantic_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_SEMANTICS",
+    ),
+    sa.Column(
+        "evidence_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_UNVERIFIED",
+    ),
+    sa.Column(
+        "run_class",
+        sa.String(32),
+        nullable=False,
+        server_default="EXPLORATORY",
+    ),
+    sa.Column("manifest_schema", sa.String(64), nullable=False, server_default="1"),
+    sa.Column("content_digest", sa.String(71)),
     sa.CheckConstraint(
         "status IN ('STAGED', 'PUBLISHED', 'REJECTED')",
         name="ck_data_snapshots_status",

@@ -37,6 +37,24 @@ paper_accounts = sa.Table(
     sa.Column("cash", sa.String(64), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column(
+        "semantic_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_SEMANTICS",
+    ),
+    sa.Column(
+        "evidence_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_UNVERIFIED",
+    ),
+    sa.Column(
+        "run_class",
+        sa.String(32),
+        nullable=False,
+        server_default="EXPLORATORY",
+    ),
     sa.CheckConstraint("mode IN ('PAPER', 'MIRROR')", name="ck_paper_accounts_mode"),
     sa.Index("ix_paper_accounts_created", "created_at"),
 )
@@ -154,6 +172,26 @@ paper_strategy_runs = sa.Table(
     sa.Column("order_json", sa.Text()),
     sa.Column("fill_json", sa.Text()),
     sa.Column("decision_time", sa.DateTime(timezone=True), nullable=False),
+    sa.Column(
+        "semantic_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_SEMANTICS",
+    ),
+    sa.Column(
+        "evidence_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_UNVERIFIED",
+    ),
+    sa.Column(
+        "run_class",
+        sa.String(32),
+        nullable=False,
+        server_default="EXPLORATORY",
+    ),
+    sa.Column("manifest_schema", sa.String(64), nullable=False, server_default="1"),
+    sa.Column("content_digest", sa.String(71)),
     sa.Index("ix_paper_strategy_runs_account_time", "account_id", "decision_time"),
     sa.Index("ix_paper_strategy_runs_batch", "batch_id"),
 )
@@ -171,6 +209,26 @@ model_registry = sa.Table(
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("approved_at", sa.DateTime(timezone=True)),
+    sa.Column(
+        "semantic_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_SEMANTICS",
+    ),
+    sa.Column(
+        "evidence_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_UNVERIFIED",
+    ),
+    sa.Column(
+        "run_class",
+        sa.String(32),
+        nullable=False,
+        server_default="EXPLORATORY",
+    ),
+    sa.Column("manifest_schema", sa.String(64), nullable=False, server_default="1"),
+    sa.Column("content_digest", sa.String(71)),
     sa.Index("ix_model_registry_status", "status"),
 )
 research_experiments = sa.Table(
@@ -181,6 +239,26 @@ research_experiments = sa.Table(
     sa.Column("summary_json", sa.Text(), nullable=False),
     sa.Column("results_json", sa.Text(), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column(
+        "semantic_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_SEMANTICS",
+    ),
+    sa.Column(
+        "evidence_class",
+        sa.String(32),
+        nullable=False,
+        server_default="LEGACY_UNVERIFIED",
+    ),
+    sa.Column(
+        "run_class",
+        sa.String(32),
+        nullable=False,
+        server_default="EXPLORATORY",
+    ),
+    sa.Column("manifest_schema", sa.String(64), nullable=False, server_default="1"),
+    sa.Column("content_digest", sa.String(71)),
     sa.Index("ix_research_experiments_created", "created_at"),
 )
 paper_daily_open = sa.Table(
@@ -192,6 +270,42 @@ paper_daily_open = sa.Table(
     sa.Column("positions_json", sa.Text(), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint("account_id", "trading_date"),
+)
+
+paper_legacy_ledger_seals = sa.Table(
+    "paper_legacy_ledger_seals",
+    metadata,
+    sa.Column(
+        "account_id",
+        sa.String(36),
+        sa.ForeignKey("paper_accounts.account_id"),
+        primary_key=True,
+    ),
+    sa.Column("source_revision", sa.String(64), nullable=False),
+    sa.Column("ledger_content_digest", sa.String(71), nullable=False),
+    sa.Column("seal_status", sa.String(32), nullable=False),
+    sa.Column("sealed_at", sa.DateTime(timezone=True), nullable=False),
+)
+
+paper_opening_imports = sa.Table(
+    "paper_opening_imports",
+    metadata,
+    sa.Column("import_id", sa.String(36), primary_key=True),
+    sa.Column(
+        "source_account_id",
+        sa.String(36),
+        sa.ForeignKey("paper_legacy_ledger_seals.account_id"),
+        nullable=False,
+    ),
+    sa.Column("source_ledger_seal_digest", sa.String(71), nullable=False),
+    sa.Column("target_account_id", sa.String(36), nullable=False),
+    sa.Column("reconciliation_digest", sa.String(71), nullable=False),
+    sa.Column("status", sa.String(32), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.UniqueConstraint(
+        "source_account_id",
+        name="uq_paper_opening_imports_source_account",
+    ),
 )
 
 

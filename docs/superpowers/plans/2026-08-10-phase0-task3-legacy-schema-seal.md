@@ -37,7 +37,7 @@
 - Modify: `packages/api/src/astraquant_api/data_repository.py`
 - Modify: `packages/api/src/astraquant_api/paper_repository.py`
 
-- [ ] **Step 1: 写 registry completeness 与 autogenerate parity 红灯**
+- [x] **Step 1: 写 registry completeness 与 autogenerate parity 红灯**
 
 ```python
 def test_schema_registry_contains_every_repository_table() -> None:
@@ -54,13 +54,13 @@ def test_migration_head_matches_registered_metadata(tmp_path: Path) -> None:
 
 另以 inspector 与 metadata 分别比较每张表的 column、index、foreign key、unique/check constraint 名称集合，避免 SQLite autogenerate 忽略 check constraint 时产生假绿。
 
-- [ ] **Step 2: 运行测试并确认 schema registry 缺失红灯**
+- [x] **Step 2: 运行测试并确认 schema registry 缺失红灯**
 
 Run: `uv run pytest tests/api/test_schema_registry.py -q`
 
 Expected: collection FAIL，`ModuleNotFoundError: astraquant_api.schema_registry`。
 
-- [ ] **Step 3: 实现 registry 与 Alembic wiring**
+- [x] **Step 3: 实现 registry 与 Alembic wiring**
 
 ```python
 from astraquant_api import data_repository as _data_repository
@@ -75,11 +75,11 @@ for source in (core_metadata, _paper_repository.metadata):
 
 `migrations/env.py` 改为 `from astraquant_api.schema_registry import metadata`；`database.migrate_database()` 在 upgrade 后用 inspector 比较 registry table names，缺表立即抛错。
 
-- [ ] **Step 4: 补齐当前 0001–0008 metadata parity**
+- [x] **Step 4: 补齐当前 0001–0008 metadata parity**
 
 为 repository table declarations 增加迁移已存在的 `ForeignKey(ondelete="CASCADE")`、named indexes、unique/check constraints 与 composite primary keys；不生成新 migration，不改变数据库，只让代码 metadata 精确描述既有 schema。
 
-- [ ] **Step 5: 运行 registry tests、Ruff 与 mypy**
+- [x] **Step 5: 运行 registry tests、Ruff 与 mypy**
 
 Run:
 
@@ -92,7 +92,7 @@ uv run mypy packages/api/src/astraquant_api tests/api/test_schema_registry.py
 
 Expected: 全部 exit 0。
 
-- [ ] **Step 6: 提交 registry**
+- [x] **Step 6: 提交 registry**
 
 ```powershell
 git add packages/api/src/astraquant_api/schema_registry.py packages/api/migrations/env.py packages/api/src/astraquant_api/database.py packages/api/src/astraquant_api/repository.py packages/api/src/astraquant_api/data_repository.py packages/api/src/astraquant_api/paper_repository.py tests/api/test_schema_registry.py
