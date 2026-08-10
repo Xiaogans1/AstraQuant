@@ -42,7 +42,9 @@
 ```python
 assert visible_at(old_bar, ReplayAsDelivered()) == old_bar.source_available_time
 assert not is_visible(old_bar, ReplayPitStrict(), decision_time=datetime(2015, 1, 1, tzinfo=UTC))
-assert not is_visible(old_bar, PaperOnline(), decision_time=old_bar.observed_received_time - EPSILON)
+assert not is_visible(
+    old_bar, PaperOnline(), decision_time=old_bar.observed_received_time - EPSILON
+)
 assert revised_bar.vintage_id != old_bar.vintage_id
 ```
 

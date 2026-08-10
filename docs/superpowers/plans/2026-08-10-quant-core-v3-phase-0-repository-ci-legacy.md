@@ -20,13 +20,13 @@
 - Modify: `tests/repository/test_repository_policy.py`
 - Modify: `tools/repository_policy.py`
 
-- [ ] 先扩展 repository tests，要求 CI 只调用 `scripts/verify.ps1`，脚本固定 Python/frontend/Rust 命令，并为 pytest 传入仓库内唯一 `--basetemp .astraquant/test-tmp/{run_id}`；CI 不能另写一套漂移命令。
-- [ ] 运行 `uv run pytest tests/repository/test_ci_workflow.py tests/repository/test_repository_policy.py -q`，确认因 workflow/script 缺失而失败。
-- [ ] 实现 `scripts/verify.ps1 -Scope Python|Desktop|Rust|All`，每次 run 生成 UUID 临时目录并把该目录显式传给 `uv run pytest -q --basetemp .astraquant/test-tmp/{run_id}`；每条外部命令后检查 `$LASTEXITCODE`，随后运行 `uv run ruff check .`、`uv run ruff format --check .`、`uv run mypy`、desktop test/check/build、`cargo fmt --check`/clippy/test。
-- [ ] 恢复 GitHub Actions 的 Windows job，使用锁定 Node/pnpm/Rust/Python/uv 安装步骤并调用同一脚本；artifact 只上传 test logs，不上传 `.astraquant/` 数据或凭据。
-- [ ] 扩展 repository policy，禁止 raw capture、行情、模型、SQLite/WAL、资格报告正文和 secrets 进入 Git，只允许 canonical TEST_ONLY fixture、schema、脱敏摘要与 digest。
-- [ ] 运行 `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1 -Scope All`，期望所有 job 退出码为 0。
-- [ ] 提交：`git commit -m "ci: 恢复量化核心统一验证门"`
+- [x] 先扩展 repository tests，要求 CI 只调用 `scripts/verify.ps1`，脚本固定 Python/frontend/Rust 命令，并为 pytest 传入仓库内唯一 `--basetemp .astraquant/test-tmp/{run_id}`；CI 不能另写一套漂移命令。
+- [x] 运行 `uv run pytest tests/repository/test_ci_workflow.py tests/repository/test_repository_policy.py -q`，确认因 workflow/script 缺失而失败。
+- [x] 实现 `scripts/verify.ps1 -Scope Python|Desktop|Rust|All`，每次 run 生成 UUID 临时目录并把该目录显式传给 `uv run pytest -q --basetemp .astraquant/test-tmp/{run_id}`；每条外部命令后检查 `$LASTEXITCODE`，随后运行 `uv run ruff check .`、`uv run ruff format --check .`、`uv run mypy`、desktop test/check/build、`cargo fmt --check`/clippy/test。
+- [x] 恢复 GitHub Actions 的 Windows job，使用锁定 Node/pnpm/Rust/Python/uv 安装步骤并调用同一脚本；artifact 只上传 test logs，不上传 `.astraquant/` 数据或凭据。
+- [x] 扩展 repository policy，禁止 raw capture、行情、模型、SQLite/WAL、资格报告正文和 secrets 进入 Git，只允许 canonical TEST_ONLY fixture、schema、脱敏摘要与 digest。
+- [x] 运行 `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1 -Scope All`，期望所有 job 退出码为 0。
+- [x] 提交：`git commit -m "ci: 恢复量化核心统一验证门"`
 
 ## Task 2: 建立 EvidenceClass/RunClass 递归门
 
