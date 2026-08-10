@@ -18,13 +18,13 @@
 - Create: `packages/data/src/astraquant_data/provider_qualification.py`
 - Test: `tests/data/test_provider_qualification.py`
 
-- [ ] 先写测试：同 vendor 的日线、分钟、公司行动、历史状态和 L2 是不同 endpoint/capability；interface build、permission tier 或 schema fingerprint 改变后旧 approval 不再适用。
-- [ ] 测试 approval 必须引用 probe request/raw response digests、coverage、退市标的、adjust/units、pagination/truncation、revision、rate limit、schema evolution 和 reviewer/policy version。
-- [ ] 运行 `uv run pytest tests/data/test_provider_qualification.py -q`，确认缺模块红灯。
-- [ ] 实现 immutable identity、capability result、qualification state machine 与 stable report digest；默认 `UNQUALIFIED`，一次成功请求不能自动审批。撤销类型至少区分 `SUPERSEDED`、普通 `REVOKED` 与会隔离历史证据的 `RETROACTIVE_COMPROMISE`，并固定 effective time。
-- [ ] 对 `vendor="eastmoney"`、`interface="gm_python_sdk"`、`transport="ndjson_bridge"` 分字段建模，禁止 `Eastmoney/GM` 合并字符串作为身份。
-- [ ] 重跑测试，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 建立真实数据源资格契约"`
+- [x] 先写测试：同 vendor 的日线、分钟、公司行动、历史状态和 L2 是不同 endpoint/capability；interface build、permission tier 或 schema fingerprint 改变后旧 approval 不再适用。
+- [x] 测试 approval 必须引用 probe request/raw response digests、coverage、退市标的、adjust/units、pagination/truncation、revision、rate limit、schema evolution 和 reviewer/policy version。
+- [x] 运行 `uv run pytest tests/data/test_provider_qualification.py -q`，确认缺模块红灯。
+- [x] 实现 immutable identity、capability result、qualification state machine 与 stable report digest；默认 `UNQUALIFIED`，一次成功请求不能自动审批。撤销类型至少区分 `SUPERSEDED`、普通 `REVOKED` 与会隔离历史证据的 `RETROACTIVE_COMPROMISE`，并固定 effective time。
+- [x] 对 `vendor="eastmoney"`、`interface="gm_python_sdk"`、`transport="ndjson_bridge"` 分字段建模，禁止 `Eastmoney/GM` 合并字符串作为身份。
+- [x] 重跑测试，期望全绿。
+- [x] 提交：`git commit -m "feat(data): 建立真实数据源资格契约"`
 
 ## Task 2: 扩展 bridge/client 的原始证据与分页协议
 
