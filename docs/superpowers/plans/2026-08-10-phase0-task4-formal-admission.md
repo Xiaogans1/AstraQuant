@@ -103,7 +103,7 @@ Run: `uv run pytest tests/api/test_formal_admission.py tests/api/test_research_r
 
 Run: `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1 -Scope All`
 
-- [ ] **Step 3: 范围核查、roadmap 勾选、提交并推送**
+- [x] **Step 3: 范围核查、roadmap 勾选、提交并推送**
 
 只允许 Task 4 service/schema/routes/legacy selector/tool/tests/docs；推送 `codex/quant-core-v3-phase0-task4`，不创建或合并 PR。
 
