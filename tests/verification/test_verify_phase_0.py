@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -70,3 +72,27 @@ def test_phase_0_verifier_refuses_to_reuse_an_output_directory(tmp_path: Path) -
             repository_root=repository_root,
             created_at=datetime(2026, 8, 10, 12, 0, tzinfo=UTC),
         )
+
+
+def test_phase_0_verifier_runs_through_its_documented_script_entrypoint(
+    tmp_path: Path,
+) -> None:
+    repository_root = Path(__file__).resolve().parents[2]
+    output = tmp_path / "cli-run" / "verification.json"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "tools/verification/verify_phase_0.py",
+            "--output",
+            str(output),
+        ],
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert output.is_file()

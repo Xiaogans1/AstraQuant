@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
@@ -20,11 +21,6 @@ from astraquant_data.evidence import (
     FormalAdmissionError,
 )
 from astraquant_domain.run_manifest import RunClass, RunManifest, UnsealedRunManifestError
-from tools.repository_policy import (
-    find_forbidden_content,
-    find_forbidden_paths,
-    tracked_files,
-)
 
 _AUTHORITY_ID = "phase0-verifier-test-authority"
 _COMMAND = ["uv", "run", "python", "tools/verification/verify_phase_0.py"]
@@ -283,28 +279,23 @@ def _formal_roots_check(repository_root: Path) -> VerificationCheck:
 
 
 def _repository_policy_check(repository_root: Path) -> VerificationCheck:
-    paths = tracked_files()
-    file_sizes = {
-        path: (repository_root / path).stat().st_size
-        for path in paths
-        if (repository_root / path).is_file()
-    }
-    forbidden = find_forbidden_paths(paths, file_sizes=file_sizes)
-    contents: dict[str, str] = {}
-    for path in paths:
-        candidate = repository_root / path
-        if not candidate.is_file() or candidate.stat().st_size > 1_000_000:
-            continue
-        try:
-            contents[path] = candidate.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            continue
-    forbidden.extend(find_forbidden_content(contents))
-    forbidden = list(dict.fromkeys(forbidden))
+    completed = subprocess.run(
+        [sys.executable, "tools/repository_policy.py"],
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    passed = completed.returncode == 0 and "Repository policy passed." in completed.stdout
     return VerificationCheck(
         id="repository-policy-clean",
-        status="PASS" if not forbidden else "FAIL",
-        details={"tracked_file_count": len(paths), "forbidden_paths": forbidden},
+        status="PASS" if passed else "FAIL",
+        details={
+            "exit_code": completed.returncode,
+            "stdout": completed.stdout.strip(),
+            "stderr": completed.stderr.strip(),
+        },
     )
 
 
