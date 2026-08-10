@@ -203,6 +203,7 @@ function AccountWorkspace({
       <StrategyConsole
         client={client}
         accountId={accountId}
+        semanticClass={(detail?.account ?? selectedSummary).semantic_class}
         positions={positions}
         selectedPosition={selectedPosition ?? null}
       />
@@ -322,11 +323,13 @@ function PositionSwitcher({
 function StrategyConsole({
   client,
   accountId,
+  semanticClass,
   positions,
   selectedPosition,
 }: {
   client: ApiClient;
   accountId: string;
+  semanticClass: PaperAccountSummary["semantic_class"];
   positions: PaperPosition[];
   selectedPosition: PaperPosition | null;
 }) {
@@ -350,6 +353,12 @@ function StrategyConsole({
       className="paper-strategy"
       action={<span className="paper-strategy__version">{strategyVersion}</span>}
     >
+      {semanticClass === "LEGACY_SEMANTICS" ? (
+        <div className="paper-strategy__legacy" role="note">
+          <strong>旧版演示结果</strong>
+          <span>只读隔离：当前 LightGBM、回放与 Paper 账本不能作为 v3 正式发布证据。</span>
+        </div>
+      ) : null}
       <div className="paper-strategy__layout">
         <div className="paper-strategy__controls">
           <div className="paper-strategy__scope">

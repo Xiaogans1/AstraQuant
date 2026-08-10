@@ -140,6 +140,36 @@ test("account workspace shows real portfolio metrics and holdings", async () => 
   expect(screen.queryByRole("button", { name: "买卖" })).not.toBeInTheDocument();
 });
 
+test("legacy paper results are visibly isolated without a formal upgrade action", async () => {
+  const client = {
+    ensureDefaultPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperAccounts: vi.fn().mockResolvedValue([summary]),
+    getPaperAccount: vi.fn().mockResolvedValue(detail),
+    listPaperOrders: vi.fn().mockResolvedValue([]),
+    listPaperFills: vi.fn().mockResolvedValue([]),
+    listPaperEquity: vi.fn().mockResolvedValue([detail.latest_equity]),
+    listPaperStrategyRuns: vi.fn().mockResolvedValue([]),
+    getPaperStrategyStatus: vi.fn().mockResolvedValue({
+      loop_enabled: true,
+      loop_interval_seconds: 60,
+      last_scan_at: null,
+    }),
+    getPaperFeeConfig: vi.fn().mockResolvedValue({
+      commission_rate: "0.00025",
+      minimum_commission: "0",
+      stamp_duty_rate: "0.0005",
+      transfer_fee_rate: "0.00001",
+    }),
+    resetPaperAccount: vi.fn().mockResolvedValue(detail),
+  } as unknown as ApiClient;
+
+  renderPage(client);
+
+  expect(await screen.findByText("旧版演示结果")).toBeVisible();
+  expect(screen.getByText(/只读隔离/)).toBeVisible();
+  expect(screen.queryByRole("button", { name: /升级为正式|批准为正式|转为正式/ })).not.toBeInTheDocument();
+});
+
 test("account discovery does not poll or replace the workspace with onboarding", async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   const client = {

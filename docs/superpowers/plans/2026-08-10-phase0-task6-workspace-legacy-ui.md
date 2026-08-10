@@ -142,6 +142,7 @@ Commit: `git commit -m "feat(api): 暴露旧量化结果证据分类"`
 
 - Modify: `apps/desktop/src/pages/PaperPage.tsx`
 - Modify: `apps/desktop/src/pages/PaperPage.test.tsx`
+- Modify: `apps/desktop/src/styles/paper.css`
 
 - [ ] **Step 1: 写 UI 红灯**
 

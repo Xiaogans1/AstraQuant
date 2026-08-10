@@ -364,6 +364,29 @@
   padding: 0;
 }
 
+.paper-strategy__legacy {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 18px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.paper-strategy__legacy strong {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font: 700 10px var(--font-data);
+  letter-spacing: .08em;
+}
+
+.paper-strategy__legacy span {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .paper-strategy__layout {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr);
