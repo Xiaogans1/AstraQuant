@@ -36,19 +36,27 @@ tasks = sa.Table(
     sa.Column("error_code", sa.String(100)),
     sa.Column("error_message", sa.Text()),
     sa.Column("revision", sa.Integer(), nullable=False),
+    sa.CheckConstraint("progress >= 0 AND progress <= 100", name="ck_tasks_progress"),
+    sa.Index("ix_tasks_created_at", "created_at"),
 )
 
 task_events = sa.Table(
     "task_events",
     metadata,
     sa.Column("event_id", sa.String(36), primary_key=True),
-    sa.Column("task_id", sa.String(36), nullable=False),
+    sa.Column(
+        "task_id",
+        sa.String(36),
+        sa.ForeignKey("tasks.task_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
     sa.Column("event_type", sa.String(100), nullable=False),
     sa.Column("status", sa.String(32), nullable=False),
     sa.Column("progress", sa.Integer(), nullable=False),
     sa.Column("reason", sa.String(200)),
     sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("revision", sa.Integer(), nullable=False),
+    sa.Index("ix_task_events_task_id", "task_id"),
 )
 
 settings = sa.Table(

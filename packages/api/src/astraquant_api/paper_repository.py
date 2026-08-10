@@ -37,11 +37,18 @@ paper_accounts = sa.Table(
     sa.Column("cash", sa.String(64), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("mode IN ('PAPER', 'MIRROR')", name="ck_paper_accounts_mode"),
+    sa.Index("ix_paper_accounts_created", "created_at"),
 )
 paper_positions = sa.Table(
     "paper_positions",
     metadata,
-    sa.Column("account_id", sa.String(36), primary_key=True),
+    sa.Column(
+        "account_id",
+        sa.String(36),
+        sa.ForeignKey("paper_accounts.account_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
     sa.Column("instrument_id", sa.String(64), primary_key=True),
     sa.Column("name", sa.String(200)),
     sa.Column("quantity", sa.Integer(), nullable=False),
@@ -49,12 +56,22 @@ paper_positions = sa.Table(
     sa.Column("average_cost", sa.String(64), nullable=False),
     sa.Column("last_price", sa.String(64)),
     sa.Column("marked_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("quantity > 0", name="ck_paper_positions_quantity"),
+    sa.CheckConstraint(
+        "available_quantity >= 0 AND available_quantity <= quantity",
+        name="ck_paper_positions_available",
+    ),
 )
 paper_orders = sa.Table(
     "paper_orders",
     metadata,
     sa.Column("order_id", sa.String(36), primary_key=True),
-    sa.Column("account_id", sa.String(36), nullable=False),
+    sa.Column(
+        "account_id",
+        sa.String(36),
+        sa.ForeignKey("paper_accounts.account_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
     sa.Column("idempotency_key", sa.String(200), nullable=False),
     sa.Column("instrument_id", sa.String(64), nullable=False),
     sa.Column("side", sa.String(8), nullable=False),
@@ -63,13 +80,29 @@ paper_orders = sa.Table(
     sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("reject_reason", sa.String(100)),
+    sa.UniqueConstraint(
+        "account_id",
+        "idempotency_key",
+        name="uq_paper_orders_account_idempotency",
+    ),
+    sa.Index("ix_paper_orders_account_submitted", "account_id", "submitted_at"),
 )
 paper_fills = sa.Table(
     "paper_fills",
     metadata,
     sa.Column("fill_id", sa.String(36), primary_key=True),
-    sa.Column("order_id", sa.String(36), nullable=False),
-    sa.Column("account_id", sa.String(36), nullable=False),
+    sa.Column(
+        "order_id",
+        sa.String(36),
+        sa.ForeignKey("paper_orders.order_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "account_id",
+        sa.String(36),
+        sa.ForeignKey("paper_accounts.account_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
     sa.Column("instrument_id", sa.String(64), nullable=False),
     sa.Column("side", sa.String(8), nullable=False),
     sa.Column("quantity", sa.Integer(), nullable=False),
@@ -79,12 +112,18 @@ paper_fills = sa.Table(
     sa.Column("stamp_duty", sa.String(64), nullable=False),
     sa.Column("transfer_fee", sa.String(64), nullable=False),
     sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Index("ix_paper_fills_account_occurred", "account_id", "occurred_at"),
 )
 paper_equity_snapshots = sa.Table(
     "paper_equity_snapshots",
     metadata,
     sa.Column("snapshot_id", sa.String(36), primary_key=True),
-    sa.Column("account_id", sa.String(36), nullable=False),
+    sa.Column(
+        "account_id",
+        sa.String(36),
+        sa.ForeignKey("paper_accounts.account_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
     sa.Column("cash", sa.String(64), nullable=False),
     sa.Column("market_value", sa.String(64), nullable=False),
     sa.Column("total_equity", sa.String(64), nullable=False),
@@ -92,13 +131,19 @@ paper_equity_snapshots = sa.Table(
     sa.Column("total_pnl", sa.String(64), nullable=False),
     sa.Column("total_pnl_percent", sa.String(64)),
     sa.Column("as_of", sa.DateTime(timezone=True), nullable=False),
+    sa.Index("ix_paper_equity_account_as_of", "account_id", "as_of"),
 )
 paper_strategy_runs = sa.Table(
     "paper_strategy_runs",
     metadata,
     sa.Column("decision_id", sa.String(36), primary_key=True),
     sa.Column("batch_id", sa.String(36), nullable=False),
-    sa.Column("account_id", sa.String(36), nullable=False),
+    sa.Column(
+        "account_id",
+        sa.String(36),
+        sa.ForeignKey("paper_accounts.account_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
     sa.Column("instrument_id", sa.String(64), nullable=False),
     sa.Column("outcome", sa.String(16), nullable=False),
     sa.Column("proposed_side", sa.String(8)),
@@ -109,6 +154,8 @@ paper_strategy_runs = sa.Table(
     sa.Column("order_json", sa.Text()),
     sa.Column("fill_json", sa.Text()),
     sa.Column("decision_time", sa.DateTime(timezone=True), nullable=False),
+    sa.Index("ix_paper_strategy_runs_account_time", "account_id", "decision_time"),
+    sa.Index("ix_paper_strategy_runs_batch", "batch_id"),
 )
 model_registry = sa.Table(
     "model_registry",
@@ -124,6 +171,7 @@ model_registry = sa.Table(
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("approved_at", sa.DateTime(timezone=True)),
+    sa.Index("ix_model_registry_status", "status"),
 )
 research_experiments = sa.Table(
     "research_experiments",
@@ -133,6 +181,7 @@ research_experiments = sa.Table(
     sa.Column("summary_json", sa.Text(), nullable=False),
     sa.Column("results_json", sa.Text(), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Index("ix_research_experiments_created", "created_at"),
 )
 paper_daily_open = sa.Table(
     "paper_daily_open",

@@ -30,7 +30,12 @@ data_snapshots = sa.Table(
     "data_snapshots",
     metadata,
     sa.Column("snapshot_id", sa.String(64), primary_key=True),
-    sa.Column("dataset_id", sa.String(100), nullable=False),
+    sa.Column(
+        "dataset_id",
+        sa.String(100),
+        sa.ForeignKey("data_datasets.dataset_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
     sa.Column("status", sa.String(16), nullable=False),
     sa.Column("row_count", sa.Integer(), nullable=False),
     sa.Column("min_event_time", sa.DateTime(timezone=True), nullable=False),
@@ -38,13 +43,28 @@ data_snapshots = sa.Table(
     sa.Column("provider_id", sa.String(100), nullable=False),
     sa.Column("manifest_path", sa.Text(), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint(
+        "status IN ('STAGED', 'PUBLISHED', 'REJECTED')",
+        name="ck_data_snapshots_status",
+    ),
+    sa.UniqueConstraint(
+        "dataset_id",
+        "snapshot_id",
+        name="uq_data_snapshots_dataset_snapshot",
+    ),
+    sa.Index("ix_data_snapshots_dataset_created", "dataset_id", "created_at"),
 )
 
 data_quality_issues = sa.Table(
     "data_quality_issues",
     metadata,
-    sa.Column("snapshot_id", sa.String(64), nullable=False),
-    sa.Column("code", sa.String(100), nullable=False),
+    sa.Column(
+        "snapshot_id",
+        sa.String(64),
+        sa.ForeignKey("data_snapshots.snapshot_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("code", sa.String(100), primary_key=True),
     sa.Column("severity", sa.String(16), nullable=False),
     sa.Column("count", sa.Integer(), nullable=False),
     sa.Column("samples_json", sa.Text(), nullable=False),

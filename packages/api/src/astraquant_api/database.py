@@ -5,7 +5,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Engine, create_engine, event
+from sqlalchemy import Engine, create_engine, event, inspect
 from sqlalchemy.engine import make_url
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2]
@@ -41,3 +41,13 @@ def migrate_database(database_url: str) -> None:
     config.set_main_option("script_location", str(_PACKAGE_ROOT / "migrations"))
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
     command.upgrade(config, "head")
+
+    from astraquant_api.schema_registry import metadata
+
+    engine = create_engine(database_url)
+    try:
+        missing = set(metadata.tables) - set(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+    if missing:
+        raise RuntimeError(f"migration head is missing registered tables: {sorted(missing)}")

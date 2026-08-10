@@ -6,7 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from astraquant_api.migration_config import resolve_migration_url
-from astraquant_api.repository import metadata
+from astraquant_api.schema_registry import metadata
 
 config = context.config
 
