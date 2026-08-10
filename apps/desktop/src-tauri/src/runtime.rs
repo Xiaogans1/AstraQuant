@@ -241,6 +241,20 @@ fn project_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn workspace_python_source_paths(project_root: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(project_root.join("packages")) else {
+        return Vec::new();
+    };
+    let mut paths = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path().join("src"))
+        .filter(|path| path.is_dir())
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
 struct RuntimeLaunchSpec {
     program: PathBuf,
     arguments: Vec<String>,
@@ -265,14 +279,8 @@ fn runtime_launch_spec(project_root: &Path) -> RuntimeLaunchSpec {
     if let Some(managed_python) = managed_python.filter(|path| path.is_file()) {
         let mut environment = Vec::new();
         if cfg!(windows) {
-            let search_paths = [
-                virtual_environment.join("Lib").join("site-packages"),
-                project_root.join("packages").join("api").join("src"),
-                project_root.join("packages").join("data").join("src"),
-                project_root.join("packages").join("domain").join("src"),
-                project_root.join("packages").join("paper").join("src"),
-                project_root.join("packages").join("quant").join("src"),
-            ];
+            let mut search_paths = vec![virtual_environment.join("Lib").join("site-packages")];
+            search_paths.extend(workspace_python_source_paths(project_root));
             if let Ok(python_path) = std::env::join_paths(search_paths) {
                 environment.push(("PYTHONPATH".into(), python_path));
             }
@@ -340,7 +348,7 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::{generate_session_token, runtime_launch_spec};
+    use super::{generate_session_token, runtime_launch_spec, workspace_python_source_paths};
 
     fn managed_project_root() -> TempDir {
         let project_root = tempfile::tempdir().expect("temporary project root must be created");
@@ -399,6 +407,16 @@ mod tests {
             return;
         }
         let project_root = managed_project_root();
+        for package in ["api", "data", "domain", "paper", "quant"] {
+            fs::create_dir_all(
+                project_root
+                    .path()
+                    .join("packages")
+                    .join(package)
+                    .join("src"),
+            )
+            .expect("workspace package source must be created");
+        }
         let spec = runtime_launch_spec(project_root.path());
         let python_path = spec
             .environment
@@ -412,5 +430,33 @@ mod tests {
         assert!(python_path.contains("packages\\domain\\src"));
         assert!(python_path.contains("packages\\paper\\src"));
         assert!(python_path.contains("packages\\quant\\src"));
+    }
+
+    #[test]
+    fn windows_runtime_discovers_new_workspace_python_packages() {
+        let project_root = tempfile::tempdir().expect("temporary project root must be created");
+        for package in ["api", "execution", "research"] {
+            fs::create_dir_all(
+                project_root
+                    .path()
+                    .join("packages")
+                    .join(package)
+                    .join("src"),
+            )
+            .expect("workspace package source must be created");
+        }
+        fs::create_dir_all(project_root.path().join("packages").join("without-src"))
+            .expect("non-package directory must be created");
+
+        let paths = workspace_python_source_paths(project_root.path());
+
+        assert_eq!(
+            paths,
+            ["api", "execution", "research"].map(|package| project_root
+                .path()
+                .join("packages")
+                .join(package)
+                .join("src"))
+        );
     }
 }

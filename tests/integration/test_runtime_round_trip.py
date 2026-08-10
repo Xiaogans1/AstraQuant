@@ -15,6 +15,33 @@ import httpx
 import pytest
 
 
+def _workspace_python_paths(
+    repository_root: Path,
+    virtual_environment: Path,
+) -> list[Path]:
+    package_paths = sorted(
+        path for path in (repository_root / "packages").glob("*/src") if path.is_dir()
+    )
+    return [virtual_environment / "Lib" / "site-packages", *package_paths]
+
+
+def test_workspace_python_paths_discovers_future_packages(tmp_path: Path) -> None:
+    repository_root = tmp_path / "repository"
+    virtual_environment = tmp_path / ".venv"
+    for package in ("api", "execution", "research"):
+        (repository_root / "packages" / package / "src").mkdir(parents=True)
+    (repository_root / "packages" / "without-src").mkdir(parents=True)
+
+    paths = _workspace_python_paths(repository_root, virtual_environment)
+
+    assert paths == [
+        virtual_environment / "Lib" / "site-packages",
+        repository_root / "packages" / "api" / "src",
+        repository_root / "packages" / "execution" / "src",
+        repository_root / "packages" / "research" / "src",
+    ]
+
+
 @contextmanager
 def running_runtime(state_dir: Path) -> Iterator[tuple[subprocess.Popen[str], httpx.Client]]:
     token = secrets.token_urlsafe(32)
@@ -41,14 +68,7 @@ def running_runtime(state_dir: Path) -> Iterator[tuple[subprocess.Popen[str], ht
             raise AssertionError("virtual environment does not declare its base interpreter")
         executable = str(Path(home) / "python.exe")
         repository_root = Path(__file__).resolve().parents[2]
-        python_paths = [
-            virtual_environment / "Lib" / "site-packages",
-            repository_root / "packages" / "api" / "src",
-            repository_root / "packages" / "data" / "src",
-            repository_root / "packages" / "domain" / "src",
-            repository_root / "packages" / "paper" / "src",
-            repository_root / "packages" / "quant" / "src",
-        ]
+        python_paths = _workspace_python_paths(repository_root, virtual_environment)
         environment["PYTHONPATH"] = os.pathsep.join(map(str, python_paths))
         environment["PYTHONNOUSERSITE"] = "1"
     process = subprocess.Popen(

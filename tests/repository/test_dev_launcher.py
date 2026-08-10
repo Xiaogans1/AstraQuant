@@ -23,6 +23,7 @@ def test_tauri_development_commands_do_not_require_global_pnpm() -> None:
 def test_root_launcher_finds_the_active_development_worktree() -> None:
     script = Path("start.ps1").read_text(encoding="utf-8")
 
-    assert ".worktrees" in script
-    assert "phase-1-desktop-platform" in script
+    assert "phase-1-desktop-platform" not in script
+    assert "ASTRAQUANT_WORKTREE" in script
+    assert "git worktree list --porcelain" in script
     assert "scripts\\dev.ps1" in script
