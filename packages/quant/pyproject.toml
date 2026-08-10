@@ -11,7 +11,7 @@ dependencies = [
   "astraquant-data",
   "astraquant-domain",
   "lightgbm>=4,<5",
-  "pandas>=2,<3",
+  "pandas>=3.0.5,<4",
   "scikit-learn>=1.5,<2",
 ]
 
