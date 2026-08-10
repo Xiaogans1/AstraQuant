@@ -419,10 +419,12 @@ git add docs/superpowers/plans/2026-08-10-quant-core-v3-phase-0-repository-ci-le
 git commit -m "docs: 记录Phase 0统一验证门完成证据"
 ```
 
-- [ ] **Step 5: 推送实现分支**
+- [x] **Step 5: 推送实现分支**
 
 ```powershell
 git push -u origin codex/quant-core-v3-phase0-task1
 ```
 
 Expected: 远端 branch head 与本地 `HEAD` 完全一致；本步骤不创建或合并 PR。
+
+执行记录（2026-08-10）：分支 `codex/quant-core-v3-phase0-task1` 已推送；GitHub Actions run [31369643520](https://github.com/Xiaogans1/AstraQuant/actions/runs/31369643520) 在 commit `54f940b` 上通过，job `verify` 耗时 8m47s，上传 artifact `verification-logs-31369643520`，且 check annotations 为空。CI 使用固定 SHA 的 Node 24 actions（checkout v5、setup-python v6、setup-node v5、upload-artifact v6）；`setup-node` 显式关闭隐式 package-manager cache，确保 `pnpm@11.9.0` 只由后续 Corepack 步骤启用。
