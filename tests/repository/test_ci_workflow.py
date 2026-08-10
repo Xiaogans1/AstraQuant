@@ -43,6 +43,7 @@ def test_ci_uses_pinned_toolchains_and_only_the_shared_verifier() -> None:
     assert "python-version: '3.12'" in workflow
     assert "version: '0.11.32'" in workflow
     assert "node-version: '24'" in workflow
+    assert "package-manager-cache: false" in workflow
     assert "pnpm@11.9.0" in workflow
     assert "toolchain: 1.96.0" in workflow
     assert "./scripts/verify.ps1 -Scope All" in workflow
