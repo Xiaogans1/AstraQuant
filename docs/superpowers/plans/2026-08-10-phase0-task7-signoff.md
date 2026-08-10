@@ -154,7 +154,7 @@ Run: `git diff --name-status origin/codex/quant-core-v3-phase0-task6...HEAD`，�
 
 只在机器证据已生成且通过后勾选 Phase 0 Task 7 与本微计划；提交：`git commit -m "test(governance): 完成量化核心旧证据隔离验收"`。
 
-- [ ] **Step 6: 推送并确认 GitHub Actions**
+- [x] **Step 6: 推送并确认 GitHub Actions**
 
 推送 `codex/quant-core-v3-phase0-task7`；确认本地 HEAD、remote branch SHA 和最新 CI `headSha` 一致，CI conclusion=`success`、annotations=0。按既有交付约定不创建或合并 PR。
 
