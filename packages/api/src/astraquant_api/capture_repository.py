@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy import Engine, RowMapping
@@ -196,8 +197,7 @@ def _identity_from_dict(value: dict[str, object]) -> ProviderIdentity:
     )
 
 
-def _report_from_json(payload: str) -> QualificationReport:
-    value = json.loads(payload)
+def qualification_report_from_dict(value: dict[str, Any]) -> QualificationReport:
     identity = _identity_from_dict(value["identity"])
     coverage = value["coverage"]
     return QualificationReport(
@@ -229,6 +229,13 @@ def _report_from_json(payload: str) -> QualificationReport:
         observed_at=datetime.fromisoformat(value["observed_at"]),
         schema_version=value["schema_version"],
     )
+
+
+def _report_from_json(payload: str) -> QualificationReport:
+    value = json.loads(payload)
+    if not isinstance(value, dict):
+        raise ValueError("qualification report payload must be an object")
+    return qualification_report_from_dict(value)
 
 
 def _approval_from_row(row: RowMapping) -> ProviderApproval:
@@ -381,6 +388,55 @@ class QualificationRepository:
                 label="revocation",
             )
         return revocation.revocation_id
+
+    def get_report(self, report_digest: str) -> QualificationReport | None:
+        with self._engine.connect() as connection:
+            payload = connection.scalar(
+                sa.select(provider_qualification_reports.c.report_json).where(
+                    provider_qualification_reports.c.report_digest == report_digest
+                )
+            )
+        return None if not isinstance(payload, str) else _report_from_json(payload)
+
+    def get_timeline_for_approval(
+        self,
+        approval_id: str,
+    ) -> ProviderQualificationTimeline | None:
+        with self._engine.connect() as connection:
+            approval_row = (
+                connection.execute(
+                    sa.select(provider_approvals).where(
+                        provider_approvals.c.approval_id == approval_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if approval_row is None:
+                return None
+            report_payload = connection.scalar(
+                sa.select(provider_qualification_reports.c.report_json).where(
+                    provider_qualification_reports.c.report_digest == approval_row["report_digest"]
+                )
+            )
+            if not isinstance(report_payload, str):
+                raise QualificationConflictError("approval report is missing")
+            report = _report_from_json(report_payload)
+            approval = _approval_from_row(approval_row)
+            revocations = tuple(
+                _revocation_from_row(row)
+                for row in connection.execute(
+                    sa.select(provider_revocations).where(
+                        provider_revocations.c.approval_id == approval_id
+                    )
+                ).mappings()
+            )
+        return ProviderQualificationTimeline(
+            identity=report.identity,
+            report=report,
+            approval=approval,
+            revocations=revocations,
+        )
 
     def is_approved_for_capture(
         self,

@@ -13,6 +13,7 @@ from threading import Thread
 import uvicorn
 
 from astraquant_api.app import AppState, create_app
+from astraquant_api.capture_repository import QualificationRepository
 from astraquant_api.config import RuntimeConfig
 from astraquant_api.data_repository import DataCatalogRepository
 from astraquant_api.database import create_database, migrate_database
@@ -124,6 +125,7 @@ def serve() -> None:
         paper_service=paper_service,
         paper_strategy_service=paper_strategy_service,
         secret_store=secret_store,
+        qualification_repository=QualificationRepository(engine),
         market_provider_factory=market_provider_factory,
         allowed_data_instruments=config.allowed_data_instruments,
         enable_akshare=config.enable_akshare,

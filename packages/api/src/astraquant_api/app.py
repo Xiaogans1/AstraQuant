@@ -31,6 +31,7 @@ from astraquant_api.task_model import TaskRecord
 from astraquant_data.live_providers import LiveMarketProvider
 
 if TYPE_CHECKING:
+    from astraquant_api.capture_repository import QualificationRepository
     from astraquant_api.paper_strategy_service import PaperStrategyService
 
 
@@ -69,6 +70,7 @@ class AppState:
     paper_service: PaperLifecycle | None = None
     paper_strategy_service: PaperStrategyService | None = None
     secret_store: SecretStore | None = None
+    qualification_repository: QualificationRepository | None = None
     market_provider_factory: Callable[[Path, float], LiveMarketProvider] | None = None
     allowed_data_instruments: frozenset[str] = frozenset({"600000.SSE", "RB0.SHFE"})
     enable_akshare: bool = False
@@ -260,6 +262,20 @@ def create_app(state: AppState) -> FastAPI:
     from astraquant_api.data_routes import build_data_router
 
     app.include_router(build_data_router(state, authenticated))
+    if state.qualification_repository is not None:
+        from astraquant_api.provider_qualification_routes import (
+            build_provider_qualification_router,
+        )
+        from astraquant_api.provider_qualification_service import (
+            ProviderQualificationService,
+        )
+
+        app.include_router(
+            build_provider_qualification_router(
+                ProviderQualificationService(state.qualification_repository),
+                authenticated,
+            )
+        )
     if (
         state.market_service is not None
         and state.secret_store is not None
