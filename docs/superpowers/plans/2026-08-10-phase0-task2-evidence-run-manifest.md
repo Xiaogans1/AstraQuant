@@ -374,7 +374,7 @@ git status --short
 
 Expected: 只包含本微计划、run/evidence contract、对应 tests、legacy adapter 和 roadmap checkbox。
 
-- [ ] **Step 4: 提交验收证据并推送**
+- [x] **Step 4: 提交验收证据并推送**
 
 ```powershell
 git add docs/superpowers/plans/2026-08-10-quant-core-v3-phase-0-repository-ci-legacy.md docs/superpowers/plans/2026-08-10-phase0-task2-evidence-run-manifest.md
@@ -382,9 +382,11 @@ git commit -m "docs: 记录Phase 0证据门完成证据"
 git push -u origin codex/quant-core-v3-phase0-task2
 ```
 
-- [ ] **Step 5: 等待最终 HEAD 的 GitHub Actions**
+- [x] **Step 5: 等待最终 HEAD 的 GitHub Actions**
 
 Expected: 远端 branch HEAD 与本地一致，GitHub Actions conclusion=`success`、annotations=0；不创建或合并 PR。
+
+执行记录（2026-08-10）：分支 `codex/quant-core-v3-phase0-task2` 已推送；GitHub Actions run [31374463546](https://github.com/Xiaogans1/AstraQuant/actions/runs/31374463546) 在 commit `70d3031` 上通过，job `verify` 耗时 9m37s，上传 artifact `verification-logs-31374463546`，check annotations=0。
 
 ## Self-review
 
