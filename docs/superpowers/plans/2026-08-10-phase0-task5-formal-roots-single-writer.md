@@ -126,7 +126,7 @@ Run: `uv run mypy packages/api/src tests/api tests/repository`
 
 Run: `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1 -Scope All`
 
-- [ ] **Step 3: 更新 roadmap、提交并推送**
+- [x] **Step 3: 更新 roadmap、提交并推送**
 
 只允许 Task 5 roots/worker/ingestion/tests/docs；推送 `codex/quant-core-v3-phase0-task5`，不创建或合并 PR。
 
