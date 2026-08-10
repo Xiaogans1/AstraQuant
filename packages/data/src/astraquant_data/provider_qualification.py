@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from enum import StrEnum
 
@@ -30,6 +30,23 @@ class CheckStatus(StrEnum):
     NOT_TESTED = "NOT_TESTED"
 
 
+class QualificationState(StrEnum):
+    UNQUALIFIED = "UNQUALIFIED"
+    APPROVED = "APPROVED"
+    REVOKED = "REVOKED"
+    COMPROMISED = "COMPROMISED"
+
+
+class RevocationKind(StrEnum):
+    SUPERSEDED = "SUPERSEDED"
+    REVOKED = "REVOKED"
+    RETROACTIVE_COMPROMISE = "RETROACTIVE_COMPROMISE"
+
+
+class QualificationError(ValueError):
+    """Raised when a provider qualification state transition is not valid."""
+
+
 def _utc(name: str, value: datetime) -> datetime:
     if not isinstance(value, datetime) or value.tzinfo is None:
         raise ValueError(f"{name} must be timezone-aware")
@@ -47,6 +64,17 @@ def _canonical_strings(name: str, values: tuple[str, ...]) -> tuple[str, ...]:
     if len(canonical) != len(set(canonical)):
         raise ValueError(f"{name} contains duplicate entries")
     return tuple(sorted(canonical))
+
+
+def _canonical_text(name: str, value: str) -> str:
+    if not isinstance(value, str) or not value or value != value.strip():
+        raise ValueError(f"{name} must be non-empty canonical text")
+    return value
+
+
+def _content_digest(value: object) -> str:
+    digest = hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+    return f"sha256:{digest}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,5 +243,188 @@ class QualificationReport:
 
     @property
     def report_digest(self) -> str:
-        digest = hashlib.sha256(canonical_json_bytes(self.to_dict())).hexdigest()
-        return f"sha256:{digest}"
+        return _content_digest(self.to_dict())
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderApproval:
+    identity_digest: str
+    report_digest: str
+    reviewer: str
+    policy_version: str
+    effective_at: datetime
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "identity_digest",
+            validate_digest("identity_digest", self.identity_digest),
+        )
+        object.__setattr__(
+            self,
+            "report_digest",
+            validate_digest("report_digest", self.report_digest),
+        )
+        object.__setattr__(self, "reviewer", _canonical_text("reviewer", self.reviewer))
+        object.__setattr__(
+            self,
+            "policy_version",
+            _canonical_text("policy_version", self.policy_version),
+        )
+        object.__setattr__(
+            self,
+            "effective_at",
+            _utc("effective_at", self.effective_at),
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "identity_digest": self.identity_digest,
+            "report_digest": self.report_digest,
+            "reviewer": self.reviewer,
+            "policy_version": self.policy_version,
+            "effective_at": self.effective_at.isoformat(),
+        }
+
+    @property
+    def approval_id(self) -> str:
+        return _content_digest(self.to_dict())
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderRevocation:
+    kind: RevocationKind
+    effective_at: datetime
+    reviewer: str
+    reason_digest: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.kind, RevocationKind):
+            raise ValueError("kind must be a known RevocationKind")
+        object.__setattr__(
+            self,
+            "effective_at",
+            _utc("effective_at", self.effective_at),
+        )
+        object.__setattr__(self, "reviewer", _canonical_text("reviewer", self.reviewer))
+        object.__setattr__(
+            self,
+            "reason_digest",
+            validate_digest("reason_digest", self.reason_digest),
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "kind": self.kind.value,
+            "effective_at": self.effective_at.isoformat(),
+            "reviewer": self.reviewer,
+            "reason_digest": self.reason_digest,
+        }
+
+    @property
+    def revocation_id(self) -> str:
+        return _content_digest(self.to_dict())
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderQualificationTimeline:
+    identity: ProviderIdentity
+    report: QualificationReport
+    approval: ProviderApproval | None = None
+    revocations: tuple[ProviderRevocation, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.identity, ProviderIdentity):
+            raise ValueError("identity must be ProviderIdentity")
+        if not isinstance(self.report, QualificationReport):
+            raise ValueError("report must be QualificationReport")
+        if self.report.identity.identity_digest != self.identity.identity_digest:
+            raise ValueError("report identity does not match timeline identity")
+        if self.approval is not None:
+            if not isinstance(self.approval, ProviderApproval):
+                raise ValueError("approval must be ProviderApproval")
+            if self.approval.identity_digest != self.identity.identity_digest:
+                raise ValueError("approval identity does not match timeline identity")
+            if self.approval.report_digest != self.report.report_digest:
+                raise ValueError("approval report does not match timeline report")
+        revocations = tuple(self.revocations)
+        if not all(isinstance(item, ProviderRevocation) for item in revocations):
+            raise ValueError("revocations must contain ProviderRevocation")
+        object.__setattr__(
+            self,
+            "revocations",
+            tuple(sorted(revocations, key=lambda item: (item.effective_at, item.kind.value))),
+        )
+
+    @property
+    def state(self) -> QualificationState:
+        if any(item.kind is RevocationKind.RETROACTIVE_COMPROMISE for item in self.revocations):
+            return QualificationState.COMPROMISED
+        if self.revocations:
+            return QualificationState.REVOKED
+        if self.approval is not None:
+            return QualificationState.APPROVED
+        return QualificationState.UNQUALIFIED
+
+    def approve(
+        self,
+        *,
+        reviewer: str,
+        policy_version: str,
+        effective_at: datetime,
+    ) -> ProviderQualificationTimeline:
+        if self.state is QualificationState.COMPROMISED:
+            raise QualificationError("provider qualification is compromised")
+        if not self.report.approvable:
+            raise QualificationError("report is not approvable")
+        if self.approval is not None:
+            raise QualificationError("provider qualification is already approved")
+        approval = ProviderApproval(
+            identity_digest=self.identity.identity_digest,
+            report_digest=self.report.report_digest,
+            reviewer=reviewer,
+            policy_version=policy_version,
+            effective_at=effective_at,
+        )
+        return replace(self, approval=approval)
+
+    def revoke(
+        self,
+        *,
+        kind: RevocationKind,
+        effective_at: datetime,
+        reviewer: str,
+        reason_digest: str,
+    ) -> ProviderQualificationTimeline:
+        if self.approval is None:
+            raise QualificationError("provider qualification is not approved")
+        revocation = ProviderRevocation(
+            kind=kind,
+            effective_at=effective_at,
+            reviewer=reviewer,
+            reason_digest=reason_digest,
+        )
+        if revocation.effective_at < self.approval.effective_at:
+            raise QualificationError("revocation cannot be before approval")
+        if any(item.revocation_id == revocation.revocation_id for item in self.revocations):
+            raise QualificationError("duplicate revocation")
+        if self.state is QualificationState.COMPROMISED:
+            raise QualificationError("provider qualification is compromised")
+        if revocation.kind is not RevocationKind.RETROACTIVE_COMPROMISE and self.revocations:
+            raise QualificationError("provider qualification is already revoked")
+        return replace(self, revocations=(*self.revocations, revocation))
+
+    def is_approved_for(
+        self,
+        identity: ProviderIdentity,
+        *,
+        captured_at: datetime,
+    ) -> bool:
+        capture_time = _utc("captured_at", captured_at)
+        if identity.identity_digest != self.identity.identity_digest:
+            return False
+        if self.approval is None or capture_time < self.approval.effective_at:
+            return False
+        if any(item.kind is RevocationKind.RETROACTIVE_COMPROMISE for item in self.revocations):
+            return False
+        return not any(capture_time >= item.effective_at for item in self.revocations)

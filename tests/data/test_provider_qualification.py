@@ -15,9 +15,13 @@ from astraquant_data.provider_qualification import (
     CapabilityResult,
     CheckStatus,
     ProbeEvidence,
+    ProviderQualificationTimeline,
     QualificationCheck,
     QualificationCoverage,
+    QualificationError,
     QualificationReport,
+    QualificationState,
+    RevocationKind,
 )
 
 NOW = datetime(2026, 8, 10, 1, 2, 3, tzinfo=UTC)
@@ -279,3 +283,146 @@ def test_qualification_report_digest_covers_material_evidence() -> None:
     changed = _report(probes=(_probe("9"),))
 
     assert changed.report_digest != report.report_digest
+
+
+def _timeline(report: QualificationReport | None = None) -> ProviderQualificationTimeline:
+    qualified_report = _report() if report is None else report
+    return ProviderQualificationTimeline(
+        identity=qualified_report.identity,
+        report=qualified_report,
+    )
+
+
+def test_full_pass_report_remains_unqualified_until_human_approval() -> None:
+    timeline = _timeline()
+
+    assert timeline.report.approvable is True
+    assert timeline.state is QualificationState.UNQUALIFIED
+    assert timeline.is_approved_for(timeline.identity, captured_at=NOW) is False
+
+    approved = timeline.approve(
+        reviewer="reviewer-1",
+        policy_version="provider-policy/v1",
+        effective_at=NOW,
+    )
+
+    assert timeline.state is QualificationState.UNQUALIFIED
+    assert approved.state is QualificationState.APPROVED
+    assert approved.is_approved_for(approved.identity, captured_at=NOW) is True
+    assert approved.approval is not None
+    assert approved.approval.identity_digest == approved.identity.identity_digest
+    assert approved.approval.report_digest == approved.report.report_digest
+    assert approved.approval.approval_id.startswith("sha256:")
+
+
+@pytest.mark.parametrize("status", [CheckStatus.FAIL, CheckStatus.NOT_TESTED])
+def test_non_approvable_report_cannot_be_manually_approved(status: CheckStatus) -> None:
+    timeline = _timeline(_report(results=_results(status)))
+
+    with pytest.raises(QualificationError, match="report is not approvable"):
+        timeline.approve(
+            reviewer="reviewer-1",
+            policy_version="provider-policy/v1",
+            effective_at=NOW,
+        )
+
+
+@pytest.mark.parametrize(
+    "changed_identity",
+    [
+        replace(_identity(), interface_build="3.0.177"),
+        replace(_identity(), permission_tier="level2-history"),
+        replace(_identity(), schema_fingerprint=_digest("e")),
+    ],
+)
+def test_approval_is_bound_to_exact_provider_identity(
+    changed_identity: ProviderIdentity,
+) -> None:
+    approved = _timeline().approve(
+        reviewer="reviewer-1",
+        policy_version="provider-policy/v1",
+        effective_at=NOW,
+    )
+
+    assert approved.is_approved_for(changed_identity, captured_at=NOW) is False
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [RevocationKind.REVOKED, RevocationKind.SUPERSEDED],
+)
+def test_ordinary_revocation_preserves_pre_effective_capture_history(
+    kind: RevocationKind,
+) -> None:
+    approved = _timeline().approve(
+        reviewer="reviewer-1",
+        policy_version="provider-policy/v1",
+        effective_at=NOW,
+    )
+    revoked_at = datetime(2026, 8, 11, tzinfo=UTC)
+    revoked = approved.revoke(
+        kind=kind,
+        effective_at=revoked_at,
+        reviewer="reviewer-2",
+        reason_digest=_digest("f"),
+    )
+
+    assert revoked.state is QualificationState.REVOKED
+    assert revoked.is_approved_for(
+        revoked.identity,
+        captured_at=datetime(2026, 8, 10, 12, tzinfo=UTC),
+    )
+    assert revoked.is_approved_for(revoked.identity, captured_at=revoked_at) is False
+
+    with pytest.raises(QualificationError, match="duplicate revocation"):
+        revoked.revoke(
+            kind=kind,
+            effective_at=revoked_at,
+            reviewer="reviewer-2",
+            reason_digest=_digest("f"),
+        )
+
+
+def test_revocation_cannot_predate_approval() -> None:
+    approved = _timeline().approve(
+        reviewer="reviewer-1",
+        policy_version="provider-policy/v1",
+        effective_at=NOW,
+    )
+
+    with pytest.raises(QualificationError, match="before approval"):
+        approved.revoke(
+            kind=RevocationKind.REVOKED,
+            effective_at=datetime(2026, 8, 9, tzinfo=UTC),
+            reviewer="reviewer-2",
+            reason_digest=_digest("f"),
+        )
+
+
+def test_retroactive_compromise_invalidates_all_capture_history() -> None:
+    approved = _timeline().approve(
+        reviewer="reviewer-1",
+        policy_version="provider-policy/v1",
+        effective_at=NOW,
+    )
+    compromised = approved.revoke(
+        kind=RevocationKind.RETROACTIVE_COMPROMISE,
+        effective_at=datetime(2026, 8, 12, tzinfo=UTC),
+        reviewer="security-reviewer",
+        reason_digest=_digest("f"),
+    )
+
+    assert compromised.state is QualificationState.COMPROMISED
+    assert (
+        compromised.is_approved_for(
+            compromised.identity,
+            captured_at=datetime(2026, 8, 10, 12, tzinfo=UTC),
+        )
+        is False
+    )
+    with pytest.raises(QualificationError, match="compromised"):
+        compromised.approve(
+            reviewer="reviewer-3",
+            policy_version="provider-policy/v2",
+            effective_at=datetime(2026, 8, 13, tzinfo=UTC),
+        )
