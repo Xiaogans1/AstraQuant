@@ -86,6 +86,30 @@ def test_reject_eastmoney_token_assignments_in_tracked_content() -> None:
     assert find_forbidden_content(contents) == list(contents)
 
 
+def test_reject_raw_captures_qualification_bodies_and_append_only_databases() -> None:
+    paths = [
+        "packages/data/raw-captures/eastmoney/page-1.json",
+        "raw-captures/eastmoney/page-1.ndjson",
+        "captures/eastmoney/daily.capture.json",
+        "qualification-reports/eastmoney/report.json",
+        "state/formal/catalog.sqlite-wal",
+        "artifacts/verification/run.json",
+        "models/champion.onnx",
+    ]
+
+    assert find_forbidden_paths(paths) == paths
+
+
+def test_reject_generic_astraquant_tokens_and_secret_json_fields() -> None:
+    contents = {
+        "notes/token.txt": "ASTRAQUANT_BROKER_TOKEN=real-token",
+        "tmp/config.json": '{"client_secret": "real-secret"}',
+        "tmp/password.json": '{"password": "real-password"}',
+    }
+
+    assert find_forbidden_content(contents) == list(contents)
+
+
 def test_allow_secret_field_names_in_source_and_env_template() -> None:
     contents = {
         ".env.example": "ASTRAQUANT_EASTMONEY_TOKEN=",

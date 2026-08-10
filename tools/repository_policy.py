@@ -30,6 +30,8 @@ FORBIDDEN_SUFFIXES = {
     ".duckdb",
     ".feather",
     ".gguf",
+    ".jsonl",
+    ".ndjson",
     ".onnx",
     ".parquet",
     ".pem",
@@ -52,14 +54,20 @@ FORBIDDEN_DIRECTORIES = {
     "reports",
     "state",
 }
+FORBIDDEN_ARTIFACT_DIRECTORIES = {
+    "captures",
+    "qualification-reports",
+    "raw-captures",
+}
 SOURCE_DATA_PREFIXES = (
     PurePosixPath("packages/data"),
     PurePosixPath("tests/data"),
 )
 
-_TOKEN_ASSIGNMENT = re.compile(
-    r"^\s*ASTRAQUANT_EASTMONEY_TOKEN\s*=\s*[^\s#]+\s*$|"
-    r"[\"\'](?:access_token|api_token|eastmoney_token)[\"\']\s*:\s*[\"\'](?!\[REDACTED\])[^\"\']+[\"\']",
+_SECRET_ASSIGNMENT = re.compile(
+    r"^\s*ASTRAQUANT_[A-Z0-9_]*(?:TOKEN|SECRET|PASSWORD)\s*=\s*[^\s#]+\s*$|"
+    r"[\"\'](?:access_token|api_token|client_secret|eastmoney_token|password)[\"\']"
+    r"\s*:\s*[\"\'](?!\[REDACTED\])[^\"\']+[\"\']",
     re.IGNORECASE | re.MULTILINE,
 )
 _CONTENT_SCAN_EXCEPTIONS = {
@@ -84,6 +92,9 @@ def find_forbidden_paths(
         suffix = path.suffix.lower()
         directory_parts = {part.lower() for part in path.parts[:-1]}
         contains_forbidden_directory = bool(directory_parts & FORBIDDEN_DIRECTORIES)
+        contains_forbidden_artifact_directory = bool(
+            directory_parts & FORBIDDEN_ARTIFACT_DIRECTORIES
+        )
         is_fixture_csv = (
             suffix == ".csv"
             and path.parent == MARKET_DATA_FIXTURE_ROOT
@@ -96,6 +107,7 @@ def find_forbidden_paths(
             or suffix in FORBIDDEN_SUFFIXES
             or ".sqlite" in lowered_name
             or (suffix == ".csv" and not is_fixture_csv)
+            or contains_forbidden_artifact_directory
             or (contains_forbidden_directory and not _is_data_source_path(path))
         )
         if is_forbidden:
@@ -104,12 +116,12 @@ def find_forbidden_paths(
 
 
 def find_forbidden_content(contents: Mapping[str, str]) -> list[str]:
-    """Return tracked text files containing a concrete Eastmoney secret assignment."""
+    """Return tracked text files containing a concrete secret assignment."""
     return [
         path
         for path, content in contents.items()
         if PurePosixPath(path).as_posix() not in _CONTENT_SCAN_EXCEPTIONS
-        and _TOKEN_ASSIGNMENT.search(content) is not None
+        and _SECRET_ASSIGNMENT.search(content) is not None
     ]
 
 
