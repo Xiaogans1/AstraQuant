@@ -1,10 +1,10 @@
 # AstraQuant 量化核心正式架构设计（v3）
 
 日期：2026-08-10<br>
-状态：待用户审阅<br>
+状态：已确认（2026-08-10，进入分阶段开发路线图；每个 Task 开工前另写 micro implementation plan）<br>
 适用范围：A 股股票与场内 ETF；日线选股/配置、分钟级做 T、回放、Paper/Mirror，以及未来可选 Live 适配<br>
 首批正式市场：上交所、深交所普通现金账户；北交所、港股通、融资融券等不得套用沪深规则，只有完成各自真实 API 覆盖、RuleBook、费用和差分场景后才能启用<br>
-替代关系：本文经确认后，取代 `docs/superpowers/plans/2026-08-08-quant-core-upgrade.md` 作为量化核心的设计基线；旧 v2 计划不得直接继续实施，须根据本文另写新的 Implementation Plan。
+替代关系：本文已取代 `docs/superpowers/plans/2026-08-08-quant-core-upgrade.md`，并由 `docs/superpowers/plans/2026-08-10-quant-core-v3-master.md` 及其分阶段路线图组织实施；旧 v2 计划不得直接继续执行。
 
 ## 1. 决策摘要
 

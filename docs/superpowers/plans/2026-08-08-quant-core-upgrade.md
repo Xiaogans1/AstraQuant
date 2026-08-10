@@ -1,5 +1,7 @@
 # 量化核心升级 Implementation Plan（v2，2026-08-08 重梳理）
 
+> **已停止执行（2026-08-10）：** 本计划基于已经被审计为不完整的 v2 账户、数据与回放语义，仅保留作历史记录。正式实施以 `docs/superpowers/specs/2026-08-10-quant-core-open-source-architecture-design.md` 和 `docs/superpowers/plans/2026-08-10-quant-core-v3-master.md` 为准；不得从本文件继续领取任务或把其结果作为发布证据。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 把量化核心从"二分类概率 → 阈值全仓切换"升级为"期望收益/信号强度 → 目标仓位"，且费用按用户真实费率建模、做T 有真实信号源、风险有规则兜底、结果可分层验证。每一步以真实回放对照验收。**模型层以 Qlib 等开源成熟实现为基座（分层接入，见 Task 6），交易层保留自研 T+1/费用/做T 语义——各取所长，不做二选一。**
