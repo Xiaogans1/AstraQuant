@@ -22,8 +22,19 @@ function Invoke-Checked {
     )
 
     $logPath = Join-Path $logRoot "$Name.log"
-    & $FilePath @ArgumentList 2>&1 | Tee-Object -FilePath $logPath
-    $exitCode = $LASTEXITCODE
+    $exitCode = 0
+    $transcriptStarted = $false
+    try {
+        Start-Transcript -Path $logPath -Force | Out-Null
+        $transcriptStarted = $true
+        & $FilePath @ArgumentList
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        if ($transcriptStarted) {
+            Stop-Transcript | Out-Null
+        }
+    }
     if ($exitCode -ne 0) {
         throw "Verification command '$Name' failed with exit code $exitCode. Log: $logPath"
     }

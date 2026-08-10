@@ -1,4 +1,6 @@
+import os
 import re
+import subprocess
 from pathlib import Path
 
 
@@ -54,3 +56,37 @@ def test_ci_uses_pinned_toolchains_and_only_the_shared_verifier() -> None:
         "cargo test",
     ):
         assert forbidden_duplicate not in workflow
+
+
+def test_verify_script_allows_native_stderr_when_exit_code_is_zero(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    (fake_bin / "pnpm.cmd").write_text(
+        "@echo off\r\necho harmless native stderr 1>&2\r\nexit /b 0\r\n",
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+
+    completed = subprocess.run(
+        [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "scripts/verify.ps1",
+            "-Scope",
+            "Desktop",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
+    )
+
+    output = completed.stdout + completed.stderr
+    assert completed.returncode == 0, output
+    assert "harmless native stderr" in output
+    assert "NativeCommandError" not in output
