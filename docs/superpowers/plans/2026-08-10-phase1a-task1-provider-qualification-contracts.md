@@ -62,10 +62,12 @@ class ProviderCapability(StrEnum):
     INSTRUMENT_STATUS = "INSTRUMENT_STATUS"
     L2_QUOTES = "L2_QUOTES"
 
+
 class ProviderTransport(StrEnum):
     NDJSON_BRIDGE = "NDJSON_BRIDGE"
     DIRECT_SDK = "DIRECT_SDK"
     HTTP = "HTTP"
+
 
 @dataclass(frozen=True, slots=True)
 class ProviderIdentity:
