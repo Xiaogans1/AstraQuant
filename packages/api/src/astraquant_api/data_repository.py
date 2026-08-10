@@ -108,6 +108,11 @@ class DataSnapshotRecord:
     provider_id: str
     manifest_path: str
     created_at: datetime
+    semantic_class: str
+    evidence_class: str
+    run_class: str
+    manifest_schema: str
+    content_digest: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +167,11 @@ class DataCatalogRepository:
             provider_id=manifest.provider["id"],
             manifest_path=str(snapshot.manifest_path),
             created_at=manifest.created_at,
+            semantic_class="LEGACY_SEMANTICS",
+            evidence_class="LEGACY_UNVERIFIED",
+            run_class="EXPLORATORY",
+            manifest_schema="1",
+            content_digest=None,
         )
         snapshot_statement = snapshot_statement.on_conflict_do_nothing(
             index_elements=[data_snapshots.c.snapshot_id]
@@ -322,6 +332,11 @@ def _row_to_snapshot(row: RowMapping) -> DataSnapshotRecord:
         provider_id=row["provider_id"],
         manifest_path=row["manifest_path"],
         created_at=_as_utc(row["created_at"]),
+        semantic_class=row["semantic_class"],
+        evidence_class=row["evidence_class"],
+        run_class=row["run_class"],
+        manifest_schema=row["manifest_schema"],
+        content_digest=row["content_digest"],
     )
 
 

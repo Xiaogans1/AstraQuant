@@ -65,3 +65,23 @@ def test_catalog_staging_is_idempotent_by_snapshot_id(tmp_path: Path) -> None:
         )
 
     assert len(repository.list_quality_issues(published.snapshot_id)) == 1
+
+
+def test_new_v1_snapshot_is_explicitly_legacy(tmp_path: Path) -> None:
+    repository = build_repository(tmp_path)
+    published = publish_fixture(tmp_path)
+
+    repository.stage_snapshot(
+        published,
+        name="A 股日线样例",
+        asset_class="equity",
+        frequency="1d",
+    )
+
+    record = repository.get_snapshot(published.snapshot_id)
+    assert record is not None
+    assert record.semantic_class == "LEGACY_SEMANTICS"
+    assert record.evidence_class == "LEGACY_UNVERIFIED"
+    assert record.run_class == "EXPLORATORY"
+    assert record.manifest_schema == "1"
+    assert record.content_digest is None

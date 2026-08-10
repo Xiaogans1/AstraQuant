@@ -6,6 +6,9 @@ from typing import Any
 from fastapi.testclient import TestClient
 from tests.api.test_paper_routes import build_client
 
+from astraquant_api.database import create_database
+from astraquant_api.paper_repository import PaperRepository
+
 
 def _model_body(model_id: str, metrics_json: str) -> dict[str, str]:
     return {
@@ -48,6 +51,15 @@ def test_model_registration_and_approval_gate(tmp_path: Path) -> None:
     assert approved.status_code == 200
     assert approved.json()["status"] == "APPROVED"
     assert approved.json()["approved_at"] is not None
+
+    repository = PaperRepository(create_database(f"sqlite:///{tmp_path / 'state.sqlite3'}"))
+    record = repository.get_model("lgbm-minute-001")
+    assert record is not None
+    assert record.semantic_class == "LEGACY_SEMANTICS"
+    assert record.evidence_class == "LEGACY_UNVERIFIED"
+    assert record.run_class == "EXPLORATORY"
+    assert record.manifest_schema == "1"
+    assert record.content_digest is None
 
 
 def test_registered_model_cannot_be_duplicated_or_edited_after_approval(

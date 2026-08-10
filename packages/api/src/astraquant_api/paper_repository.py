@@ -10,6 +10,7 @@ from decimal import Decimal
 import sqlalchemy as sa
 from sqlalchemy import Engine, RowMapping
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import IntegrityError
 
 from astraquant_domain import (
     AccountMode,
@@ -316,6 +317,11 @@ class ExperimentRecord:
     summary_json: str
     results_json: str
     created_at: datetime
+    semantic_class: str = "LEGACY_SEMANTICS"
+    evidence_class: str = "LEGACY_UNVERIFIED"
+    run_class: str = "EXPLORATORY"
+    manifest_schema: str = "1"
+    content_digest: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -331,6 +337,11 @@ class ModelRegistryRecord:
     updated_at: datetime
     approved_at: datetime | None
     params_json: str = "{}"
+    semantic_class: str = "LEGACY_SEMANTICS"
+    evidence_class: str = "LEGACY_UNVERIFIED"
+    run_class: str = "EXPLORATORY"
+    manifest_schema: str = "1"
+    content_digest: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -348,6 +359,39 @@ class StrategyRunRecord:
     order_json: str | None
     fill_json: str | None
     decision_time: datetime
+    semantic_class: str = "LEGACY_SEMANTICS"
+    evidence_class: str = "LEGACY_UNVERIFIED"
+    run_class: str = "EXPLORATORY"
+    manifest_schema: str = "1"
+    content_digest: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class LegacyLedgerSealRecord:
+    account_id: str
+    source_revision: str
+    ledger_content_digest: str
+    seal_status: str
+    sealed_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class OpeningImportRecord:
+    import_id: str
+    source_account_id: str
+    source_ledger_seal_digest: str
+    target_account_id: str
+    reconciliation_digest: str
+    status: str
+    created_at: datetime
+
+
+class LegacyLedgerSealedError(RuntimeError):
+    """Raised when a pre-v3 sealed Paper ledger is mutated."""
+
+
+class OpeningImportAlreadyExistsError(RuntimeError):
+    """Raised when a sealed ledger already has an opening import."""
 
 
 def _utc(value: datetime) -> datetime:
@@ -373,6 +417,11 @@ def _model_record(row: RowMapping) -> ModelRegistryRecord:
         created_at=_utc(row["created_at"]),
         updated_at=_utc(row["updated_at"]),
         approved_at=None if row["approved_at"] is None else _utc(row["approved_at"]),
+        semantic_class=row["semantic_class"],
+        evidence_class=row["evidence_class"],
+        run_class=row["run_class"],
+        manifest_schema=row["manifest_schema"],
+        content_digest=row["content_digest"],
     )
 
 
@@ -383,6 +432,11 @@ def _experiment_record(row: RowMapping) -> ExperimentRecord:
         summary_json=row["summary_json"],
         results_json=row["results_json"],
         created_at=_utc(row["created_at"]),
+        semantic_class=row["semantic_class"],
+        evidence_class=row["evidence_class"],
+        run_class=row["run_class"],
+        manifest_schema=row["manifest_schema"],
+        content_digest=row["content_digest"],
     )
 
 
@@ -414,6 +468,9 @@ class PaperRepository:
                     cash=str(account.cash),
                     created_at=_utc(account.created_at),
                     updated_at=_utc(account.updated_at),
+                    semantic_class="LEGACY_SEMANTICS",
+                    evidence_class="LEGACY_UNVERIFIED",
+                    run_class="EXPLORATORY",
                 )
             )
 
@@ -426,6 +483,7 @@ class PaperRepository:
 
     def delete_account(self, account_id: str) -> None:
         with self.engine.begin() as connection:
+            self._ensure_ledger_is_mutable(connection, account_id)
             result = connection.execute(
                 sa.delete(paper_accounts).where(paper_accounts.c.account_id == account_id)
             )
@@ -483,6 +541,7 @@ class PaperRepository:
     def save_state(self, state: LedgerState) -> None:
         assert state.initial_equity is not None
         with self.engine.begin() as connection:
+            self._ensure_ledger_is_mutable(connection, state.account.account_id)
             result = connection.execute(
                 paper_accounts.update()
                 .where(paper_accounts.c.account_id == state.account.account_id)
@@ -605,6 +664,11 @@ class PaperRepository:
                     created_at=_utc(record.created_at),
                     updated_at=_utc(record.updated_at),
                     approved_at=None if record.approved_at is None else _utc(record.approved_at),
+                    semantic_class=record.semantic_class,
+                    evidence_class=record.evidence_class,
+                    run_class=record.run_class,
+                    manifest_schema=record.manifest_schema,
+                    content_digest=record.content_digest,
                 )
                 .on_conflict_do_update(
                     index_elements=[model_registry.c.model_id],
@@ -620,6 +684,11 @@ class PaperRepository:
                         "approved_at": (
                             None if record.approved_at is None else _utc(record.approved_at)
                         ),
+                        "semantic_class": record.semantic_class,
+                        "evidence_class": record.evidence_class,
+                        "run_class": record.run_class,
+                        "manifest_schema": record.manifest_schema,
+                        "content_digest": record.content_digest,
                     },
                 )
             )
@@ -655,8 +724,88 @@ class PaperRepository:
                     summary_json=record.summary_json,
                     results_json=record.results_json,
                     created_at=_utc(record.created_at),
+                    semantic_class=record.semantic_class,
+                    evidence_class=record.evidence_class,
+                    run_class=record.run_class,
+                    manifest_schema=record.manifest_schema,
+                    content_digest=record.content_digest,
                 )
             )
+
+    def get_legacy_ledger_seal(self, account_id: str) -> LegacyLedgerSealRecord | None:
+        with self.engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(paper_legacy_ledger_seals).where(
+                        paper_legacy_ledger_seals.c.account_id == account_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        if row is None:
+            return None
+        return LegacyLedgerSealRecord(
+            account_id=row["account_id"],
+            source_revision=row["source_revision"],
+            ledger_content_digest=row["ledger_content_digest"],
+            seal_status=row["seal_status"],
+            sealed_at=_utc(row["sealed_at"]),
+        )
+
+    def get_opening_import(self, source_account_id: str) -> OpeningImportRecord | None:
+        with self.engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(paper_opening_imports).where(
+                        paper_opening_imports.c.source_account_id == source_account_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        if row is None:
+            return None
+        return OpeningImportRecord(
+            import_id=row["import_id"],
+            source_account_id=row["source_account_id"],
+            source_ledger_seal_digest=row["source_ledger_seal_digest"],
+            target_account_id=row["target_account_id"],
+            reconciliation_digest=row["reconciliation_digest"],
+            status=row["status"],
+            created_at=_utc(row["created_at"]),
+        )
+
+    def record_opening_import(self, record: OpeningImportRecord) -> None:
+        try:
+            with self.engine.begin() as connection:
+                seal_digest = connection.execute(
+                    sa.select(paper_legacy_ledger_seals.c.ledger_content_digest).where(
+                        paper_legacy_ledger_seals.c.account_id == record.source_account_id
+                    )
+                ).scalar_one_or_none()
+                if seal_digest is None:
+                    raise KeyError(record.source_account_id)
+                if seal_digest != record.source_ledger_seal_digest:
+                    raise ValueError(
+                        "opening import seal digest does not match sealed ledger: "
+                        f"{record.source_account_id}"
+                    )
+                connection.execute(
+                    paper_opening_imports.insert().values(
+                        import_id=record.import_id,
+                        source_account_id=record.source_account_id,
+                        source_ledger_seal_digest=record.source_ledger_seal_digest,
+                        target_account_id=record.target_account_id,
+                        reconciliation_digest=record.reconciliation_digest,
+                        status=record.status,
+                        created_at=_utc(record.created_at),
+                    )
+                )
+        except IntegrityError as error:
+            if self.get_opening_import(record.source_account_id) is not None:
+                raise OpeningImportAlreadyExistsError(record.source_account_id) from error
+            raise
 
     def get_daily_open(
         self,
@@ -738,6 +887,11 @@ class PaperRepository:
             "order_json": item.order_json,
             "fill_json": item.fill_json,
             "decision_time": _utc(item.decision_time),
+            "semantic_class": item.semantic_class,
+            "evidence_class": item.evidence_class,
+            "run_class": item.run_class,
+            "manifest_schema": item.manifest_schema,
+            "content_digest": item.content_digest,
         }
 
     @staticmethod
@@ -756,7 +910,22 @@ class PaperRepository:
             order_json=row["order_json"],
             fill_json=row["fill_json"],
             decision_time=_utc(row["decision_time"]),
+            semantic_class=row["semantic_class"],
+            evidence_class=row["evidence_class"],
+            run_class=row["run_class"],
+            manifest_schema=row["manifest_schema"],
+            content_digest=row["content_digest"],
         )
+
+    @staticmethod
+    def _ensure_ledger_is_mutable(connection: sa.Connection, account_id: str) -> None:
+        sealed_account_id = connection.execute(
+            sa.select(paper_legacy_ledger_seals.c.account_id).where(
+                paper_legacy_ledger_seals.c.account_id == account_id
+            )
+        ).scalar_one_or_none()
+        if sealed_account_id is not None:
+            raise LegacyLedgerSealedError(account_id)
 
     @staticmethod
     def _position_values(item: Position) -> dict[str, object]:

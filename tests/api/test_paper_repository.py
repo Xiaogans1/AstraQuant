@@ -2,10 +2,18 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 import sqlalchemy as sa
+from alembic import command
+from tests.api.test_migration_config import _upgrade_to_0008_and_seed
 
 from astraquant_api.database import create_database, migrate_database
-from astraquant_api.paper_repository import PaperRepository
+from astraquant_api.paper_repository import (
+    LegacyLedgerSealedError,
+    OpeningImportAlreadyExistsError,
+    OpeningImportRecord,
+    PaperRepository,
+)
 from astraquant_domain import (
     AccountMode,
     InstrumentId,
@@ -28,6 +36,12 @@ def build_repository(tmp_path: Path) -> PaperRepository:
     url = database_url(tmp_path)
     migrate_database(url)
     return PaperRepository(create_database(url))
+
+
+def upgraded_legacy_repository(tmp_path: Path) -> PaperRepository:
+    config, engine = _upgrade_to_0008_and_seed(tmp_path / "legacy.sqlite3")
+    command.upgrade(config, "head")
+    return PaperRepository(engine)
 
 
 def make_account() -> PaperAccount:
@@ -141,3 +155,45 @@ def test_list_accounts_orders_newest_first(tmp_path: Path) -> None:
         "account-2",
         "account-1",
     ]
+
+
+def test_pre_0009_paper_ledger_is_read_only_after_upgrade(tmp_path: Path) -> None:
+    repository = upgraded_legacy_repository(tmp_path)
+
+    with pytest.raises(LegacyLedgerSealedError, match="account-legacy"):
+        repository.save_state(repository.load_state("account-legacy"))
+    with pytest.raises(LegacyLedgerSealedError, match="account-legacy"):
+        repository.delete_account("account-legacy")
+
+
+def test_opening_import_lineage_is_exactly_once_per_legacy_account(
+    tmp_path: Path,
+) -> None:
+    repository = upgraded_legacy_repository(tmp_path)
+    seal = repository.get_legacy_ledger_seal("account-legacy")
+    assert seal is not None
+    opening = OpeningImportRecord(
+        import_id="opening-import-1",
+        source_account_id="account-legacy",
+        source_ledger_seal_digest=seal.ledger_content_digest,
+        target_account_id="account-v3",
+        reconciliation_digest="sha256:" + "2" * 64,
+        status="RECONCILED",
+        created_at=NOW,
+    )
+
+    repository.record_opening_import(opening)
+
+    with pytest.raises(OpeningImportAlreadyExistsError, match="account-legacy"):
+        repository.record_opening_import(
+            OpeningImportRecord(
+                import_id="opening-import-2",
+                source_account_id=opening.source_account_id,
+                source_ledger_seal_digest=opening.source_ledger_seal_digest,
+                target_account_id=opening.target_account_id,
+                reconciliation_digest=opening.reconciliation_digest,
+                status=opening.status,
+                created_at=opening.created_at,
+            )
+        )
+    assert repository.get_opening_import("account-legacy") == opening

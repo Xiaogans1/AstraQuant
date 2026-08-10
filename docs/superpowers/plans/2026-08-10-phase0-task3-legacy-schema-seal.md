@@ -108,7 +108,7 @@ git commit -m "feat(api): 建立统一数据库schema registry"
 - Modify: `packages/api/src/astraquant_api/data_repository.py`
 - Modify: `packages/api/src/astraquant_api/paper_repository.py`
 
-- [ ] **Step 1: 写真实 0008→head 原地升级红灯**
+- [x] **Step 1: 写真实 0008→head 原地升级红灯**
 
 ```python
 def test_0009_backfills_legacy_classes_and_seals_existing_paper(tmp_path: Path) -> None:
@@ -133,13 +133,13 @@ def test_0009_backfills_legacy_classes_and_seals_existing_paper(tmp_path: Path) 
 
 Seed 中 model 使用 `provider=eastmoney` 风格 artifact path、AUC=0.99、net_return=9.0，仍必须 legacy；snapshot 名称含 `formal/real-api` 也不能升级。
 
-- [ ] **Step 2: 运行升级测试并确认 0009 缺失红灯**
+- [x] **Step 2: 运行升级测试并确认 0009 缺失红灯**
 
 Run: `uv run pytest tests/api/test_migration_config.py::test_0009_backfills_legacy_classes_and_seals_existing_paper -q`
 
 Expected: FAIL，head 仍为 `0008_experiments` 或新 columns/tables 不存在。
 
-- [ ] **Step 3: 实现 0009 schema**
+- [x] **Step 3: 实现 0009 schema**
 
 为 `data_snapshots`、`model_registry`、`research_experiments`、`paper_strategy_runs` 增加：
 
@@ -153,15 +153,15 @@ sa.Column("content_digest", sa.String(71))
 
 为 `paper_accounts` 增加前三个分类字段；创建 `paper_legacy_ledger_seals(account_id PK/FK, source_revision, ledger_content_digest, seal_status, sealed_at)` 与 `paper_opening_imports(import_id PK, source_account_id UNIQUE/FK, source_ledger_seal_digest, target_account_id, reconciliation_digest, status, created_at)`。
 
-- [ ] **Step 4: 实现 deterministic legacy ledger sealing**
+- [x] **Step 4: 实现 deterministic legacy ledger sealing**
 
 migration 对每个升级前 account 按固定 table 顺序和主键顺序读取 account/positions/orders/fills/equity/strategy runs/daily open，datetime/date/Decimal/bytes 转为稳定字符串，canonical JSON 后生成 `sha256:<hex>`；digest 不含迁移时间、数据库路径或 row insertion order。任何读取失败使 migration 回滚，不写伪 seal。
 
-- [ ] **Step 5: 实现可逆 downgrade**
+- [x] **Step 5: 实现可逆 downgrade**
 
 downgrade 先删除 opening imports/seals，再按 SQLite batch alter 删除新增 columns；不删除 0008 原有业务行。
 
-- [ ] **Step 6: 运行 migration 与 parity tests**
+- [x] **Step 6: 运行 migration 与 parity tests**
 
 Run:
 
@@ -176,7 +176,7 @@ uv run alembic -c packages/api/alembic.ini -x "database_url=sqlite:///$db" upgra
 
 Expected: tests 和 CLI migration 全部 exit 0，Alembic 输出 upgrade 到 `0009_v3_legacy_evidence`。
 
-- [ ] **Step 7: 提交 migration**
+- [x] **Step 7: 提交 migration**
 
 ```powershell
 git add packages/api/migrations/versions/0009_v3_legacy_evidence.py packages/api/src/astraquant_api/data_repository.py packages/api/src/astraquant_api/paper_repository.py tests/api/test_migration_config.py tests/api/test_schema_registry.py
@@ -193,7 +193,7 @@ git commit -m "feat(api): 迁移旧量化证据与账本封印"
 - Modify: `packages/api/src/astraquant_api/data_repository.py`
 - Modify: `packages/api/src/astraquant_api/paper_repository.py`
 
-- [ ] **Step 1: 写 repository round-trip 与 sealed mutation 红灯**
+- [x] **Step 1: 写 repository round-trip 与 sealed mutation 红灯**
 
 ```python
 def test_new_v1_snapshot_is_explicitly_legacy(tmp_path: Path) -> None:
@@ -213,7 +213,7 @@ def test_pre_0009_paper_ledger_is_read_only_after_upgrade(tmp_path: Path) -> Non
         repository.delete_account("account-legacy")
 ```
 
-- [ ] **Step 2: 写 opening import exactly-once 红灯**
+- [x] **Step 2: 写 opening import exactly-once 红灯**
 
 ```python
 def test_opening_import_lineage_is_exactly_once_per_legacy_account(tmp_path: Path) -> None:
@@ -226,15 +226,15 @@ def test_opening_import_lineage_is_exactly_once_per_legacy_account(tmp_path: Pat
     )
 ```
 
-- [ ] **Step 3: 实现 explicit records/read/write**
+- [x] **Step 3: 实现 explicit records/read/write**
 
 `DataSnapshotRecord`、`ModelRegistryRecord`、`ExperimentRecord`、`StrategyRunRecord` 增加分类字段并在所有 insert/update/row mapper 显式处理；旧 API 构造器使用安全 legacy defaults，不添加任何 FORMAL 默认值。
 
-- [ ] **Step 4: 实现 seal guard 与 opening import repository**
+- [x] **Step 4: 实现 seal guard 与 opening import repository**
 
 `get_legacy_ledger_seal(account_id)` 返回 frozen record；`save_state/delete_account` 在 transaction 首行查询 seal，存在即抛 `LegacyLedgerSealedError`。`record_opening_import` 必须引用同一 account 的 seal digest，依赖 database UNIQUE(source_account_id) 保证跨进程 exactly once，冲突转换为 `OpeningImportAlreadyExistsError`。
 
-- [ ] **Step 5: 运行 repository tests**
+- [x] **Step 5: 运行 repository tests**
 
 Run:
 
