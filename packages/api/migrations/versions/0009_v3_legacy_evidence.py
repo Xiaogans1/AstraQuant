@@ -92,8 +92,7 @@ def _ledger_digest(connection: sa.Connection, account_id: str) -> str:
         statement = statement.order_by(*(table.c[key] for key in order_keys))
         rows = connection.execute(statement).mappings()
         table_payload[table_name] = [
-            {key: _normalize(value) for key, value in sorted(dict(row).items())}
-            for row in rows
+            {key: _normalize(value) for key, value in sorted(dict(row).items())} for row in rows
         ]
     canonical = json.dumps(
         payload,

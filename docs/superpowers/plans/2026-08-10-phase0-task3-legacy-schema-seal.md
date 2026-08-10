@@ -247,7 +247,7 @@ uv run mypy packages/api/src/astraquant_api tests/api
 
 Expected: 全部 exit 0；现有 fresh database Paper round-trip tests 继续通过。
 
-- [ ] **Step 6: 提交 repository contracts**
+- [x] **Step 6: 提交 repository contracts**
 
 ```powershell
 git add packages/api/src/astraquant_api/data_repository.py packages/api/src/astraquant_api/paper_repository.py tests/api/test_data_repository.py tests/api/test_model_registry.py tests/api/test_paper_repository.py
@@ -261,7 +261,7 @@ git commit -m "fix(api): 阻止旧账本覆写为v3状态"
 - Modify: `docs/superpowers/plans/2026-08-10-quant-core-v3-phase-0-repository-ci-legacy.md`
 - Modify: `docs/superpowers/plans/2026-08-10-phase0-task3-legacy-schema-seal.md`
 
-- [ ] **Step 1: 运行 Task 3 精确迁移验收**
+- [x] **Step 1: 运行 Task 3 精确迁移验收**
 
 Run:
 
@@ -279,7 +279,7 @@ uv run mypy packages/api/src tests/api
 
 Expected: 全部 exit 0。
 
-- [ ] **Step 2: 运行完整共享门**
+- [x] **Step 2: 运行完整共享门**
 
 Run: `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1 -Scope All`
 

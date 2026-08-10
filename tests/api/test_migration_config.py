@@ -154,16 +154,14 @@ def test_0009_backfills_legacy_classes_and_seals_existing_paper(
     with engine.connect() as connection:
         snapshot = connection.execute(sa.text("SELECT * FROM data_snapshots")).mappings().one()
         model = connection.execute(sa.text("SELECT * FROM model_registry")).mappings().one()
-        experiment = connection.execute(
-            sa.text("SELECT * FROM research_experiments")
-        ).mappings().one()
-        replay = connection.execute(
-            sa.text("SELECT * FROM paper_strategy_runs")
-        ).mappings().one()
+        experiment = (
+            connection.execute(sa.text("SELECT * FROM research_experiments")).mappings().one()
+        )
+        replay = connection.execute(sa.text("SELECT * FROM paper_strategy_runs")).mappings().one()
         account = connection.execute(sa.text("SELECT * FROM paper_accounts")).mappings().one()
-        seal = connection.execute(
-            sa.text("SELECT * FROM paper_legacy_ledger_seals")
-        ).mappings().one()
+        seal = (
+            connection.execute(sa.text("SELECT * FROM paper_legacy_ledger_seals")).mappings().one()
+        )
         version = connection.execute(
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar_one()

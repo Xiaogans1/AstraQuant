@@ -77,12 +77,12 @@ def test_derived_real_api_requires_closed_ancestry() -> None:
 - Test: `tests/api/test_model_registry.py`
 - Test: `tests/api/test_paper_repository.py`
 
-- [ ] 先写 schema registry parity test，把 repository/data/paper 的全部 table metadata 注册给 Alembic，比较 migration head 的 table/column/index/constraint；缺任一 metadata 都失败，不能依赖不完整 autogenerate。
-- [ ] 先写从真实 0008 schema 原地升级测试：现存 snapshots 回填 `LEGACY_UNVERIFIED`；model/replay/experiments/Paper ledger 回填 `LEGACY_SEMANTICS`；迁移不根据文件名、AUC 或当前可访问性追认来源。
-- [ ] 运行定向 tests，确认 0009 缺失红灯。
-- [ ] 建立统一 schema registry 并让 Alembic/tests 显式加载全部 metadata；在 migration 添加 `semantic_class/evidence_class/run_class/manifest_schema/content_digest`、legacy ledger seal 与 one-time opening import lineage；`down_revision = "0008_experiments"`。
-- [ ] repository 显式读写新字段；旧账只能 seal/read，不允许继续用 delete-and-rewrite 更新为 v3 状态。
-- [ ] 运行：
+- [x] 先写 schema registry parity test，把 repository/data/paper 的全部 table metadata 注册给 Alembic，比较 migration head 的 table/column/index/constraint；缺任一 metadata 都失败，不能依赖不完整 autogenerate。
+- [x] 先写从真实 0008 schema 原地升级测试：现存 snapshots 回填 `LEGACY_UNVERIFIED`；model/replay/experiments/Paper ledger 回填 `LEGACY_SEMANTICS`；迁移不根据文件名、AUC 或当前可访问性追认来源。
+- [x] 运行定向 tests，确认 0009 缺失红灯。
+- [x] 建立统一 schema registry 并让 Alembic/tests 显式加载全部 metadata；在 migration 添加 `semantic_class/evidence_class/run_class/manifest_schema/content_digest`、legacy ledger seal 与 one-time opening import lineage；`down_revision = "0008_experiments"`。
+- [x] repository 显式读写新字段；旧账只能 seal/read，不允许继续用 delete-and-rewrite 更新为 v3 状态。
+- [x] 运行：
 
 ```powershell
 $phase0RunId = [guid]::NewGuid().ToString('n')
@@ -95,7 +95,7 @@ uv run pytest tests/api/test_schema_registry.py tests/api/test_migration_config.
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 ```
 
-- [ ] 提交：`git commit -m "feat(api): 封存旧量化证据与账本"`
+- [x] 提交：`git commit -m "feat(api): 封存旧量化证据与账本"`
 
 ## Task 4: 建立唯一 FormalAdmissionService
 
