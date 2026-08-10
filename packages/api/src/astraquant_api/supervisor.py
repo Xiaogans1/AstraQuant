@@ -10,7 +10,11 @@ from queue import Empty
 from threading import Event, Lock, Thread
 from typing import Any
 
-from astraquant_api.repository import TaskRepository
+from astraquant_api.repository import (
+    TaskRepository,
+    WorkerResultConflictError,
+    WorkerResultValidationError,
+)
 from astraquant_api.task_model import (
     TERMINAL_TASK_STATUSES,
     TaskRecord,
@@ -19,6 +23,7 @@ from astraquant_api.task_model import (
 )
 from astraquant_api.worker import (
     DEFAULT_DEMO_STEP_DELAY,
+    DataImportResult,
     WorkerMessage,
     WorkerMessageKind,
     run_demo_worker,
@@ -220,21 +225,44 @@ class TaskSupervisor:
             )
             return False
 
+        if message.kind is WorkerMessageKind.SUCCEEDED and isinstance(
+            message.payload, DataImportResult
+        ):
+            try:
+                self._repository.complete_data_import(task, message.payload)
+            except (WorkerResultValidationError, WorkerResultConflictError) as error:
+                failed = task.evolve(
+                    status=transition_task(task.status, TaskStatus.FAILED),
+                    progress=message.progress,
+                    current_step="failed",
+                    finished_at=datetime.now(UTC),
+                    error_code="worker_result_invalid",
+                    error_message=str(error),
+                )
+                self._repository.update(
+                    failed,
+                    expected_revision=task.revision,
+                    event_type="task.failed",
+                    reason="worker_result_invalid",
+                )
+            return True
+
         target = {
             WorkerMessageKind.SUCCEEDED: TaskStatus.SUCCEEDED,
             WorkerMessageKind.FAILED: TaskStatus.FAILED,
             WorkerMessageKind.CANCELED: TaskStatus.CANCELED,
         }[message.kind]
+        generic_payload = message.payload if isinstance(message.payload, dict) else None
         updated = task.evolve(
             status=transition_task(task.status, target),
             progress=message.progress,
             current_step=message.current_step,
             finished_at=datetime.now(UTC),
-            result=message.payload if target is TaskStatus.SUCCEEDED else None,
+            result=generic_payload if target is TaskStatus.SUCCEEDED else None,
             error_code="worker_failed" if target is TaskStatus.FAILED else None,
             error_message=(
-                str(message.payload.get("error_type"))
-                if target is TaskStatus.FAILED and message.payload is not None
+                str(generic_payload.get("error_type"))
+                if target is TaskStatus.FAILED and generic_payload is not None
                 else None
             ),
         )

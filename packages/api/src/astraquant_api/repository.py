@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 import sqlalchemy as sa
@@ -15,8 +17,20 @@ from astraquant_api.task_model import (
     TaskStatus,
     transition_task,
 )
+from astraquant_api.worker import DataImportResult
+from astraquant_data.manifests import SnapshotManifest
+from astraquant_data.parquet_store import PublishedSnapshot
 
 metadata = sa.MetaData()
+
+
+class WorkerResultValidationError(ValueError):
+    """Raised when an untrusted Worker result fails API-side validation."""
+
+
+class WorkerResultConflictError(RuntimeError):
+    """Raised when task state changes before atomic result ingestion."""
+
 
 tasks = sa.Table(
     "tasks",
@@ -90,6 +104,15 @@ def _json_dump(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+def _sha256_file(path: Path, *, prefix: bool = True) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    value = digest.hexdigest()
+    return f"sha256:{value}" if prefix else value
+
+
 def _task_values(task: TaskRecord) -> dict[str, object]:
     return {
         "task_id": task.task_id,
@@ -149,8 +172,11 @@ def _event_values(
 
 
 class TaskRepository:
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, *, legacy_data_root: Path | None = None) -> None:
         self._engine = engine
+        self._legacy_data_root = (
+            None if legacy_data_root is None else legacy_data_root.expanduser().resolve()
+        )
 
     def create(self, task: TaskRecord, *, event_type: str) -> None:
         with self._engine.begin() as connection:
@@ -205,6 +231,116 @@ class TaskRepository:
                 task_events.insert().values(**_event_values(task, event_type, reason))
             )
         return True
+
+    def complete_data_import(
+        self,
+        task: TaskRecord,
+        result: DataImportResult,
+    ) -> TaskRecord:
+        """Validate a Worker file result and publish catalog/task atomically."""
+
+        snapshot = self._validate_data_import_result(task, result)
+        completed = task.evolve(
+            status=transition_task(task.status, TaskStatus.SUCCEEDED),
+            progress=100,
+            current_step="completed",
+            finished_at=datetime.now(UTC),
+            result={
+                "dataset_id": result.dataset_id,
+                "snapshot_id": result.snapshot_id,
+                "row_count": result.row_count,
+                "quality": "PUBLISHED",
+                "semantic_class": result.semantic_class,
+                "evidence_class": result.evidence_class,
+                "run_class": result.run_class,
+                "observed_received_time": result.observed_received_time.isoformat(),
+            },
+        )
+        values = _task_values(completed)
+        values.pop("task_id")
+        from astraquant_api.data_repository import DataCatalogRepository
+
+        with self._engine.begin() as connection:
+            DataCatalogRepository(self._engine).stage_and_publish_on(
+                connection,
+                snapshot,
+                name=result.name,
+                asset_class=result.asset_class,
+                frequency=result.frequency,
+            )
+            updated = connection.execute(
+                tasks.update()
+                .where(tasks.c.task_id == task.task_id)
+                .where(tasks.c.revision == task.revision)
+                .values(**values)
+            )
+            if updated.rowcount != 1:
+                raise WorkerResultConflictError(
+                    f"task {task.task_id} changed before Worker result ingestion"
+                )
+            connection.execute(
+                task_events.insert().values(**_event_values(completed, "task.succeeded", None))
+            )
+        return completed
+
+    def _validate_data_import_result(
+        self,
+        task: TaskRecord,
+        result: DataImportResult,
+    ) -> PublishedSnapshot:
+        if task.task_type != "data.import":
+            raise WorkerResultValidationError("data import result requires data.import task")
+        if self._legacy_data_root is None:
+            raise WorkerResultValidationError("legacy data root is not configured")
+        if (
+            result.semantic_class,
+            result.evidence_class,
+            result.run_class,
+        ) != ("LEGACY_SEMANTICS", "LEGACY_UNVERIFIED", "EXPLORATORY"):
+            raise WorkerResultValidationError("Worker result classification is not legacy")
+        if (
+            result.observed_received_time.tzinfo is None
+            or result.observed_received_time.utcoffset() is None
+        ):
+            raise WorkerResultValidationError("observed_received_time must be timezone-aware")
+        manifest_path = Path(result.manifest_path).expanduser().resolve()
+        if not manifest_path.is_relative_to(self._legacy_data_root):
+            raise WorkerResultValidationError("manifest path escapes legacy data root")
+        if not manifest_path.is_file():
+            raise WorkerResultValidationError("manifest path is not a file")
+        if _sha256_file(manifest_path) != result.manifest_digest:
+            raise WorkerResultValidationError("manifest digest mismatch")
+        try:
+            manifest = SnapshotManifest.from_path(manifest_path)
+        except (KeyError, TypeError, ValueError, OSError) as error:
+            raise WorkerResultValidationError("invalid snapshot manifest") from error
+        if (
+            manifest.schema_version != 1
+            or manifest.kind != "bars"
+            or manifest.snapshot_id != result.snapshot_id
+            or manifest.dataset_id != result.dataset_id
+            or manifest.row_count != result.row_count
+        ):
+            raise WorkerResultValidationError("Worker result identity does not match manifest")
+        if manifest.source_fetched_at != result.observed_received_time:
+            raise WorkerResultValidationError(
+                "observed_received_time does not match manifest source_fetched_at"
+            )
+        snapshot_path = manifest_path.parent.resolve()
+        for item in manifest.files:
+            file_path = (snapshot_path / item.path).resolve()
+            if not file_path.is_relative_to(snapshot_path) or not file_path.is_relative_to(
+                self._legacy_data_root
+            ):
+                raise WorkerResultValidationError("snapshot file escapes legacy data root")
+            if not file_path.is_file() or _sha256_file(file_path, prefix=False) != item.sha256:
+                raise WorkerResultValidationError("snapshot file digest mismatch")
+        return PublishedSnapshot(
+            snapshot_id=manifest.snapshot_id,
+            snapshot_path=snapshot_path,
+            manifest_path=manifest_path,
+            manifest=manifest,
+        )
 
     def list_events(
         self,

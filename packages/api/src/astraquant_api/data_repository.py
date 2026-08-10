@@ -146,6 +146,46 @@ class DataCatalogRepository:
         asset_class: str,
         frequency: str,
     ) -> None:
+        with self._engine.begin() as connection:
+            self._write_snapshot_on(
+                connection,
+                snapshot,
+                name=name,
+                asset_class=asset_class,
+                frequency=frequency,
+                status=SnapshotStatus.STAGED,
+            )
+
+    def stage_and_publish_on(
+        self,
+        connection: sa.Connection,
+        snapshot: PublishedSnapshot,
+        *,
+        name: str,
+        asset_class: str,
+        frequency: str,
+    ) -> None:
+        """Publish catalog state using a transaction owned by the API caller."""
+
+        self._write_snapshot_on(
+            connection,
+            snapshot,
+            name=name,
+            asset_class=asset_class,
+            frequency=frequency,
+            status=SnapshotStatus.PUBLISHED,
+        )
+
+    @staticmethod
+    def _write_snapshot_on(
+        connection: sa.Connection,
+        snapshot: PublishedSnapshot,
+        *,
+        name: str,
+        asset_class: str,
+        frequency: str,
+        status: SnapshotStatus,
+    ) -> None:
         manifest = snapshot.manifest
         dataset_statement = sqlite_insert(data_datasets).values(
             dataset_id=manifest.dataset_id,
@@ -160,7 +200,7 @@ class DataCatalogRepository:
         snapshot_statement = sqlite_insert(data_snapshots).values(
             snapshot_id=manifest.snapshot_id,
             dataset_id=manifest.dataset_id,
-            status=SnapshotStatus.STAGED.value,
+            status=status.value,
             row_count=manifest.row_count,
             min_event_time=manifest.min_event_time,
             max_event_time=manifest.max_event_time,
@@ -176,27 +216,26 @@ class DataCatalogRepository:
         snapshot_statement = snapshot_statement.on_conflict_do_nothing(
             index_elements=[data_snapshots.c.snapshot_id]
         )
-        with self._engine.begin() as connection:
-            connection.execute(dataset_statement)
-            result = connection.execute(snapshot_statement)
-            if result.rowcount != 1:
-                return
-            quality_values = [
-                {
-                    "snapshot_id": manifest.snapshot_id,
-                    "code": issue.code.value,
-                    "severity": issue.severity.value,
-                    "count": issue.count,
-                    "samples_json": json.dumps(
-                        issue.sample_keys,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
-                }
-                for issue in manifest.quality.issues
-            ]
-            if quality_values:
-                connection.execute(data_quality_issues.insert(), quality_values)
+        connection.execute(dataset_statement)
+        result = connection.execute(snapshot_statement)
+        if result.rowcount != 1:
+            return
+        quality_values = [
+            {
+                "snapshot_id": manifest.snapshot_id,
+                "code": issue.code.value,
+                "severity": issue.severity.value,
+                "count": issue.count,
+                "samples_json": json.dumps(
+                    issue.sample_keys,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ),
+            }
+            for issue in manifest.quality.issues
+        ]
+        if quality_values:
+            connection.execute(data_quality_issues.insert(), quality_values)
 
     def mark_published(self, snapshot_id: str) -> bool:
         with self._engine.begin() as connection:

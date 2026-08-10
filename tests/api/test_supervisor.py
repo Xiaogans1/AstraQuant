@@ -4,6 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from astraquant_api.data_repository import DataCatalogRepository, SnapshotStatus
+from astraquant_api.data_worker import run_data_import_worker
 from astraquant_api.database import create_database, migrate_database
 from astraquant_api.repository import TaskRepository
 from astraquant_api.supervisor import TaskSupervisor
@@ -125,3 +127,42 @@ def test_shutdown_cancels_live_jobs(tmp_path: Path) -> None:
     assert stopped is not None
     assert stopped.status is TaskStatus.CANCELED
     assert supervisor.active_count() == 0
+
+
+def test_data_worker_result_is_ingested_by_api_supervisor(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'data-supervisor.sqlite3'}"
+    migrate_database(database_url)
+    engine = create_database(database_url)
+    repository = TaskRepository(engine, legacy_data_root=tmp_path / "data")
+    catalog = DataCatalogRepository(engine)
+    task = TaskRecord.create("data.import", "data-import-supervisor")
+    repository.create(task, event_type="task.created")
+    supervisor = TaskSupervisor(repository)
+
+    supervisor.start(
+        task,
+        run_data_import_worker,
+        (
+            {
+                "provider": "fixture",
+                "instrument_id": "600000.SSE",
+                "frequency": "1d",
+                "start": "2026-07-20",
+                "end": "2026-07-24",
+                "adjustment": "none",
+            },
+            str(tmp_path / "data"),
+        ),
+    )
+    completed = wait_for(
+        repository,
+        task.task_id,
+        lambda current: current.status in TERMINAL_TASK_STATUSES,
+    )
+    supervisor.shutdown(1)
+
+    assert completed.status is TaskStatus.SUCCEEDED
+    assert completed.result is not None
+    snapshot = catalog.get_snapshot(str(completed.result["snapshot_id"]))
+    assert snapshot is not None
+    assert snapshot.status is SnapshotStatus.PUBLISHED

@@ -84,27 +84,27 @@ Commit: `git commit -m "refactor(worker): 仅返回类型化数据产物"`
 - Modify: `tests/api/test_supervisor.py`
 - Modify: `tests/api/test_data_worker.py`
 
-- [ ] **Step 1: 写成功 ingestion 红灯**
+- [x] **Step 1: 写成功 ingestion 红灯**
 
 创建 RUNNING `data.import` task 和真实 Worker result；调用 API-side ingestion 后断言同一次完成产生 `PUBLISHED` legacy snapshot、SUCCEEDED task 与 terminal event，result JSON 只含可序列化 identity/classification。
 
-- [ ] **Step 2: 写篡改/逃逸/原子回滚红灯**
+- [x] **Step 2: 写篡改/逃逸/原子回滚红灯**
 
 逐一篡改 manifest digest、Parquet file、snapshot ID、classification、manifest path 越出 configured legacy root；全部抛 `WorkerResultValidationError`，catalog 无新增，task 保持 RUNNING。再注入 task revision 冲突，断言 catalog insert 回滚。
 
-- [ ] **Step 3: 提取 connection-scoped catalog writer**
+- [x] **Step 3: 提取 connection-scoped catalog writer**
 
 `DataCatalogRepository` 提供不自行开启事务的 `stage_and_publish_on(connection, snapshot, ...)`，复用现有 insert/quality 逻辑；公开 `stage_snapshot/mark_published` 行为保持兼容。
 
-- [ ] **Step 4: 实现 TaskRepository ingestion**
+- [x] **Step 4: 实现 TaskRepository ingestion**
 
 `TaskRepository` 构造时接收 canonical `legacy_data_root`；`complete_worker_result()` 重新 resolve path、读取并 canonical 验证 manifest、重算 manifest/file SHA-256、校验 typed fields/classification/timezone，然后在一个 `engine.begin()` 内写 catalog 和 task/event。任何异常先回滚再抛。
 
-- [ ] **Step 5: 接入 Supervisor/CLI**
+- [x] **Step 5: 接入 Supervisor/CLI**
 
 `TaskSupervisor` 对 SUCCEEDED typed result 调用唯一 repository ingestion；generic Demo dict 仍走现有 update。CLI 用 `TaskRepository(engine, legacy_data_root=config.legacy_data_root)`；data route 只把 `config/state legacy_data_root` 作为 Worker 参数，不暴露 database URL。
 
-- [ ] **Step 6: 验证并提交**
+- [x] **Step 6: 验证并提交**
 
 Run: `uv run pytest tests/api/test_data_repository.py tests/api/test_data_worker.py tests/api/test_supervisor.py tests/api/test_data_routes.py -q`
 

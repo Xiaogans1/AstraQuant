@@ -67,7 +67,7 @@ def serve() -> None:
     database_url = f"sqlite:///{config.database_path}"
     migrate_database(database_url)
     engine = create_database(database_url)
-    repository = TaskRepository(engine)
+    repository = TaskRepository(engine, legacy_data_root=config.legacy_data_root)
     repository.interrupt_active_tasks("service_restarted")
     data_catalog = DataCatalogRepository(engine)
     paper_repository = PaperRepository(engine)
