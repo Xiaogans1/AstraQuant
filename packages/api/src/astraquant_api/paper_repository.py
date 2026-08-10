@@ -634,7 +634,9 @@ class PaperRepository:
             )
         return None if row is None else _model_record(row)
 
-    def latest_approved_model(self) -> ModelRegistryRecord | None:
+    def latest_approved_legacy_model(self) -> ModelRegistryRecord | None:
+        """Return the newest legacy Demo model; never use as a FORMAL selector."""
+
         with self.engine.connect() as connection:
             row = (
                 connection.execute(

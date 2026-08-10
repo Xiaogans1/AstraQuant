@@ -218,7 +218,7 @@ class PaperStrategyService:
         if not Decimal("0") < max_position_percent <= Decimal("100"):
             raise ValueError("max_position_percent must be between 0 and 100")
         state = self._paper_service.get_state(account_id)
-        model = self._repository.latest_approved_model()
+        model = self._repository.latest_approved_legacy_model()
         if model is not None and self._market_service.connection().state is ConnectionState.LIVE:
             quote = self._market_service.latest_quote(str(instrument_id))
             if quote is not None:

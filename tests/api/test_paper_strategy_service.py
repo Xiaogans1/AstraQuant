@@ -574,6 +574,8 @@ def test_run_uses_approved_model_signal_when_available(tmp_path: Path) -> None:
 
     assert result.decision.signal.strategy_id == "intraday-momentum-volume"
     assert result.outcome is StrategyOutcome.HOLD
+    assert hasattr(service._repository, "latest_approved_legacy_model")
+    assert not hasattr(service._repository, "latest_approved_model")
 
 
 def test_run_uses_approved_model_artifact_end_to_end(tmp_path: Path) -> None:

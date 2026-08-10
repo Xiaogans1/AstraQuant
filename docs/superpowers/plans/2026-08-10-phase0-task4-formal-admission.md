@@ -75,15 +75,15 @@ Commit: `git commit -m "fix(api): 固定旧研究入口为探索语义"`
 - Modify: `tests/api/test_paper_strategy_service.py`
 - Create: `tests/tools/test_publish_model.py`
 
-- [ ] **Step 1: 写 selector isolation 红灯**
+- [x] **Step 1: 写 selector isolation 红灯**
 
 将 repository 方法重命名/包裹为 `latest_approved_legacy_model()`；策略服务的旧 Demo 路径必须显式调用 legacy selector。FormalAdmissionService 测试用 repository spy 证明永不调用该方法。
 
-- [ ] **Step 2: 写 publish CLI classification 红灯**
+- [x] **Step 2: 写 publish CLI classification 红灯**
 
 `register_approved_model()` 无论指标或 `force=True` 都只写 `LEGACY_SEMANTICS/LEGACY_UNVERIFIED/EXPLORATORY`；任何 `run_class=FORMAL` 参数拒绝。`force` 只允许覆盖同一 legacy model，不改变 classification。
 
-- [ ] **Step 3: 实现与回归**
+- [x] **Step 3: 实现与回归**
 
 Run: `uv run pytest tests/api/test_paper_strategy_service.py tests/tools/test_publish_model.py -q`
 
