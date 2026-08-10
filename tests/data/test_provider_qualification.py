@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -10,6 +11,16 @@ from astraquant_data.provider_identity import (
     ProviderIdentity,
     ProviderTransport,
 )
+from astraquant_data.provider_qualification import (
+    CapabilityResult,
+    CheckStatus,
+    ProbeEvidence,
+    QualificationCheck,
+    QualificationCoverage,
+    QualificationReport,
+)
+
+NOW = datetime(2026, 8, 10, 1, 2, 3, tzinfo=UTC)
 
 
 def _digest(character: str) -> str:
@@ -105,3 +116,166 @@ def test_same_vendor_capabilities_have_distinct_identities() -> None:
         ProviderCapability.L2_QUOTES,
     }
     assert len({identity.identity_digest for identity in identities}) == len(identities)
+
+
+def _probe(seed: str = "2") -> ProbeEvidence:
+    return ProbeEvidence(
+        request_digest=_digest(seed),
+        raw_response_digest=_digest("3"),
+        observed_at=NOW,
+    )
+
+
+def _coverage() -> QualificationCoverage:
+    return QualificationCoverage(
+        start=date(2020, 1, 1),
+        end=date(2026, 8, 8),
+        instruments=("600000.SSE", "000001.SZSE"),
+        delisted_instruments=("600001.SSE",),
+    )
+
+
+def _results(status: CheckStatus = CheckStatus.PASS) -> tuple[CapabilityResult, ...]:
+    return tuple(
+        CapabilityResult(
+            check=check,
+            status=status,
+            evidence_digest=_digest(format(index + 4, "x")),
+        )
+        for index, check in enumerate(QualificationCheck)
+    )
+
+
+def _report(
+    *,
+    probes: tuple[ProbeEvidence, ...] | None = None,
+    coverage: QualificationCoverage | None = None,
+    results: tuple[CapabilityResult, ...] | None = None,
+    adjust_modes: tuple[str, ...] = ("NONE", "FORWARD"),
+    units: tuple[str, ...] = ("price=CNY", "volume=share"),
+) -> QualificationReport:
+    return QualificationReport(
+        identity=_identity(),
+        probes=(_probe(),) if probes is None else probes,
+        coverage=_coverage() if coverage is None else coverage,
+        results=_results() if results is None else results,
+        adjust_modes=adjust_modes,
+        units=units,
+        observed_at=NOW,
+    )
+
+
+def test_qualification_report_requires_complete_passed_evidence_matrix() -> None:
+    report = _report()
+
+    assert set(QualificationCheck) == {
+        QualificationCheck.COVERAGE,
+        QualificationCheck.DELISTED_INSTRUMENT,
+        QualificationCheck.ADJUST_AND_UNITS,
+        QualificationCheck.PAGINATION_AND_TRUNCATION,
+        QualificationCheck.REVISION_BEHAVIOR,
+        QualificationCheck.RATE_LIMIT,
+        QualificationCheck.SCHEMA_EVOLUTION,
+    }
+    assert report.approvable is True
+    assert report.schema_version == "astraquant.provider-qualification-report/v1"
+    assert report.report_digest.startswith("sha256:")
+
+
+@pytest.mark.parametrize(
+    "report",
+    [
+        _report(probes=()),
+        _report(
+            coverage=QualificationCoverage(
+                start=date(2020, 1, 1),
+                end=date(2026, 8, 8),
+                instruments=(),
+                delisted_instruments=("600001.SSE",),
+            )
+        ),
+        _report(
+            coverage=QualificationCoverage(
+                start=date(2020, 1, 1),
+                end=date(2026, 8, 8),
+                instruments=("600000.SSE",),
+                delisted_instruments=(),
+            )
+        ),
+        _report(results=_results()[:-1]),
+        _report(results=_results(CheckStatus.FAIL)),
+        _report(results=_results(CheckStatus.NOT_TESTED)),
+        _report(adjust_modes=()),
+        _report(units=()),
+    ],
+)
+def test_incomplete_qualification_report_is_not_approvable(
+    report: QualificationReport,
+) -> None:
+    assert report.approvable is False
+
+
+def test_qualification_report_rejects_duplicate_checks() -> None:
+    result = _results()[0]
+
+    with pytest.raises(ValueError, match="duplicate qualification check"):
+        _report(results=(result, result))
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda: ProbeEvidence(
+            request_digest="invalid",
+            raw_response_digest=_digest("3"),
+            observed_at=NOW,
+        ),
+        lambda: ProbeEvidence(
+            request_digest=_digest("2"),
+            raw_response_digest="invalid",
+            observed_at=NOW,
+        ),
+        lambda: ProbeEvidence(
+            request_digest=_digest("2"),
+            raw_response_digest=_digest("3"),
+            observed_at=datetime(2026, 8, 10),
+        ),
+        lambda: CapabilityResult(
+            check=QualificationCheck.COVERAGE,
+            status=CheckStatus.PASS,
+            evidence_digest="invalid",
+        ),
+    ],
+)
+def test_qualification_evidence_rejects_invalid_digest_or_naive_time(
+    factory: Callable[[], object],
+) -> None:
+    with pytest.raises(ValueError):
+        factory()
+
+
+def test_qualification_report_digest_is_order_independent() -> None:
+    report = _report()
+    reordered = QualificationReport(
+        identity=report.identity,
+        probes=tuple(reversed(report.probes)),
+        coverage=QualificationCoverage(
+            start=report.coverage.start,
+            end=report.coverage.end,
+            instruments=tuple(reversed(report.coverage.instruments)),
+            delisted_instruments=report.coverage.delisted_instruments,
+        ),
+        results=tuple(reversed(report.results)),
+        adjust_modes=tuple(reversed(report.adjust_modes)),
+        units=tuple(reversed(report.units)),
+        observed_at=report.observed_at,
+    )
+
+    assert reordered.report_digest == report.report_digest
+
+
+def test_qualification_report_digest_covers_material_evidence() -> None:
+    report = _report()
+    changed = _report(probes=(_probe("9"),))
+
+    assert changed.report_digest != report.report_digest
