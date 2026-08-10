@@ -1,12 +1,18 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 
 from astraquant_data.eastmoney_protocol import (
+    HistoryCompletenessError,
+    HistoryPage,
+    HistoryPageEvidence,
+    HistoryPageSpec,
+    PageFailureCode,
     from_eastmoney_symbol,
     map_current_quote,
     to_eastmoney_symbol,
+    validate_history_pages,
 )
 from astraquant_domain import InstrumentId
 
@@ -95,3 +101,165 @@ def test_missing_previous_close_stays_unknown(pre_close: object) -> None:
     assert quote.previous_close is None
     assert quote.change is None
     assert quote.change_percent is None
+
+
+def _page_spec(index: int, start: datetime) -> HistoryPageSpec:
+    return HistoryPageSpec(
+        index=index,
+        page_count=2,
+        cursor=f"page-{index}",
+        start_at=start,
+        end_at=start + timedelta(days=1),
+    )
+
+
+def _history_page(
+    spec: HistoryPageSpec,
+    *,
+    rows: tuple[dict[str, object], ...] | None = None,
+    declared_total: int | None = 2,
+    schema_digest: str = "sha256:" + "1" * 64,
+    units: tuple[str, ...] = ("price=CNY", "volume=share"),
+    adjust: int = 0,
+) -> HistoryPage:
+    materialized_rows: tuple[dict[str, object], ...] = (
+        ({"bob": spec.start_at.isoformat()},) if rows is None else rows
+    )
+    return HistoryPage(
+        rows=materialized_rows,
+        evidence=HistoryPageEvidence(
+            spec=spec,
+            returned_count=len(materialized_rows),
+            declared_total=declared_total,
+            frequency="1d",
+            adjust=adjust,
+            units=units,
+            schema_digest=schema_digest,
+            request_digest="sha256:" + "2" * 64,
+            response_digest="sha256:" + "3" * 64,
+        ),
+    )
+
+
+def test_history_pages_require_explicit_coverage_proof() -> None:
+    start = datetime(2026, 8, 1, tzinfo=UTC)
+    specs = (_page_spec(0, start), _page_spec(1, start + timedelta(days=2)))
+    pages = tuple(_history_page(spec) for spec in specs)
+
+    batch = validate_history_pages(pages, expected_specs=specs)
+
+    assert len(batch.rows) == 2
+    assert batch.complete is True
+    assert batch.declared_total == 2
+
+
+@pytest.mark.parametrize(
+    ("mutate", "code"),
+    [
+        (lambda pages: (pages[0], pages[0]), PageFailureCode.DUPLICATE_PAGE),
+        (lambda pages: pages[:1], PageFailureCode.MISSING_PAGE),
+        (
+            lambda pages: (
+                pages[1],
+                pages[0],
+            ),
+            PageFailureCode.OUT_OF_ORDER,
+        ),
+        (
+            lambda pages: (
+                pages[0],
+                _history_page(pages[1].evidence.spec, schema_digest="sha256:" + "4" * 64),
+            ),
+            PageFailureCode.SCHEMA_DRIFT,
+        ),
+        (
+            lambda pages: (
+                pages[0],
+                _history_page(pages[1].evidence.spec, units=("price=fen",)),
+            ),
+            PageFailureCode.UNIT_DRIFT,
+        ),
+        (
+            lambda pages: (pages[0], _history_page(pages[1].evidence.spec, adjust=1)),
+            PageFailureCode.ADJUST_DRIFT,
+        ),
+    ],
+)
+def test_history_page_faults_fail_closed(
+    mutate: object,
+    code: PageFailureCode,
+) -> None:
+    start = datetime(2026, 8, 1, tzinfo=UTC)
+    specs = (_page_spec(0, start), _page_spec(1, start + timedelta(days=2)))
+    pages = tuple(_history_page(spec) for spec in specs)
+
+    with pytest.raises(HistoryCompletenessError) as raised:
+        validate_history_pages(mutate(pages), expected_specs=specs)  # type: ignore[operator]
+
+    assert raised.value.code is code
+
+
+def test_history_pages_reject_silent_truncation_and_unproven_empty_success() -> None:
+    start = datetime(2026, 8, 1, tzinfo=UTC)
+    spec = HistoryPageSpec(
+        index=0,
+        page_count=1,
+        cursor="page-0",
+        start_at=start,
+        end_at=start + timedelta(days=1),
+    )
+
+    with pytest.raises(HistoryCompletenessError) as truncated:
+        validate_history_pages(
+            (_history_page(spec, rows=(), declared_total=1),),
+            expected_specs=(spec,),
+        )
+    assert truncated.value.code is PageFailureCode.SILENT_TRUNCATION
+
+    with pytest.raises(HistoryCompletenessError) as unproven:
+        validate_history_pages(
+            (_history_page(spec, rows=(), declared_total=None),),
+            expected_specs=(spec,),
+        )
+    assert unproven.value.code is PageFailureCode.UNPROVEN_COMPLETENESS
+
+    empty = validate_history_pages(
+        (_history_page(spec, rows=(), declared_total=None),),
+        expected_specs=(spec,),
+        expected_total=0,
+    )
+    assert empty.complete is True
+
+
+def test_history_pages_reject_overlapping_ranges_and_rows_outside_page() -> None:
+    start = datetime(2026, 8, 1, tzinfo=UTC)
+    first = _page_spec(0, start)
+    overlapping = HistoryPageSpec(
+        index=1,
+        page_count=2,
+        cursor="page-1",
+        start_at=start + timedelta(hours=12),
+        end_at=start + timedelta(days=2),
+    )
+    with pytest.raises(HistoryCompletenessError) as overlap:
+        validate_history_pages(
+            (_history_page(first), _history_page(overlapping)),
+            expected_specs=(first, overlapping),
+        )
+    assert overlap.value.code is PageFailureCode.OVERLAPPING_RANGE
+
+    single = HistoryPageSpec(
+        index=0,
+        page_count=1,
+        cursor="page-0",
+        start_at=start,
+        end_at=start + timedelta(days=1),
+    )
+    outside = _history_page(
+        single,
+        rows=({"bob": (start + timedelta(days=2)).isoformat()},),
+        declared_total=1,
+    )
+    with pytest.raises(HistoryCompletenessError) as out_of_range:
+        validate_history_pages((outside,), expected_specs=(single,))
+    assert out_of_range.value.code is PageFailureCode.ROW_OUT_OF_RANGE

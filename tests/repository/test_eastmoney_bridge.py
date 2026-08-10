@@ -25,6 +25,9 @@ def test_symbol_search_loads_tradeable_asset_types_and_filters_catalog(
         SEC_TYPE_STOCK=1,
         SEC_TYPE_FUND=2,
         SEC_TYPE_FUTURE=4,
+        ADJUST_NONE=0,
+        ADJUST_PREV=1,
+        ADJUST_POST=2,
         get_instrumentinfos=get_instrumentinfos,
     )
     fake_gm = ModuleType("gm")
@@ -44,3 +47,55 @@ def test_symbol_search_loads_tradeable_asset_types_and_filters_catalog(
             df=False,
         ),
     ]
+
+
+def test_history_range_uses_explicit_boundaries_and_reports_unproven_total(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    history = Mock(
+        return_value=[
+            {
+                "symbol": "SHSE.600000",
+                "bob": "2026-08-01T00:00:00+00:00",
+            }
+        ]
+    )
+    fake_api = SimpleNamespace(
+        ADJUST_NONE=0,
+        ADJUST_PREV=1,
+        ADJUST_POST=2,
+        history=history,
+    )
+    fake_gm = ModuleType("gm")
+    fake_gm.api = fake_api  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "gm", fake_gm)
+    sys.modules.pop("tools.eastmoney_bridge", None)
+    bridge = importlib.import_module("tools.eastmoney_bridge")
+
+    result = bridge.invoke(
+        "history_range",
+        {
+            "symbol": "SHSE.600000",
+            "frequency": "1d",
+            "adjust": 0,
+            "units": ["price=CNY", "volume=share"],
+            "page": {
+                "index": 0,
+                "page_count": 1,
+                "cursor": "page-0",
+                "start_at": "2026-08-01T00:00:00+00:00",
+                "end_at": "2026-08-02T00:00:00+00:00",
+            },
+        },
+    )
+
+    history.assert_called_once_with(
+        symbol="SHSE.600000",
+        frequency="1d",
+        start_time="2026-08-01T00:00:00+00:00",
+        end_time="2026-08-02T00:00:00+00:00",
+        adjust=0,
+        df=True,
+    )
+    assert result["page"]["returned_count"] == 1
+    assert result["page"]["declared_total"] is None

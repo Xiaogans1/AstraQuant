@@ -1,14 +1,17 @@
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
 from astraquant_data.eastmoney_client import (
+    BridgeResponseRepresentation,
     EastmoneyBridgeClient,
     EastmoneyBridgeExited,
     EastmoneyBridgeProtocolError,
     EastmoneyBridgeTimeout,
 )
+from astraquant_data.eastmoney_protocol import HistoryCompletenessError, HistoryPageSpec
 
 FAKE_BRIDGE = Path("tests/fixtures/eastmoney/fake_bridge.py")
 
@@ -90,3 +93,88 @@ def test_bridge_client_requires_start_and_rejects_blank_tokens() -> None:
             client.configure("  ")
     finally:
         client.stop()
+
+
+def test_bridge_client_returns_versioned_sdk_object_evidence() -> None:
+    client = make_client()
+    with client:
+        client.configure("private-token", permission_tier="level1-history")
+        response = client.current_with_evidence(["SHSE.000001"])
+
+    assert response.result == [{"symbol": "SHSE.000001", "price": 1}]
+    evidence = response.evidence
+    assert evidence.representation is BridgeResponseRepresentation.SDK_OBJECT_CANONICAL
+    assert evidence.serialization_version == "astraquant.sdk-object-json/v1"
+    assert evidence.interface == "gm_python_sdk"
+    assert evidence.interface_build == "test-sdk-1.0"
+    assert evidence.permission_tier == "level1-history"
+    assert evidence.request_digest.startswith("sha256:")
+    assert evidence.response_digest.startswith("sha256:")
+    assert evidence.requested_at <= evidence.received_at
+    assert evidence.observed_schema["kind"] == "list"
+    serialized = str(evidence.to_dict())
+    assert "private-token" not in serialized
+
+
+@pytest.mark.parametrize(
+    "symbol",
+    ["TEST.WRONG_VERSION", "TEST.UNKNOWN_REPRESENTATION", "TEST.BAD_DIGEST"],
+)
+def test_bridge_client_rejects_unverifiable_evidence_envelopes(symbol: str) -> None:
+    client = make_client()
+    with client, pytest.raises(EastmoneyBridgeProtocolError):
+        client.current_with_evidence([symbol])
+
+
+def test_bridge_client_fetches_explicit_history_ranges_with_coverage_proof() -> None:
+    spec = HistoryPageSpec(
+        index=0,
+        page_count=1,
+        cursor="2026-08-01/2026-08-02",
+        start_at=datetime(2026, 8, 1, tzinfo=UTC),
+        end_at=datetime(2026, 8, 2, tzinfo=UTC),
+    )
+    client = make_client()
+
+    with client:
+        batch = client.history_range(
+            symbol="SHSE.600000",
+            frequency="1d",
+            pages=(spec,),
+            adjust=0,
+            expected_total=1,
+        )
+
+    assert batch.complete is True
+    assert batch.rows == (
+        {
+            "symbol": "SHSE.600000",
+            "bob": "2026-08-01T00:00:00+00:00",
+        },
+    )
+    assert batch.pages[0].evidence.spec == spec
+
+
+def test_bridge_client_rejects_history_without_total_or_external_proof() -> None:
+    spec = HistoryPageSpec(
+        index=0,
+        page_count=1,
+        cursor="unproven",
+        start_at=datetime(2026, 8, 1, tzinfo=UTC),
+        end_at=datetime(2026, 8, 2, tzinfo=UTC),
+    )
+    client = make_client()
+
+    with (
+        client,
+        pytest.raises(
+            HistoryCompletenessError,
+            match="UNPROVEN_COMPLETENESS",
+        ),
+    ):
+        client.history_range(
+            symbol="SHSE.600000",
+            frequency="1d",
+            pages=(spec,),
+            adjust=0,
+        )
