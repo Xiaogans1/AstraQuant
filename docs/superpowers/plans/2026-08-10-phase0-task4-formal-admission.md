@@ -95,11 +95,11 @@ Commit: `git commit -m "feat(api): 阻断旧模型进入正式运行"`
 
 ## Task 4: Verification and GitHub delivery
 
-- [ ] **Step 1: 精确 Task 4 门禁**
+- [x] **Step 1: 精确 Task 4 门禁**
 
 Run: `uv run pytest tests/api/test_formal_admission.py tests/api/test_research_routes.py tests/api/test_model_registry.py tests/api/test_paper_strategy_service.py tests/tools/test_publish_model.py -q`
 
-- [ ] **Step 2: 完整共享门**
+- [x] **Step 2: 完整共享门**
 
 Run: `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1 -Scope All`
 

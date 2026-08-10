@@ -110,13 +110,13 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 - Test: `tests/api/test_research_routes.py`
 - Test: `tests/api/test_paper_strategy_service.py`
 
-- [ ] 先测试旧 `/v1/research/*` 固定创建 LEGACY/EXPLORATORY；FORMAL 拒绝 `instrument` 直拉、`latest`、任意 dataset path、未 pin model/snapshot 和 `--force` 晋级；即使 legacy `models` 中已有 `APPROVED` 行，Phase 0 的 formal model selection 仍必须返回 `HOLD/no-new-orders`。
-- [ ] 先测试运行开始时 admission 只接受 Phase 0 shared contract 产生的 SEALED `RunManifest` 并返回 sealed IDs/digest；未 seal、自造 dict/schema 或后续目录增加更新文件都不能改变该 run 的 inputs。
-- [ ] 运行目标 tests，确认 service 缺失红灯。
-- [ ] 实现唯一 admission service；API、worker、CLI 不得复制 gate。旧 AUC>0.55/net>0 仅作为 legacy 展示字段，不能变成 v3 release 状态。
-- [ ] 隔离 `latest_approved_model()`：它只服务 legacy 展示/EXPLORATORY，不得成为 FORMAL selector。Phase 0 尚无 v3 `model_version`/release gate（留到 Phase 5 的 `0015_model_release_targets`），因此所有 formal model 请求一律 `HOLD/no-new-orders`；本阶段禁止预建、猜测或引用未来 `model_version_id`。Phase 5 完成后再以新的 exact-ID selector 接入 `FormalAdmissionService`。
-- [ ] 重跑 tests，期望全绿。
-- [ ] 提交：`git commit -m "feat(api): 阻断旧模型进入正式运行"`
+- [x] 先测试旧 `/v1/research/*` 固定创建 LEGACY/EXPLORATORY；FORMAL 拒绝 `instrument` 直拉、`latest`、任意 dataset path、未 pin model/snapshot 和 `--force` 晋级；即使 legacy `models` 中已有 `APPROVED` 行，Phase 0 的 formal model selection 仍必须返回 `HOLD/no-new-orders`。
+- [x] 先测试运行开始时 admission 只接受 Phase 0 shared contract 产生的 SEALED `RunManifest` 并返回 sealed IDs/digest；未 seal、自造 dict/schema 或后续目录增加更新文件都不能改变该 run 的 inputs。
+- [x] 运行目标 tests，确认 service 缺失红灯。
+- [x] 实现唯一 admission service；API、worker、CLI 不得复制 gate。旧 AUC>0.55/net>0 仅作为 legacy 展示字段，不能变成 v3 release 状态。
+- [x] 隔离 `latest_approved_model()`：它只服务 legacy 展示/EXPLORATORY，不得成为 FORMAL selector。Phase 0 尚无 v3 `model_version`/release gate（留到 Phase 5 的 `0015_model_release_targets`），因此所有 formal model 请求一律 `HOLD/no-new-orders`；本阶段禁止预建、猜测或引用未来 `model_version_id`。Phase 5 完成后再以新的 exact-ID selector 接入 `FormalAdmissionService`。
+- [x] 重跑 tests，期望全绿。
+- [x] 提交：`git commit -m "feat(api): 阻断旧模型进入正式运行"`
 
 ## Task 5: 物理隔离 formal roots 并保持 API 单写者
 
