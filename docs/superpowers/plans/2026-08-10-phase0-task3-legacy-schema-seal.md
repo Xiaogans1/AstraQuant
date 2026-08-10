@@ -285,7 +285,7 @@ Run: `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1 -Scope All`
 
 Expected: Python、Desktop、Rust 与 repository policy 全部通过。
 
-- [ ] **Step 3: 核查范围、勾选 roadmap、提交并推送**
+- [x] **Step 3: 核查范围、勾选 roadmap、提交并推送**
 
 Run:
 
