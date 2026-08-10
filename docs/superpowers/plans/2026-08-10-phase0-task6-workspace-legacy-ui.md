@@ -175,7 +175,7 @@ Commit: `git commit -m "feat(ui): 明确展示旧量化结果隔离状态"`
 - [x] 运行 `pnpm --dir apps/desktop test`、`pnpm --dir apps/desktop check`、`pnpm --dir apps/desktop build`。
 - [x] 运行 `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`。
 - [x] 运行 `uv run ruff check packages/api/src tests/api tests/integration tests/repository`、`uv run ruff format --check packages/api/src tests/api tests/integration tests/repository` 与 `uv run mypy packages/api/src tests/api tests/integration tests/repository`。
-- [ ] 检查 `git diff --name-status origin/codex/quant-core-v3-phase0-task5...HEAD` 仅含 Task 6 文件，然后推送 `codex/quant-core-v3-phase0-task6`。
+- [x] 检查 `git diff --name-status origin/codex/quant-core-v3-phase0-task5...HEAD` 仅含 Task 6 文件，然后推送 `codex/quant-core-v3-phase0-task6`。
 
 ## Self-review
 
