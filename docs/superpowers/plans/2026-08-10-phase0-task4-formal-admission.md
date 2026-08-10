@@ -17,23 +17,23 @@
 - Create: `tests/api/test_formal_admission.py`
 - Create: `packages/api/src/astraquant_api/formal_admission.py`
 
-- [ ] **Step 1: 写 sealed manifest + exact evidence 成功红灯**
+- [x] **Step 1: 写 sealed manifest + exact evidence 成功红灯**
 
 构造已批准 `REAL_API_MARKET` root 和 `RunClass.FORMAL` sealed manifest；断言返回 `manifest_digest`、精确 root IDs、root digests，且返回值不可变。
 
-- [ ] **Step 2: 写 fail-closed 矩阵红灯**
+- [x] **Step 2: 写 fail-closed 矩阵红灯**
 
 覆盖 draft manifest、EXPLORATORY manifest、普通 dict、`latest`/缺 ID root、legacy root、未批准 authority、manifest input mapping 与 root 集合/摘要不一致。任何失败都不能返回部分 admission。
 
-- [ ] **Step 3: 写 Phase 0 model HOLD 红灯**
+- [x] **Step 3: 写 Phase 0 model HOLD 红灯**
 
 即使传入 status=APPROVED、AUC=0.99、net>0 的 legacy model metadata，`select_formal_model()` 也返回 `HOLD`、`allow_new_orders=False`、`model_id=None`，且不调用 legacy repository selector。
 
-- [ ] **Step 4: 实现唯一 service**
+- [x] **Step 4: 实现唯一 service**
 
 实现 `FormalRunAdmission`、`FormalModelSelection`、`FormalModelDecision`、`FormalAdmissionService.admit_run()` 与 `select_formal_model()`。`admit_run()` 顺序固定为 typed check → SEALED/FORMAL check → exact root mapping equality → `EvidenceGate.admit()`；错误统一为 `FormalAdmissionError` 或 shared manifest error，不接受 path-like 参数。
 
-- [ ] **Step 5: 验证并提交**
+- [x] **Step 5: 验证并提交**
 
 Run: `uv run pytest tests/api/test_formal_admission.py -q`
 
