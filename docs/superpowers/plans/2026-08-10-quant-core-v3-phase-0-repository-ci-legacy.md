@@ -176,10 +176,10 @@ cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 - Create: `docs/verification/quant-core-v3/phase-0-signoff.md`
 - Modify: `docs/research/quant-core-learning-guide.md`
 
-- [ ] verification CLI 注入 renamed fixture、unknown/mixed ancestor、legacy model、unsealed run 和 direct latest，逐项输出 PASS/FAIL 与 run manifest digest。
-- [ ] 更新 learning guide，明确当前 LightGBM/回放成绩属于 demo/legacy，禁止作为 v3 alpha 或发布证据引用。
-- [ ] 在 verifier/code 已提交且工作树干净后，创建 must-not-exist 的 UUID 输出目录并运行 `uv run python tools/verification/verify_phase_0.py --output artifacts/verification/phase-0/{run_id}/verification.json`；verifier 必须重新运行 admission/physical separation/repository-policy checks，而不是只汇总既有日志。
-- [ ] 从最新 `origin/main` 的短生命周期实现分支运行 `scripts/verify.ps1 -Scope All`，并检查 `git diff origin/main...HEAD` 不含无关删除、README 回退、运行数据或用户文件。
-- [ ] 核对退出门：旧/样例/AKShare/混源/未 pin 进入 formal=0；legacy `APPROVED` model 触发 formal order=0 且统一 HOLD；formal qualification 正文落入 legacy/旧 `.astraquant/qualification`=0；legacy UI 仍可读；旧 Paper 已 seal；API 单写者测试全绿；CI 与本地命令一致。
-- [ ] sign-off 以独立 docs-only commit 引用机器 artifact digest 与被验证的实现 commit；任一检查失败则 Phase 0 保持未通过。
-- [ ] 提交：`git commit -m "test(governance): 完成量化核心旧证据隔离验收"`
+- [x] verification CLI 注入 renamed fixture、unknown/mixed ancestor、legacy model、unsealed run 和 direct latest，逐项输出 PASS/FAIL 与 run manifest digest。
+- [x] 更新 learning guide，明确当前 LightGBM/回放成绩属于 demo/legacy，禁止作为 v3 alpha 或发布证据引用。
+- [x] 在 verifier/code 已提交且工作树干净后，创建 must-not-exist 的 UUID 输出目录并运行 `uv run python tools/verification/verify_phase_0.py --output artifacts/verification/phase-0/{run_id}/verification.json`；verifier 必须重新运行 admission/physical separation/repository-policy checks，而不是只汇总既有日志。
+- [x] 从最新 `origin/main` 的短生命周期实现分支运行 `scripts/verify.ps1 -Scope All`，并检查 `git diff origin/main...HEAD` 不含无关删除、README 回退、运行数据或用户文件。
+- [x] 核对退出门：旧/样例/AKShare/混源/未 pin 进入 formal=0；legacy `APPROVED` model 触发 formal order=0 且统一 HOLD；formal qualification 正文落入 legacy/旧 `.astraquant/qualification`=0；legacy UI 仍可读；旧 Paper 已 seal；API 单写者测试全绿；CI 与本地命令一致。
+- [x] sign-off 以独立 docs-only commit 引用机器 artifact digest 与被验证的实现 commit；任一检查失败则 Phase 0 保持未通过。
+- [x] 提交：`git commit -m "test(governance): 完成量化核心旧证据隔离验收"`
