@@ -131,13 +131,13 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 - Test: `tests/api/test_worker.py`
 - Test: `tests/repository/test_runtime_test_isolation.py`
 
-- [ ] 先测试 `state_dir/data` 只映射 legacy，formal roots 固定在 `state_dir/formal/{qualification,capture,publication,verification}`，其中 `RuntimeConfig.formal_qualification_root` 是资格报告正文与审批证据的唯一正式根；`.astraquant/qualification` 和 legacy data root 均不得承载 formal qualification。所有 resolved paths 不重叠且拒绝 symlink/junction escape。
-- [ ] 先测试 Worker 不能持有数据库 URL/connection 或直接写 SQLite；它只返回 typed result message，API process 在一个事务内验证 digest 后写 catalog/task state。
-- [ ] 先测试旧 `data_worker.py` 不能用 `max(available_time)+1 minute` 伪造 fetched time；其输出明确 legacy，时间字段只保存实际 observed received time。
-- [ ] 运行目标 tests，确认红灯。
-- [ ] 实现 `formal_qualification_root`、`formal_capture_root`、`formal_publication_root`、`formal_verification_root` typed roots、boundary checks 和 single-writer result ingestion；不搬迁、不删除用户旧文件。
-- [ ] 重跑 tests，期望全绿。
-- [ ] 提交：`git commit -m "refactor(runtime): 隔离正式目录并恢复API单写者"`
+- [x] 先测试 `state_dir/data` 只映射 legacy，formal roots 固定在 `state_dir/formal/{qualification,capture,publication,verification}`，其中 `RuntimeConfig.formal_qualification_root` 是资格报告正文与审批证据的唯一正式根；`.astraquant/qualification` 和 legacy data root 均不得承载 formal qualification。所有 resolved paths 不重叠且拒绝 symlink/junction escape。
+- [x] 先测试 Worker 不能持有数据库 URL/connection 或直接写 SQLite；它只返回 typed result message，API process 在一个事务内验证 digest 后写 catalog/task state。
+- [x] 先测试旧 `data_worker.py` 不能用 `max(available_time)+1 minute` 伪造 fetched time；其输出明确 legacy，时间字段只保存实际 observed received time。
+- [x] 运行目标 tests，确认红灯。
+- [x] 实现 `formal_qualification_root`、`formal_capture_root`、`formal_publication_root`、`formal_verification_root` typed roots、boundary checks 和 single-writer result ingestion；不搬迁、不删除用户旧文件。
+- [x] 重跑 tests，期望全绿。
+- [x] 提交：`git commit -m "refactor(runtime): 隔离正式目录并恢复API单写者"`
 
 ## Task 6: 同步 Python package discovery 与 legacy UI 标识
 

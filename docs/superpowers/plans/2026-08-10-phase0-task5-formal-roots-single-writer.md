@@ -112,11 +112,11 @@ Commit: `git commit -m "refactor(runtime): 恢复API数据库单写者"`
 
 ## Task 4: 全量验收与 GitHub 交付
 
-- [ ] **Step 1: 精确 Task 5 门禁**
+- [x] **Step 1: 精确 Task 5 门禁**
 
 Run: `uv run pytest tests/api/test_config.py tests/api/test_data_worker.py tests/api/test_worker.py tests/api/test_data_repository.py tests/api/test_supervisor.py tests/api/test_data_routes.py tests/repository/test_runtime_test_isolation.py -q`
 
-- [ ] **Step 2: 静态与完整共享门**
+- [x] **Step 2: 静态与完整共享门**
 
 Run: `uv run ruff check packages/api/src tests/api tests/repository`
 
