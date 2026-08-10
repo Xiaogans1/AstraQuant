@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Local control service for AstraQuant"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-  "alembic>=1.18,<2",
+  "alembic>=1.19.0,<2",
   "astraquant-data",
   "astraquant-domain",
   "astraquant-paper",
