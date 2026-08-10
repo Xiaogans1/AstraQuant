@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
@@ -14,12 +15,28 @@ class WorkerMessageKind(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class DataImportResult:
+    dataset_id: str
+    snapshot_id: str
+    manifest_path: str
+    manifest_digest: str
+    row_count: int
+    name: str
+    asset_class: str
+    frequency: str
+    semantic_class: str
+    evidence_class: str
+    run_class: str
+    observed_received_time: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class WorkerMessage:
     task_id: str
     kind: WorkerMessageKind
     progress: int
     current_step: str
-    payload: dict[str, object] | None = None
+    payload: dict[str, object] | DataImportResult | None = None
 
 
 DEMO_STEPS = (

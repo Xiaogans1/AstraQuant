@@ -50,23 +50,23 @@ Commit: `git commit -m "feat(runtime): 隔离正式证据目录"`
 - Modify: `tests/api/test_worker.py`
 - Modify: `tests/repository/test_runtime_test_isolation.py`
 
-- [ ] **Step 1: 写 Worker 无数据库能力红灯**
+- [x] **Step 1: 写 Worker 无数据库能力红灯**
 
 静态和运行时测试断言 `data_worker.py` 不 import `database`、`DataCatalogRepository`、SQLAlchemy，不接收 database URL/state dir，只接收精确 legacy data root；Worker 完成后 SQLite 仍无 catalog 行。
 
-- [ ] **Step 2: 写 typed result 与时间红灯**
+- [x] **Step 2: 写 typed result 与时间红灯**
 
 成功消息 payload 必须是 frozen `DataImportResult`，含 manifest path/digest、snapshot/dataset identity、classification、`observed_received_time`。注入固定 Clock，断言 manifest `source_fetched_at == observed_received_time`，且不等于 `max(available_time)+1 minute`。
 
-- [ ] **Step 3: 实现 typed result**
+- [x] **Step 3: 实现 typed result**
 
 在 `worker.py` 新增 frozen `DataImportResult`；`data_worker.py` 在 provider fetch 返回时读取 injected/default `SystemClock.now()`，发布到传入 legacy root，计算 manifest file SHA-256 后发送 result。删除所有 DB/catalog 调用；classification 固定 `LEGACY_SEMANTICS/LEGACY_UNVERIFIED/EXPLORATORY`。
 
-- [ ] **Step 4: 调整 cancellation 语义**
+- [x] **Step 4: 调整 cancellation 语义**
 
 取消发生在文件发布前则无 manifest；文件发布后取消允许留下未 catalog 的 immutable orphan，但不得产生 catalog row。后续 cleanup/reconcile 不把 orphan 自动追认为正式数据。
 
-- [ ] **Step 5: 验证并提交**
+- [x] **Step 5: 验证并提交**
 
 Run: `uv run pytest tests/api/test_data_worker.py tests/api/test_worker.py tests/repository/test_runtime_test_isolation.py -q`
 

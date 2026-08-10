@@ -84,7 +84,7 @@ def build_data_router(state: DataRouteState, authenticated: Depends) -> APIRoute
         running = state.supervisor.start(
             task,
             run_data_import_worker,
-            (request.model_dump(mode="json"), str(state.state_dir)),
+            (request.model_dump(mode="json"), str(state.state_dir / "data")),
         )
         return _task_json(running, 201)
 
