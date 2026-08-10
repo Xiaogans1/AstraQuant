@@ -39,13 +39,13 @@
 - Test: `tests/data/test_eastmoney_protocol.py`
 - Test: `tests/data/test_eastmoney_client.py`
 
-- [ ] 先测试 response 保留 canonical request、SDK/terminal build、permission、request/received timestamps、page cursor/count/declared total、retry lineage 和 observed schema；`response_representation` 明确为 `PROVIDER_RAW_BYTES` 或 `SDK_OBJECT_CANONICAL`。SDK 不暴露 HTTP bytes 时，保存带 serialization version、dtype/schema 的 canonical SDK object，禁止把 bridge JSON 冒充 provider raw bytes；secret 永不进入 stdout/report/hash input。
-- [ ] 先故障注入：重复页、遗漏页、静默截断、success code+空数据、日期越界、schema/单位/adjust drift 和 out-of-order chunk 全部返回 typed failure。
-- [ ] 运行四组 tests，确认新增字段/错误尚不存在而失败。
-- [ ] 扩展 NDJSON request/response contract；每行有 contract version 和 correlation id，未知 contract/schema fail closed。
-- [ ] client 支持显式 date range/pagination，不能以“最后一页少于 limit”作为唯一 completeness 证明。
-- [ ] 重跑 tests，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 固化Eastmoney原始调用证据"`
+- [x] 先测试 response 保留 canonical request、SDK/terminal build、permission、request/received timestamps、page cursor/count/declared total、retry lineage 和 observed schema；`response_representation` 明确为 `PROVIDER_RAW_BYTES` 或 `SDK_OBJECT_CANONICAL`。SDK 不暴露 HTTP bytes 时，保存带 serialization version、dtype/schema 的 canonical SDK object，禁止把 bridge JSON 冒充 provider raw bytes；secret 永不进入 stdout/report/hash input。
+- [x] 先故障注入：重复页、遗漏页、静默截断、success code+空数据、日期越界、schema/单位/adjust drift 和 out-of-order chunk 全部返回 typed failure。
+- [x] 运行四组 tests，确认新增字段/错误尚不存在而失败。
+- [x] 扩展 NDJSON request/response contract；每行有 contract version 和 correlation id，未知 contract/schema fail closed。
+- [x] client 支持显式 date range/pagination，不能以“最后一页少于 limit”作为唯一 completeness 证明。
+- [x] 重跑 tests，期望全绿。
+- [x] 提交：`git commit -m "feat(data): 固化Eastmoney原始调用证据"`
 
 ## Task 3: 实现 qualification CLI 与人工批准记录
 
