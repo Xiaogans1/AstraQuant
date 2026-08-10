@@ -28,7 +28,7 @@ wheels = [
 
 [[package]]
 name = "akshare"
-version = "1.18.80"
+version = "1.18.83"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "akracer", marker = "sys_platform == 'linux'" },
@@ -48,9 +48,9 @@ dependencies = [
     { name = "urllib3" },
     { name = "xlrd" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cc/45/948a6e970ac1d9ad2736bac0f4415c343d273b0a41571478fedc7b9934b7/akshare-1.18.80.tar.gz", hash = "sha256:bd1698fe49f2a5f99bfb4ec10b753e65c6725da06b5efd3555ab7cb01055e560", size = 894746, upload-time = "2026-07-28T00:23:22.984Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ba/43/cb48ff53aa9cd8d44ec26bca6cd828d24347d9cab97cc0d780e303ad76c6/akshare-1.18.83.tar.gz", hash = "sha256:0c81d229d08a2c240a10ff606680a6a449eecdc63df0d70c7d7f0547c2d6230f", size = 895826, upload-time = "2026-08-07T03:45:03.219Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/75/a8/3811438c7daca7fe057ee4a68eaa20d3a571ee774d09e79e196645a0d069/akshare-1.18.80-py3-none-any.whl", hash = "sha256:c2ad1c2ab9f05ec62a8216685e646056775bbf49fe0a309566c9160326423c28", size = 1118662, upload-time = "2026-07-28T00:23:21.609Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/d6/b186bad8ab6903ad3fc99803d5f6ce6783f246e5c04d0714e72562d5bdeb/akshare-1.18.83-py3-none-any.whl", hash = "sha256:ebeea4910567dcfacca4cc2cc38d7f445d52bf8ea5852f3360327839443cc0cd", size = 1119739, upload-time = "2026-08-07T03:45:01.621Z" },
 ]
 
 [[package]]
@@ -148,7 +148,7 @@ akshare = [
 
 [package.metadata]
 requires-dist = [
-    { name = "akshare", marker = "extra == 'akshare'", specifier = ">=1.18.64,<1.19" },
+    { name = "akshare", marker = "extra == 'akshare'", specifier = ">=1.18.83,<1.19" },
     { name = "astraquant-domain", editable = "packages/domain" },
     { name = "duckdb", specifier = ">=1.5,<2" },
     { name = "pyarrow", specifier = ">=25,<26" },

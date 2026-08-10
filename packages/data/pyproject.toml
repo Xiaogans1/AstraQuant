@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-akshare = ["akshare>=1.18.64,<1.19"]
+akshare = ["akshare>=1.18.83,<1.19"]
 
 [tool.uv.sources]
 astraquant-domain = { workspace = true }
