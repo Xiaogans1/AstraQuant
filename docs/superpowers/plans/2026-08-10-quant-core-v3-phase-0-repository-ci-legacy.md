@@ -152,12 +152,12 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 - Modify: `apps/desktop/src/pages/PaperPage.tsx`
 - Modify: `apps/desktop/src/pages/PaperPage.test.tsx`
 
-- [ ] 先测试 Windows managed runtime、integration subprocess 与 launcher 从 repository/worktree 动态发现 workspace packages；禁止硬编码某个旧 worktree 名称。
-- [ ] 先测试旧 Paper/研究结果通过 OpenAPI/TypeScript 一致的 `evidence_class`/`semantic_class=LEGACY_*` 字段展示；若 UI adapter 使用 camelCase，必须有显式 alias contract test。UI 与 formal 结果分区并显示只读，不允许按钮直接“升级”。
-- [ ] 运行 Python/Rust/frontend 定向 tests，确认红灯。
-- [ ] 更新 package path builder，为后续 `packages/execution` 与 `packages/research` 使用同一 discovery 规则；不在 Rust 放量化逻辑，不因加法式 API 无故升级 handshake。
-- [ ] 实现 UI legacy badge 与只读说明。
-- [ ] 运行：
+- [x] 先测试 Windows managed runtime、integration subprocess 与 launcher 从 repository/worktree 动态发现 workspace packages；禁止硬编码某个旧 worktree 名称。
+- [x] 先测试旧 Paper/研究结果通过 OpenAPI/TypeScript 一致的 `evidence_class`/`semantic_class=LEGACY_*` 字段展示；若 UI adapter 使用 camelCase，必须有显式 alias contract test。UI 与 formal 结果分区并显示只读，不允许按钮直接“升级”。
+- [x] 运行 Python/Rust/frontend 定向 tests，确认红灯。
+- [x] 更新 package path builder，为后续 `packages/execution` 与 `packages/research` 使用同一 discovery 规则；不在 Rust 放量化逻辑，不因加法式 API 无故升级 handshake。
+- [x] 实现 UI legacy badge 与只读说明。
+- [x] 运行：
 
 ```powershell
 uv run pytest tests/integration/test_runtime_round_trip.py tests/repository/test_dev_launcher.py -q
@@ -166,7 +166,7 @@ pnpm --dir apps/desktop check
 cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 ```
 
-- [ ] 提交：`git commit -m "feat(ui): 明确展示旧量化结果隔离状态"`
+- [x] 提交：`git commit -m "feat(ui): 明确展示旧量化结果隔离状态"`
 
 ## Task 7: Phase 0 sign-off
 
