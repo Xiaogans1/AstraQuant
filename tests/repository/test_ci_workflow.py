@@ -1,0 +1,56 @@
+import re
+from pathlib import Path
+
+
+def test_verify_script_defines_scopes_unique_temp_and_fail_fast_commands() -> None:
+    script = Path("scripts/verify.ps1").read_text(encoding="utf-8")
+
+    assert '[ValidateSet("Python", "Desktop", "Rust", "All")]' in script
+    assert '[guid]::NewGuid().ToString("n")' in script
+    assert "--basetemp" in script
+    assert "Invoke-Checked" in script
+    assert "if ($exitCode -ne 0)" in script
+
+    normalized = re.sub(r"\s+", " ", script)
+    for invocation in (
+        '-FilePath "uv" -ArgumentList @("run", "pytest", "-q"',
+        '-FilePath "uv" -ArgumentList @("run", "ruff", "check", ".")',
+        '-FilePath "uv" -ArgumentList @("run", "ruff", "format", "--check", ".")',
+        '-FilePath "uv" -ArgumentList @("run", "mypy")',
+        '-FilePath "uv" -ArgumentList @("run", "python", "tools/repository_policy.py")',
+        '-FilePath "pnpm" -ArgumentList @("--dir", "apps/desktop", "test")',
+        '-FilePath "pnpm" -ArgumentList @("--dir", "apps/desktop", "check")',
+        '-FilePath "pnpm" -ArgumentList @("--dir", "apps/desktop", "build")',
+        '-FilePath "cargo" -ArgumentList @("fmt"',
+        '-FilePath "cargo" -ArgumentList @("clippy"',
+        '-FilePath "cargo" -ArgumentList @("test"',
+    ):
+        assert invocation in normalized
+
+
+def test_ci_uses_pinned_toolchains_and_only_the_shared_verifier() -> None:
+    workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+    assert "windows-latest" in workflow
+    assert "actions/checkout@11d5960a326750d5838078e36cf38b85af677262" in workflow
+    assert "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065" in workflow
+    assert "astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9" in workflow
+    assert "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020" in workflow
+    assert "dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772" in workflow
+    assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in workflow
+    assert "python-version: '3.12'" in workflow
+    assert "version: '0.11.32'" in workflow
+    assert "node-version: '24'" in workflow
+    assert "pnpm@11.9.0" in workflow
+    assert "toolchain: 1.96.0" in workflow
+    assert "./scripts/verify.ps1 -Scope All" in workflow
+    assert workflow.count("./scripts/verify.ps1") == 1
+    assert "include-hidden-files: true" in workflow
+    for forbidden_duplicate in (
+        "uv run pytest",
+        "uv run ruff",
+        "uv run mypy",
+        "pnpm --dir apps/desktop test",
+        "cargo test",
+    ):
+        assert forbidden_duplicate not in workflow
