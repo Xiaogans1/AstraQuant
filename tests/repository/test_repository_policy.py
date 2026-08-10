@@ -1,8 +1,20 @@
+from pathlib import Path
+
 from tools.repository_policy import (
     MAX_FIXTURE_CSV_BYTES,
     find_forbidden_content,
     find_forbidden_paths,
 )
+
+
+def test_quant_core_learning_guide_is_frozen_as_legacy_demo_evidence() -> None:
+    guide = Path("docs/research/quant-core-learning-guide.md").read_text(encoding="utf-8")
+
+    assert "LEGACY_SEMANTICS" in guide
+    assert "demo" in guide.casefold()
+    assert "不得作为 v3 alpha" in guide
+    assert "../superpowers/specs/2026-08-10-quant-core-open-source-architecture-design.md" in guide
+    assert "当前唯一生产模型" not in guide
 
 
 def test_allow_source_and_small_fixture_files() -> None:
