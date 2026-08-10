@@ -51,15 +51,15 @@ Commit: `git commit -m "feat(api): 建立唯一正式运行准入服务"`
 - Modify: `packages/api/src/astraquant_api/research_routes.py`
 - Modify: `tests/api/test_research_routes.py`
 
-- [ ] **Step 1: 写旧 API 固定 exploratory 红灯**
+- [x] **Step 1: 写旧 API 固定 exploratory 红灯**
 
 对 record/train/replay 请求显式传 `run_class=FORMAL`、`snapshot_id=latest`、`dataset_path` 等正式字段时必须 422/409；不传时保持旧功能，但响应与持久化记录固定 `LEGACY_SEMANTICS`、`LEGACY_UNVERIFIED`、`EXPLORATORY`。
 
-- [ ] **Step 2: 实现 additive legacy contract**
+- [x] **Step 2: 实现 additive legacy contract**
 
 旧 request schema 只允许 `run_class: Literal["EXPLORATORY"] = "EXPLORATORY"`，`extra="forbid"`，不新增 formal 参数。旧 response 增加 legacy classification；`_save_experiment()` 显式传 legacy fields，不依赖数据库默认值。
 
-- [ ] **Step 3: 回归旧 UI/API 并提交**
+- [x] **Step 3: 回归旧 UI/API 并提交**
 
 Run: `uv run pytest tests/api/test_research_routes.py tests/api/test_model_registry.py -q`
 

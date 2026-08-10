@@ -4,13 +4,26 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from astraquant_domain import OrderSide
 
 
-class DatasetSummaryView(BaseModel):
+class LegacyResearchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_class: Literal["EXPLORATORY"] = "EXPLORATORY"
+
+
+class LegacyResearchView(BaseModel):
+    semantic_class: Literal["LEGACY_SEMANTICS"] = "LEGACY_SEMANTICS"
+    evidence_class: Literal["LEGACY_UNVERIFIED"] = "LEGACY_UNVERIFIED"
+    run_class: Literal["EXPLORATORY"] = "EXPLORATORY"
+
+
+class DatasetSummaryView(LegacyResearchView):
     dataset_id: str
     instrument_id: str
     bar_count: int
@@ -19,6 +32,8 @@ class DatasetSummaryView(BaseModel):
 
 
 class OpeningPositionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     instrument_id: str = Field(min_length=1, max_length=64)
     quantity: int = Field(gt=0)
     available_quantity: int = Field(ge=0)
@@ -26,13 +41,15 @@ class OpeningPositionInput(BaseModel):
 
 
 class ReplayInstrumentInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     instrument_id: str = Field(min_length=1, max_length=64)
     start_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     end_date: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
     opening: OpeningPositionInput | None = None
 
 
-class ReplayRequest(BaseModel):
+class ReplayRequest(LegacyResearchRequest):
     instruments: list[ReplayInstrumentInput] = Field(min_length=1, max_length=20)
     model_id: str = Field(min_length=1, max_length=64)
     initial_cash: Decimal = Field(default=Decimal("100000"), gt=0)
@@ -60,7 +77,7 @@ class ReplayBarView(BaseModel):
     volume: Decimal
 
 
-class ReplayView(BaseModel):
+class ReplayView(LegacyResearchView):
     instrument_id: str
     model_id: str
     model_status: str
@@ -88,12 +105,12 @@ class ReplayView(BaseModel):
     buy_hold_equity_points: list[list[datetime | Decimal]]
 
 
-class RecordDatasetRequest(BaseModel):
+class RecordDatasetRequest(LegacyResearchRequest):
     instrument_id: str = Field(min_length=1, max_length=64)
     count: int = Field(default=5000, ge=100, le=20_000)
 
 
-class RecordDatasetResult(BaseModel):
+class RecordDatasetResult(LegacyResearchView):
     dataset_id: str
     instrument_id: str
     bar_count: int
@@ -101,7 +118,7 @@ class RecordDatasetResult(BaseModel):
     end: datetime
 
 
-class TrainRequest(BaseModel):
+class TrainRequest(LegacyResearchRequest):
     dataset_ids: list[str] = Field(default_factory=list, max_length=8)
     instruments: list[ReplayInstrumentInput] = Field(default_factory=list, max_length=8)
     model_id: str = Field(min_length=1, max_length=64)
@@ -109,7 +126,7 @@ class TrainRequest(BaseModel):
     threshold: Decimal = Field(default=Decimal("0.005"), gt=0, le=Decimal("0.1"))
 
 
-class TrainResult(BaseModel):
+class TrainResult(LegacyResearchView):
     model_id: str
     status: str
     rows: int
@@ -122,13 +139,13 @@ class TrainResult(BaseModel):
     artifact_path: str
 
 
-class ExperimentSummaryView(BaseModel):
+class ExperimentSummaryView(LegacyResearchView):
     experiment_id: str
     created_at: datetime
     summary_json: str
 
 
-class ExperimentView(BaseModel):
+class ExperimentView(LegacyResearchView):
     experiment_id: str
     created_at: datetime
     request_json: str

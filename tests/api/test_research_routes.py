@@ -144,6 +144,46 @@ def test_research_datasets_lists_recorded_snapshots(tmp_path: Path) -> None:
     assert payload[0]["dataset_id"] == "cn-equity-159516-szse-1m-none"
     assert payload[0]["instrument_id"] == "159516.SZSE"
     assert payload[0]["bar_count"] == 200
+    assert payload[0]["semantic_class"] == "LEGACY_SEMANTICS"
+    assert payload[0]["evidence_class"] == "LEGACY_UNVERIFIED"
+    assert payload[0]["run_class"] == "EXPLORATORY"
+
+
+def test_legacy_research_requests_reject_formal_and_unknown_selectors(
+    tmp_path: Path,
+) -> None:
+    client, _ = build_client(tmp_path)
+
+    formal_record = client.post(
+        "/v1/research/datasets/record",
+        json={
+            "instrument_id": "159516.SZSE",
+            "count": 5000,
+            "run_class": "FORMAL",
+        },
+    )
+    direct_latest = client.post(
+        "/v1/research/train",
+        json={
+            "dataset_ids": ["latest"],
+            "model_id": "formal-attempt",
+            "run_class": "FORMAL",
+            "dataset_path": "formal/manifest.json",
+        },
+    )
+    unpinned_replay = client.post(
+        "/v1/research/replay",
+        json={
+            "instruments": [{"instrument_id": "159516.SZSE"}],
+            "model_id": "latest",
+            "run_class": "FORMAL",
+            "snapshot_id": "latest",
+        },
+    )
+
+    assert formal_record.status_code == 422
+    assert direct_latest.status_code == 422
+    assert unpinned_replay.status_code == 422
 
 
 def _attach_bars_provider(
@@ -245,6 +285,9 @@ def test_research_replay_allows_draft_model_with_status_marker(tmp_path: Path) -
     payload = replay_response.json()
     assert isinstance(payload, list)
     assert payload[0]["model_status"] == "DRAFT"
+    assert payload[0]["semantic_class"] == "LEGACY_SEMANTICS"
+    assert payload[0]["evidence_class"] == "LEGACY_UNVERIFIED"
+    assert payload[0]["run_class"] == "EXPLORATORY"
 
 
 def test_research_replay_returns_metrics_trades_and_bars(tmp_path: Path) -> None:
@@ -347,6 +390,9 @@ def test_research_train_accepts_live_instruments(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["model_id"] == "live-train-001"
     assert payload["status"] == "DRAFT"
+    assert payload["semantic_class"] == "LEGACY_SEMANTICS"
+    assert payload["evidence_class"] == "LEGACY_UNVERIFIED"
+    assert payload["run_class"] == "EXPLORATORY"
     assert payload["rows"] > 100
     assert "auc" in payload
     assert "recommended_buy" in payload

@@ -190,6 +190,11 @@ def build_research_router(
                 created_at=now,
                 updated_at=now,
                 approved_at=None,
+                semantic_class="LEGACY_SEMANTICS",
+                evidence_class="LEGACY_UNVERIFIED",
+                run_class="EXPLORATORY",
+                manifest_schema="1",
+                content_digest=None,
             )
         )
         return TrainResult(
@@ -373,6 +378,11 @@ def _save_experiment(
             ensure_ascii=False,
         ),
         created_at=now,
+        semantic_class="LEGACY_SEMANTICS",
+        evidence_class="LEGACY_UNVERIFIED",
+        run_class="EXPLORATORY",
+        manifest_schema="1",
+        content_digest=None,
     )
     with contextlib.suppress(Exception):
         models.save_experiment(record)
