@@ -52,6 +52,9 @@ def _aware_utc(name: str, value: object) -> datetime:
 class BridgeCallEvidence:
     request_digest: str
     response_digest: str
+    canonical_request: dict[str, object]
+    attempt: int
+    retry_of_request_digest: str | None
     representation: BridgeResponseRepresentation
     serialization_version: str
     interface: str
@@ -70,6 +73,16 @@ class BridgeCallEvidence:
             evidence = cls(
                 request_digest=validate_digest("request_digest", str(value["request_digest"])),
                 response_digest=validate_digest("response_digest", str(value["response_digest"])),
+                canonical_request=dict(value["canonical_request"]),
+                attempt=int(value["attempt"]),
+                retry_of_request_digest=(
+                    None
+                    if value.get("retry_of_request_digest") is None
+                    else validate_digest(
+                        "retry_of_request_digest",
+                        str(value["retry_of_request_digest"]),
+                    )
+                ),
                 representation=representation,
                 serialization_version=str(value["serialization_version"]),
                 interface=str(value["interface"]),
@@ -93,6 +106,10 @@ class BridgeCallEvidence:
                 raise ValueError(f"{name} must be non-empty canonical text")
         if evidence.received_at < evidence.requested_at:
             raise ValueError("received_at cannot precede requested_at")
+        if evidence.attempt <= 0:
+            raise ValueError("attempt must be positive")
+        if not evidence.canonical_request:
+            raise ValueError("canonical_request must not be empty")
         if not evidence.observed_schema:
             raise ValueError("observed_schema must not be empty")
         return evidence
@@ -101,6 +118,9 @@ class BridgeCallEvidence:
         return {
             "request_digest": self.request_digest,
             "response_digest": self.response_digest,
+            "canonical_request": self.canonical_request,
+            "attempt": self.attempt,
+            "retry_of_request_digest": self.retry_of_request_digest,
             "representation": self.representation.value,
             "serialization_version": self.serialization_version,
             "interface": self.interface,
@@ -442,6 +462,8 @@ class EastmoneyBridgeClient:
                 raise EastmoneyBridgeProtocolError("Bridge evidence is invalid") from error
             if evidence.request_digest != expected_request_digest:
                 raise EastmoneyBridgeProtocolError("Bridge request digest does not match")
+            if evidence.canonical_request != _redact_request(request):
+                raise EastmoneyBridgeProtocolError("Bridge canonical request does not match")
             if evidence.response_digest != _digest(result):
                 raise EastmoneyBridgeProtocolError("Bridge response digest does not match")
             return BridgeResponse(result=result, evidence=evidence)

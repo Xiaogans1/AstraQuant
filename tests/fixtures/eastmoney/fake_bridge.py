@@ -38,10 +38,25 @@ def redact(value: object) -> object:
 def observed_schema(value: object) -> dict[str, object]:
     if isinstance(value, list):
         fields = sorted({str(key) for item in value if isinstance(item, dict) for key in item})
-        return {"kind": "list", "fields": fields}
+        field_types = {
+            field: sorted(
+                {
+                    type(item[field]).__name__
+                    for item in value
+                    if isinstance(item, dict) and field in item and item[field] is not None
+                }
+            )
+            for field in fields
+        }
+        return {"kind": "list", "fields": fields, "field_types": field_types}
     if isinstance(value, dict):
-        return {"kind": "object", "fields": sorted(value)}
-    return {"kind": type(value).__name__, "fields": []}
+        fields = sorted(value)
+        return {
+            "kind": "object",
+            "fields": fields,
+            "field_types": {field: [type(value[field]).__name__] for field in fields},
+        }
+    return {"kind": type(value).__name__, "fields": [], "field_types": {}}
 
 
 def success(
@@ -54,6 +69,9 @@ def success(
     evidence = {
         "request_digest": digest(redact(request)),
         "response_digest": digest(result),
+        "canonical_request": redact(request),
+        "attempt": 1,
+        "retry_of_request_digest": None,
         "representation": "SDK_OBJECT_CANONICAL",
         "serialization_version": SERIALIZATION_VERSION,
         "interface": "gm_python_sdk",

@@ -110,8 +110,15 @@ def test_bridge_client_returns_versioned_sdk_object_evidence() -> None:
     assert evidence.permission_tier == "level1-history"
     assert evidence.request_digest.startswith("sha256:")
     assert evidence.response_digest.startswith("sha256:")
+    assert evidence.attempt == 1
+    assert evidence.retry_of_request_digest is None
+    assert evidence.canonical_request["contract_version"] == ("astraquant.eastmoney-bridge/v1")
     assert evidence.requested_at <= evidence.received_at
     assert evidence.observed_schema["kind"] == "list"
+    assert evidence.observed_schema["field_types"] == {
+        "price": ["int"],
+        "symbol": ["str"],
+    }
     serialized = str(evidence.to_dict())
     assert "private-token" not in serialized
 
