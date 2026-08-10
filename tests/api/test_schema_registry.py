@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 
+from astraquant_api.capture_repository import metadata as capture_metadata
 from astraquant_api.data_repository import data_snapshots
 from astraquant_api.database import create_database, migrate_database
 from astraquant_api.paper_repository import metadata as paper_metadata
@@ -30,7 +31,7 @@ def _metadata_constraint_names(
 
 
 def test_schema_registry_contains_every_repository_table() -> None:
-    expected = set(core_metadata.tables) | set(paper_metadata.tables)
+    expected = set(core_metadata.tables) | set(paper_metadata.tables) | set(capture_metadata.tables)
 
     assert set(schema_metadata.tables) == expected
     assert data_snapshots.metadata is core_metadata
