@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from itertools import pairwise
@@ -11,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 from astraquant_data.capture import CaptureChunk, CaptureEnvelope, CapturePlan
 from astraquant_data.capture_store import CaptureStore
-from astraquant_data.eastmoney_client import HistoryRangeCapture
+from astraquant_data.eastmoney_client import HistoryCall
 from astraquant_data.eastmoney_protocol import HistoryPageSpec
 from astraquant_data.provider_identity import ProviderIdentity
 from astraquant_domain import Adjustment
@@ -29,17 +30,20 @@ class ProviderEvidenceDriftError(RuntimeError):
     """The observed SDK evidence no longer matches the pinned provider identity."""
 
 
+class CaptureCanceled(RuntimeError):
+    """Capture stopped without sealing; verified chunks remain resumable."""
+
+
 class BatchHistoryClient(Protocol):
-    def history_range_with_evidence(
+    def history_page_with_evidence(
         self,
         *,
         symbol: str,
         frequency: str,
-        pages: tuple[HistoryPageSpec, ...],
+        page: HistoryPageSpec,
         adjust: int,
         units: tuple[str, ...],
-        expected_total: int,
-    ) -> HistoryRangeCapture: ...
+    ) -> HistoryCall: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +201,7 @@ class EastmoneyBatchAdapter:
         *,
         plan: CapturePlan,
         recorded_at: datetime,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> CaptureEnvelope:
         if plan.identity_digest != self._identity.identity_digest:
             raise ProviderEvidenceDriftError("capture plan identity does not match provider")
@@ -209,18 +214,39 @@ class EastmoneyBatchAdapter:
         if plan.coverage_proof_digest != request.coverage_proof_digest:
             raise ValueError("capture plan coverage proof does not match exact request")
         self._store.begin(plan)
-        captured = self._client.history_range_with_evidence(
-            symbol=request.symbol,
-            frequency=request.frequency,
-            pages=request.pages,
-            adjust=request.adjust,
-            units=request.units,
-            expected_total=request.expected_total,
+        cancellation_requested = should_cancel or (lambda: False)
+        stored_chunks = tuple(
+            self._store.read_chunk(plan.capture_id, chunk_id)
+            for chunk_id in self._store.list_chunk_ids(plan.capture_id)
         )
-        if len(captured.calls) != len(request.pages):
-            raise ProviderEvidenceDriftError("bridge call count does not match page plan")
-        recorded_times: list[datetime] = []
-        for call in captured.calls:
+        existing_chunks = {chunk.sequence: chunk for chunk in stored_chunks}
+        recorded_times = [chunk.recorded_at for chunk in existing_chunks.values()]
+        for page_spec in request.pages:
+            if page_spec.index in existing_chunks:
+                existing = existing_chunks[page_spec.index]
+                expected_adjust = _ADJUSTMENTS[request.adjust].name
+                if (
+                    existing.page_cursor != page_spec.cursor
+                    or existing.page_count != page_spec.page_count
+                    or existing.adjust != expected_adjust
+                    or existing.units != request.units
+                    or _digest(dict(existing.schema)) != self._identity.schema_fingerprint
+                ):
+                    raise ProviderEvidenceDriftError(
+                        "stored capture chunk does not match resumed request"
+                    )
+                continue
+            if cancellation_requested():
+                raise CaptureCanceled("capture canceled before next page")
+            call = self._client.history_page_with_evidence(
+                symbol=request.symbol,
+                frequency=request.frequency,
+                page=page_spec,
+                adjust=request.adjust,
+                units=request.units,
+            )
+            if call.page.evidence.spec != page_spec:
+                raise ProviderEvidenceDriftError("bridge page does not match page plan")
             evidence = call.response.evidence
             if evidence.interface != self._identity.interface:
                 raise ProviderEvidenceDriftError("provider interface drift")
@@ -260,4 +286,6 @@ class EastmoneyBatchAdapter:
                 raise ProviderEvidenceDriftError("provider response digest drift")
             self._store.append_chunk(plan.capture_id, chunk)
             recorded_times.append(chunk_recorded_at)
+            if cancellation_requested():
+                raise CaptureCanceled("capture canceled after persisted page")
         return self._store.seal(plan.capture_id, sealed_at=max(recorded_times))

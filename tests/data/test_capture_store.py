@@ -50,6 +50,8 @@ def _chunk(
     page_count: int = 2,
     page_cursor: str | None = None,
     declared_total: int | None = 2,
+    adjust: str = "NONE",
+    units: tuple[str, ...] = ("price=CNY", "volume=share"),
 ) -> CaptureChunk:
     request = {
         "symbol": "SHSE.600000",
@@ -69,8 +71,8 @@ def _chunk(
         serialization_version="astraquant.sdk-object-json/v1",
         dtype="list[bar]",
         schema={"fields": ["close", "symbol"], "version": "v1"},
-        units=("price=CNY", "volume=share"),
-        adjust="NONE",
+        units=units,
+        adjust=adjust,
         page_cursor=page_cursor or f"page-{sequence}",
         page_count=page_count,
         returned_count=1,
@@ -236,6 +238,17 @@ def test_seal_rejects_disagreeing_declared_totals(tmp_path: Path) -> None:
     store.append_chunk(plan.capture_id, _chunk(1, declared_total=3))
 
     with pytest.raises(IncompleteCaptureError, match="declared total"):
+        store.seal(plan.capture_id)
+
+
+def test_seal_rejects_adjustment_or_unit_drift_across_chunks(tmp_path: Path) -> None:
+    store = CaptureStore(tmp_path)
+    plan = _plan()
+    store.begin(plan)
+    store.append_chunk(plan.capture_id, _chunk(0))
+    store.append_chunk(plan.capture_id, _chunk(1, adjust="FORWARD"))
+
+    with pytest.raises(IncompleteCaptureError, match="adjustment/units/schema"):
         store.seal(plan.capture_id)
 
 

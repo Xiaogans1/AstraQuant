@@ -30,7 +30,7 @@ assert command.command_digest.startswith("sha256:")
 - [x] **Step 2: 运行红灯**：`uv run pytest tests/api/test_formal_data_worker.py -q`；期望 import `astraquant_api.formal_data_service` 失败。
 - [x] **Step 3: 最小实现**：Pydantic schema `extra="forbid"`；`FormalCaptureAdmissionService.resolve()` 只接收 server-owned resolver 结果并构造 immutable command；command canonical digest 覆盖 exact identity/report/approval、sessions、rows-per-session、coverage/policy digest、created_at。
 - [x] **Step 4: 运行绿灯与静态检查**：`uv run pytest tests/api/test_formal_data_worker.py -q`、Ruff、mypy 全绿。
-- [ ] **Step 5: 提交**：`git commit -m "feat(api): 冻结正式采集命令"`。
+- [x] **Step 5: 提交**：`git commit -m "feat(api): 冻结正式采集命令"`（`725cd9c`）。
 
 ### Task 2: 增加逐页 bridge 调用与可取消 CaptureSession
 
@@ -41,7 +41,7 @@ assert command.command_digest.startswith("sha256:")
 - Test: `tests/data/test_eastmoney_client.py`
 - Modify: `tests/data/test_eastmoney_batch.py`
 
-- [ ] **Step 1: 写逐页/取消红灯**：`history_page_with_evidence()` 每次只发一个 exact page；adapter 在每页前后调用 `should_cancel()`。第二页前取消时第一 chunk 保留、`seal.json` 不存在、读取 parent 返回 `IncompleteCaptureError`；恢复用同 plan/capture id 跳过已验证同正文 chunk并继续。
+- [x] **Step 1: 写逐页/取消红灯**：`history_page_with_evidence()` 每次只发一个 exact page；adapter 在每页前后调用 `should_cancel()`。第二页前取消时第一 chunk 保留、`seal.json` 不存在、读取 parent 返回 `IncompleteCaptureError`；恢复用同 plan/capture id 跳过已验证同正文 chunk并继续。
 
 ```python
 with pytest.raises(CaptureCanceled):
@@ -51,9 +51,9 @@ with pytest.raises(IncompleteCaptureError):
     store.read(plan.capture_id)
 ```
 
-- [ ] **Step 2: 运行红灯**：运行上述两个 data test 文件，期望缺少逐页 API/cancel contract。
-- [ ] **Step 3: 最小实现**：`history_range_with_evidence()` 复用逐页 API；adapter 不直接访问 bridge 私有方法；已存在 chunk 必须重算并与新调用证据一致，任何不同正文冲突；取消永不创建 seal。
-- [ ] **Step 4: 回归**：`uv run pytest tests/data/test_eastmoney_client.py tests/data/test_capture_store.py tests/data/test_eastmoney_batch.py -q` 及 Ruff/mypy 全绿。
+- [x] **Step 2: 运行红灯**：运行上述两个 data test 文件，期望缺少逐页 API/cancel contract。
+- [x] **Step 3: 最小实现**：`history_range_with_evidence()` 复用逐页 API；adapter 不直接访问 bridge 私有方法；已存在 chunk 必须重算并与新调用证据一致，任何不同正文冲突；取消永不创建 seal。
+- [x] **Step 4: 回归**：`uv run pytest tests/data/test_eastmoney_client.py tests/data/test_capture_store.py tests/data/test_eastmoney_batch.py -q` 及 Ruff/mypy 全绿。
 - [ ] **Step 5: 提交**：`git commit -m "feat(data): 支持可恢复逐页正式采集"`。
 
 ### Task 3: 实现无数据库能力的 worker

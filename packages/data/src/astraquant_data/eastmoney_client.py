@@ -348,31 +348,58 @@ class EastmoneyBridgeClient:
         if adjust not in (0, 1, 2):
             raise ValueError("adjust must be 0, 1 or 2")
         expected_specs = tuple(pages)
-        calls: list[HistoryCall] = []
-        for spec in expected_specs:
-            response = self._request_response(
-                "history_range",
-                {
-                    "symbol": symbol,
-                    "frequency": frequency,
-                    "adjust": adjust,
-                    "units": list(units),
-                    "page": {
-                        "index": spec.index,
-                        "page_count": spec.page_count,
-                        "cursor": spec.cursor,
-                        "start_at": spec.start_at.isoformat(),
-                        "end_at": spec.end_at.isoformat(),
-                    },
-                },
+        calls = tuple(
+            self.history_page_with_evidence(
+                symbol=symbol,
+                frequency=frequency,
+                page=spec,
+                adjust=adjust,
+                units=units,
             )
-            calls.append(HistoryCall(page=self._history_page(response), response=response))
+            for spec in expected_specs
+        )
         batch = validate_history_pages(
             tuple(call.page for call in calls),
             expected_specs=expected_specs,
             expected_total=expected_total,
         )
-        return HistoryRangeCapture(batch=batch, calls=tuple(calls))
+        return HistoryRangeCapture(batch=batch, calls=calls)
+
+    def history_page_with_evidence(
+        self,
+        *,
+        symbol: str,
+        frequency: str,
+        page: HistoryPageSpec,
+        adjust: int = 0,
+        units: tuple[str, ...] = ("price=CNY", "volume=share"),
+    ) -> HistoryCall:
+        if not symbol or symbol != symbol.strip():
+            raise ValueError("symbol must be non-empty canonical text")
+        if not frequency or frequency != frequency.strip():
+            raise ValueError("frequency must be non-empty canonical text")
+        if adjust not in (0, 1, 2):
+            raise ValueError("adjust must be 0, 1 or 2")
+        response = self._request_response(
+            "history_range",
+            {
+                "symbol": symbol,
+                "frequency": frequency,
+                "adjust": adjust,
+                "units": list(units),
+                "page": {
+                    "index": page.index,
+                    "page_count": page.page_count,
+                    "cursor": page.cursor,
+                    "start_at": page.start_at.isoformat(),
+                    "end_at": page.end_at.isoformat(),
+                },
+            },
+        )
+        parsed = self._history_page(response)
+        if parsed.evidence.spec != page:
+            raise EastmoneyBridgeProtocolError("History page does not match request")
+        return HistoryCall(page=parsed, response=response)
 
     @staticmethod
     def _history_page(response: BridgeResponse) -> HistoryPage:

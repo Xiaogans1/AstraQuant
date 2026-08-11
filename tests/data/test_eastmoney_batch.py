@@ -8,6 +8,7 @@ import pytest
 
 from astraquant_data.adapters.eastmoney_batch import (
     BatchCaptureRequest,
+    CaptureCanceled,
     EastmoneyBatchAdapter,
     ProviderEvidenceDriftError,
     plan_session_coverage,
@@ -162,6 +163,14 @@ class FakeBatchClient:
         if self.error is not None:
             raise self.error
         return self.captured
+
+    def history_page_with_evidence(self, **request: object) -> HistoryCall:
+        self.requests.append(request)
+        if self.error is not None:
+            raise self.error
+        page = request["page"]
+        assert isinstance(page, HistoryPageSpec)
+        return self.captured.calls[page.index]
 
 
 def _request(count: int = 2, *, adjust: int = 0) -> BatchCaptureRequest:
@@ -400,3 +409,52 @@ def test_daily_coverage_planner_binds_exact_lifecycle_sessions_and_symbol() -> N
     assert first.pages[0].cursor == "2020-01-02/2020-01-06"
     assert first.coverage_proof_digest != second.coverage_proof_digest
     assert first.coverage_proof_digest != different_middle_session.coverage_proof_digest
+
+
+def test_batch_capture_cancellation_preserves_chunks_without_sealing_and_resumes(
+    tmp_path: Path,
+) -> None:
+    captured = _captured_range(count=2)
+    client = FakeBatchClient(captured)
+    identity = _identity(captured.calls[0].response.evidence.observed_schema)
+    request = _request(count=2)
+    plan = CapturePlan(
+        identity_digest=identity.identity_digest,
+        report_digest=None,
+        approval_id=None,
+        endpoint=identity.endpoint,
+        expected_chunk_count=2,
+        expected_row_count=2,
+        coverage_proof_digest=request.coverage_proof_digest,
+        started_at=NOW,
+        purpose=CapturePurpose.QUALIFICATION_PROBE,
+    )
+    store = CaptureStore(tmp_path)
+    adapter = EastmoneyBatchAdapter(client=client, store=store, identity=identity)
+
+    with pytest.raises(CaptureCanceled):
+        adapter.capture(
+            request,
+            plan=plan,
+            recorded_at=NOW,
+            should_cancel=lambda: len(client.requests) == 1,
+        )
+
+    assert len(store.list_chunk_ids(plan.capture_id)) == 1
+    with pytest.raises(IncompleteCaptureError, match="not sealed"):
+        store.read(plan.capture_id)
+
+    envelope = adapter.capture(
+        request,
+        plan=plan,
+        recorded_at=NOW,
+        should_cancel=lambda: False,
+    )
+
+    assert envelope.status is CaptureStatus.SEALED
+    assert len(store.list_chunk_ids(plan.capture_id)) == 2
+    requested_pages = [item["page"] for item in client.requests if "page" in item]
+    assert [page.index for page in requested_pages if isinstance(page, HistoryPageSpec)] == [
+        0,
+        1,
+    ]

@@ -106,6 +106,10 @@ class CaptureStore:
             raise CaptureIntegrityError("capture chunk does not exist")
         return self._read_chunk(path)
 
+    def list_chunk_ids(self, capture_id: str) -> tuple[str, ...]:
+        self._read_plan(capture_id)
+        return tuple(chunk.chunk_id for chunk in self._ordered_chunks(capture_id))
+
     def begin(self, plan: CapturePlan) -> str:
         _create_immutable(self._plan_path(plan.capture_id), plan.to_dict())
         return plan.capture_id
@@ -178,6 +182,19 @@ class CaptureStore:
             raise IncompleteCaptureError(
                 f"expected {plan.expected_chunk_count} chunks, found {len(chunks)}"
             )
+        semantic_shapes = {
+            (
+                chunk.adjust,
+                chunk.units,
+                canonical_json_bytes(dict(chunk.schema)),
+                chunk.response_representation,
+                chunk.serialization_version,
+                chunk.dtype,
+            )
+            for chunk in chunks
+        }
+        if len(semantic_shapes) != 1:
+            raise IncompleteCaptureError("capture adjustment/units/schema drift across chunks")
         declared_values = tuple(chunk.declared_total for chunk in chunks)
         if any(value is None for value in declared_values) and any(
             value is not None for value in declared_values

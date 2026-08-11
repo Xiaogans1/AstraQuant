@@ -208,6 +208,29 @@ def test_bridge_client_preserves_each_history_call_for_immutable_capture() -> No
     }
 
 
+def test_bridge_client_can_fetch_one_exact_history_page_for_resumable_capture() -> None:
+    spec = HistoryPageSpec(
+        index=0,
+        page_count=1,
+        cursor="2026-08-01/2026-08-02",
+        start_at=datetime(2026, 8, 1, tzinfo=UTC),
+        end_at=datetime(2026, 8, 2, tzinfo=UTC),
+    )
+    client = make_client()
+
+    with client:
+        call = client.history_page_with_evidence(
+            symbol="SHSE.600000",
+            frequency="1d",
+            page=spec,
+            adjust=0,
+            units=("price=CNY", "volume=share"),
+        )
+
+    assert call.page.evidence.spec == spec
+    assert call.page.rows[0]["symbol"] == "SHSE.600000"
+
+
 def test_bridge_client_rejects_history_without_total_or_external_proof() -> None:
     spec = HistoryPageSpec(
         index=0,
