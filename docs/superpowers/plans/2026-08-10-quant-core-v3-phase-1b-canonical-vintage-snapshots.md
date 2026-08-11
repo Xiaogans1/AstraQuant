@@ -66,13 +66,13 @@ assert revised_bar.vintage_id != old_bar.vintage_id
 - Test: `tests/data/test_quality.py`
 - Test: `tests/data/test_calendars.py`
 
-- [ ] 先测试 schema/单位/OHLCV/session/duplicate/pagination/aggregation、分钟缺段、公司行动断点、universe/status gap、修订冲突和日线覆盖。
-- [ ] 先测试 coverage denominator 来自历史 instrument lifecycle/calendar，不用今天仍上市的 universe 反推过去；listing 前/delisting 后不算缺口。
-- [ ] 运行目标 tests，确认红灯。
-- [ ] 实现 role-aware quality policy、coverage bitmap/summary 和 quarantine reason；每个 threshold 有版本/source/hash，不能把 warning 当 PASS。
-- [ ] 日线与分钟质量报告分轨，分钟按 session segment/expected bar count 计算，静默 5000 条截断必须被发现。
-- [ ] 重跑 tests，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 建立历史覆盖与正式质量门"`
+- [x] 先测试 schema/单位/OHLCV/session/duplicate/pagination/aggregation、分钟缺段、公司行动断点、universe/status gap、修订冲突和日线覆盖。
+- [x] 先测试 coverage denominator 来自历史 instrument lifecycle/calendar，不用今天仍上市的 universe 反推过去；listing 前/delisting 后不算缺口。
+- [x] 运行目标 tests，确认红灯。
+- [x] 实现 role-aware quality policy、coverage bitmap/summary 和 quarantine reason；每个 threshold 有版本/source/hash，不能把 warning 当 PASS。
+- [x] 日线与分钟质量报告分轨，分钟按 session segment/expected bar count 计算，静默 5000 条截断必须被发现。
+- [x] 重跑 tests，期望全绿。
+- [x] 提交：`git commit -m "feat(data): 建立历史覆盖与正式质量门"`
 
 ## Task 4: 升级 Manifest/ParquetStore 为 snapshot v2
 
