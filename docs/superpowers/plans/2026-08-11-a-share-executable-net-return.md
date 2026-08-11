@@ -110,6 +110,7 @@ class InstrumentKind(StrEnum):
     STOCK = "STOCK"
     ETF = "ETF"
 
+
 @dataclass(frozen=True, slots=True)
 class ExecutionPolicy:
     initial_cash: Decimal = Decimal("100000")
@@ -152,9 +153,7 @@ Expected: PASS。
 扩展 `tests/quant/test_baseline_matrix.py`：
 
 ```python
-predictions = predict_fold_probabilities(
-    BaselineModel.LIGHTGBM, rows, folds=folds, seed=7
-)
+predictions = predict_fold_probabilities(BaselineModel.LIGHTGBM, rows, folds=folds, seed=7)
 assert {(item["fold_id"], item["row_id"]) for item in predictions} == expected
 ```
 
@@ -188,15 +187,15 @@ Expected: PASS。
 
 ### Task 4: 真实数据运行、回归和交付
 
-- [ ] **Step 1: 重建真实训练集与 Qlib artifacts**
+- [x] **Step 1: 重建真实训练集与 Qlib artifacts**
 
 使用 snapshot `7ae18d45894e850985d0da45006fd0ae8b7927fd5978710cd566ec588122cbec` 对应的 `cn-equity-159516-szse-1m-none`，重新运行 training set、Alpha158 export、固定 Qlib runner 和 S3 CLI；instrument kind 显式设为 `ETF`。
 
-- [ ] **Step 2: 重复运行并比较摘要**
+- [x] **Step 2: 重复运行并比较摘要**
 
 相同输入运行两次，计算两个报告 SHA-256；Expected: 完全相同。
 
-- [ ] **Step 3: 运行目标与全量验证**
+- [x] **Step 3: 运行目标与全量验证**
 
 Run:
 
@@ -207,11 +206,11 @@ pwsh -File scripts/verify.ps1 -Scope All
 
 Expected: 全部通过；只允许仓库已知 warning/skip。
 
-- [ ] **Step 4: 更新路线与进度文档**
+- [x] **Step 4: 更新路线与进度文档**
 
 勾选 S3 三项，记录 ASTRA10/Alpha158 的可执行净收益、回撤、换手和跳过机会，并把下一关键节点更新为 S4 目标仓位与 T+1。
 
-- [ ] **Step 5: 提交并推送**
+- [x] **Step 5: 提交并推送**
 
 ```powershell
 git add -- <本计划列出的代码、测试和文档>

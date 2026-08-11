@@ -28,7 +28,7 @@ def _bars(closes: list[str], volumes: list[str] | None = None) -> list[MarketBar
 
 
 def test_label_uses_only_future_completed_bars() -> None:
-    closes = ["10"] * 10 + ["10.2", "10.25", "10.3"]
+    closes = ["10"] * 10 + ["10.2", "10.25", "10.3", "10.4"]
     rows = _bars(closes)
     label = label_future_return(rows, index=9, horizon=3, threshold=Decimal("0.01"))
     assert label == 1
