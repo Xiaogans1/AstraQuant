@@ -54,7 +54,7 @@ with pytest.raises(IncompleteCaptureError):
 - [x] **Step 2: 运行红灯**：运行上述两个 data test 文件，期望缺少逐页 API/cancel contract。
 - [x] **Step 3: 最小实现**：`history_range_with_evidence()` 复用逐页 API；adapter 不直接访问 bridge 私有方法；已存在 chunk 必须重算并与新调用证据一致，任何不同正文冲突；取消永不创建 seal。
 - [x] **Step 4: 回归**：`uv run pytest tests/data/test_eastmoney_client.py tests/data/test_capture_store.py tests/data/test_eastmoney_batch.py -q` 及 Ruff/mypy 全绿。
-- [ ] **Step 5: 提交**：`git commit -m "feat(data): 支持可恢复逐页正式采集"`。
+- [x] **Step 5: 提交**：`git commit -m "feat(data): 支持可恢复逐页正式采集"`（`be8ac41`）。
 
 ### Task 3: 实现无数据库能力的 worker
 
