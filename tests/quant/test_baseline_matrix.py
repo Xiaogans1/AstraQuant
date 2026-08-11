@@ -9,6 +9,7 @@ from astraquant_quant.baseline_matrix import (
     MatrixStatus,
     expanding_walk_forward,
     run_baseline_matrix,
+    score_fold_predictions,
 )
 from astraquant_quant.strategy_layer import MODEL_FEATURE_COLUMNS
 
@@ -125,3 +126,39 @@ def test_matrix_reports_no_edge_when_every_model_lacks_positive_net_return() -> 
     assert report.status is MatrixStatus.NO_EDGE
     assert report.challenger is None
     assert all(summary.net_return <= 0 for summary in report.models)
+
+
+def test_external_predictions_use_the_same_auc_fee_and_return_scorer() -> None:
+    rows = _model_rows(12)
+    folds = expanding_walk_forward(rows, minimum_train_size=4, test_size=4, fold_count=2)
+    predictions = [
+        {
+            "fold_id": fold.fold_id,
+            "row_id": row_id,
+            "probability": 0.9 if int(rows[row_id]["label"]) else 0.1,
+        }
+        for fold in folds
+        for row_id in fold.test_indices
+    ]
+
+    summary = score_fold_predictions(
+        rows,
+        folds=folds,
+        predictions=predictions,
+        fee_rate=Decimal("0.001"),
+        prediction_threshold=0.5,
+    )
+
+    assert summary.auc == 1.0
+    assert summary.trades == 4
+    assert summary.gross_return == pytest.approx(0.04)
+    assert summary.net_return == pytest.approx(0.032)
+
+    with pytest.raises(ValueError, match="coverage"):
+        score_fold_predictions(
+            rows,
+            folds=folds,
+            predictions=predictions[:-1],
+            fee_rate=Decimal("0.001"),
+            prediction_threshold=0.5,
+        )

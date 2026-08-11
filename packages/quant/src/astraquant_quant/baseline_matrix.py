@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -47,6 +47,16 @@ class FoldMetrics:
 @dataclass(frozen=True, slots=True)
 class ModelSummary:
     model: BaselineModel
+    folds: tuple[FoldMetrics, ...]
+    auc: float
+    gross_return: float
+    net_return: float
+    trades: int
+    positive_folds: int
+
+
+@dataclass(frozen=True, slots=True)
+class PredictionSummary:
     folds: tuple[FoldMetrics, ...]
     auc: float
     gross_return: float
@@ -130,6 +140,54 @@ def run_baseline_matrix(
     )
 
 
+def score_fold_predictions(
+    rows: Sequence[dict[str, float | int]],
+    *,
+    folds: Sequence[WalkForwardFold],
+    predictions: Sequence[Mapping[str, object]],
+    fee_rate: Decimal,
+    prediction_threshold: float,
+) -> PredictionSummary:
+    """Score external probabilities with the exact native baseline return contract."""
+    if fee_rate < 0:
+        raise ValueError("fee_rate must not be negative")
+    if not 0 < prediction_threshold < 1:
+        raise ValueError("prediction_threshold must be between zero and one")
+    _validate_rows(rows)
+    exact_folds = tuple(folds)
+    if not exact_folds:
+        raise ValueError("folds must not be empty")
+    expected = {(fold.fold_id, row_id) for fold in exact_folds for row_id in fold.test_indices}
+    values: dict[tuple[str, int], float] = {}
+    for prediction in predictions:
+        fold_id = prediction.get("fold_id")
+        row_id = prediction.get("row_id")
+        probability = prediction.get("probability")
+        if (
+            not isinstance(fold_id, str)
+            or not fold_id
+            or isinstance(row_id, bool)
+            or not isinstance(row_id, int)
+            or isinstance(probability, bool)
+            or not isinstance(probability, (int, float))
+            or not 0 <= float(probability) <= 1
+        ):
+            raise ValueError("prediction schema mismatch")
+        key = (fold_id, row_id)
+        if key in values:
+            raise ValueError("prediction coverage contains duplicates")
+        values[key] = float(probability)
+    if set(values) != expected:
+        raise ValueError("prediction coverage does not match frozen folds")
+    return _score_probability_map(
+        rows,
+        exact_folds,
+        values,
+        fee_rate=fee_rate,
+        prediction_threshold=prediction_threshold,
+    )
+
+
 def _validate_rows(rows: Sequence[dict[str, float | int]]) -> None:
     if not rows:
         raise ValueError("rows must not be empty")
@@ -149,16 +207,54 @@ def _evaluate_model(
     prediction_threshold: float,
     seed: int,
 ) -> ModelSummary:
-    metrics = []
+    predictions: list[dict[str, object]] = []
     for fold in folds:
         train = [rows[index] for index in fold.train_indices]
         test = [rows[index] for index in fold.test_indices]
         probabilities = _predict(model, train, test, seed=seed)
+        predictions.extend(
+            {
+                "fold_id": fold.fold_id,
+                "row_id": row_id,
+                "probability": probability,
+            }
+            for row_id, probability in zip(fold.test_indices, probabilities, strict=True)
+        )
+    scored = score_fold_predictions(
+        rows,
+        folds=folds,
+        predictions=predictions,
+        fee_rate=fee_rate,
+        prediction_threshold=prediction_threshold,
+    )
+    return ModelSummary(
+        model=model,
+        folds=scored.folds,
+        auc=scored.auc,
+        gross_return=scored.gross_return,
+        net_return=scored.net_return,
+        trades=scored.trades,
+        positive_folds=scored.positive_folds,
+    )
+
+
+def _score_probability_map(
+    rows: Sequence[dict[str, float | int]],
+    folds: tuple[WalkForwardFold, ...],
+    probabilities: Mapping[tuple[str, int], float],
+    *,
+    fee_rate: Decimal,
+    prediction_threshold: float,
+) -> PredictionSummary:
+    metrics = []
+    for fold in folds:
+        test = [rows[index] for index in fold.test_indices]
+        fold_probabilities = [probabilities[(fold.fold_id, index)] for index in fold.test_indices]
         labels = [int(row["label"]) for row in test]
-        auc = 0.5 if len(set(labels)) < 2 else float(roc_auc_score(labels, probabilities))
+        auc = 0.5 if len(set(labels)) < 2 else float(roc_auc_score(labels, fold_probabilities))
         selected_returns = [
             Decimal(str(row["future_return"]))
-            for row, probability in zip(test, probabilities, strict=True)
+            for row, probability in zip(test, fold_probabilities, strict=True)
             if probability >= prediction_threshold
         ]
         trades = len(selected_returns)
@@ -175,8 +271,7 @@ def _evaluate_model(
             )
         )
     exact_metrics = tuple(metrics)
-    return ModelSummary(
-        model=model,
+    return PredictionSummary(
         folds=exact_metrics,
         auc=sum(value.auc * value.test_rows for value in exact_metrics)
         / sum(value.test_rows for value in exact_metrics),

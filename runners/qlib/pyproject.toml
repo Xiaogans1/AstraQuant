@@ -1,0 +1,29 @@
+[project]
+name = "astraquant-qlib-runner"
+version = "0.1.0"
+description = "Pinned Qlib model runner for AstraQuant fair comparisons"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "pandas>=2.2,<3",
+  "pyarrow>=18,<20",
+  "pyqlib",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.0,<10"]
+
+[project.scripts]
+astraquant-qlib-runner = "astraquant_qlib_runner.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+pyqlib = { git = "https://github.com/microsoft/qlib.git", rev = "79633dd9506ea689e5400dea0197717b5b3d74b7" }
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+pythonpath = ["src"]
+testpaths = ["tests"]
+

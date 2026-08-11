@@ -9,7 +9,8 @@
 ## 当前开发
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
-- 下一阶段：S2 Qlib 对照，先让 Qlib Alpha158/LightGBM 消费与 S1 相同的样本和 folds，再比较是否真正增益。
+- S2a Qlib 公平对照：3/3 已完成；同一 Eastmoney 行集/folds 可在固定 commit 的独立 Qlib LightGBM runner 训练，再由 AstraQuant 统一按相同费率与阈值评分。
+- 当前阶段：S2b Alpha158 特征对照；保持数据日期、walk-forward folds 和成本不变，只比较现有十特征与 Alpha158 的 OOS 净收益。
 
 ## 延后而非删除
 
@@ -19,4 +20,4 @@
 
 ## 下一结果
 
-使用同一份 Eastmoney 数据比较无模型、Logistic Regression 和 LightGBM，展示 OOS 扣费净收益并给出 `CHALLENGER` 或 `NO_EDGE`。
+在真实 Eastmoney snapshot 上生成 native LightGBM/Qlib LightGBM 差异报告，然后接入 Alpha158 特征组；任何模型只有 OOS 扣费净收益为正才保留为候选。

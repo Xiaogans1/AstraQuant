@@ -1,0 +1,9 @@
+{
+  "contract": "astraquant.qlib-runner/v1",
+  "python": ">=3.11,<3.12",
+  "upstream": {
+    "commit": "79633dd9506ea689e5400dea0197717b5b3d74b7",
+    "repository": "https://github.com/microsoft/qlib.git"
+  }
+}
+
