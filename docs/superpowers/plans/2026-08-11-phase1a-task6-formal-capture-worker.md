@@ -63,10 +63,10 @@ with pytest.raises(IncompleteCaptureError):
 - Modify: `packages/api/src/astraquant_api/worker.py`
 - Modify: `tests/api/test_formal_data_worker.py`
 
-- [ ] **Step 1: 写 worker 红灯**：用 fake bridge factory 执行 resolved command；成功 payload 只含 `command_digest/capture_id/seal_digest/chunk_count/row_count`，不含 token、raw bytes、object path；取消为 `CANCELED` 且 parent 未 seal；source test 禁止 `sqlalchemy`、`QualificationRepository`、legacy `data_worker`、AKShare、CSV。
-- [ ] **Step 2: 运行红灯**：`uv run pytest tests/api/test_formal_data_worker.py -q`，期望缺 worker/result type。
-- [ ] **Step 3: 最小实现**：增加 `FormalCaptureResult`；worker 从 JSON 重建 command/identity/request/plan，token 只传给 `EastmoneyBridgeClient.configure()`，异常只回传稳定 `error_type`，finally 停止 bridge。
-- [ ] **Step 4: 运行绿灯**：worker tests、Ruff、mypy 全绿。
+- [x] **Step 1: 写 worker 红灯**：用 fake bridge factory 执行 resolved command；成功 payload 只含 `command_digest/capture_id/seal_digest/chunk_count/row_count`，不含 token、raw bytes、object path；取消为 `CANCELED` 且 parent 未 seal；source test 禁止 `sqlalchemy`、`QualificationRepository`、legacy `data_worker`、AKShare、CSV。
+- [x] **Step 2: 运行红灯**：`uv run pytest tests/api/test_formal_data_worker.py -q`，期望缺 worker/result type。
+- [x] **Step 3: 最小实现**：增加 `FormalCaptureResult`；worker 从 JSON 重建 command/identity/request/plan，token 只传给 `EastmoneyBridgeClient.configure()`，异常只回传稳定 `error_type`，finally 停止 bridge。
+- [x] **Step 4: 运行绿灯**：worker tests、Ruff、mypy 全绿。
 - [ ] **Step 5: 提交**：`git commit -m "feat(api): 增加正式采集子进程"`。
 
 ### Task 4: Authenticated route 与幂等任务编排

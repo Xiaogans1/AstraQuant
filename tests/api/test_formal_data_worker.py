@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import inspect
+from collections.abc import Callable
 from datetime import UTC, date, datetime
+from queue import Queue
+from threading import Event
 
 import pytest
 from pydantic import ValidationError
@@ -11,6 +15,12 @@ from astraquant_api.formal_data_service import (
     FormalCaptureAdmissionService,
     TrustedCoverage,
 )
+from astraquant_api.formal_data_worker import (
+    FormalCaptureResult,
+    run_formal_data_worker,
+)
+from astraquant_api.worker import WorkerMessage, WorkerMessageKind
+from astraquant_data.adapters.eastmoney_batch import CaptureCanceled
 from astraquant_data.provider_identity import (
     ProviderCapability,
     ProviderIdentity,
@@ -189,3 +199,84 @@ def test_admission_rejects_empty_or_untrusted_coverage() -> None:
 
     with pytest.raises(FormalCaptureAdmissionError, match="coverage"):
         service.resolve(_request(timeline.approval.approval_id), created_at=NOW)
+
+
+def _command_values() -> dict[str, object]:
+    timeline = _timeline()
+    assert timeline.approval is not None
+    command = FormalCaptureAdmissionService(
+        lookup=FakeQualificationLookup(timeline),
+        coverage=FakeCoverageResolver(),
+    ).resolve(_request(timeline.approval.approval_id), created_at=NOW)
+    return command.model_dump(mode="json")
+
+
+def _run_worker(
+    executor: Callable[..., FormalCaptureResult],
+    *,
+    cancel: Event | None = None,
+) -> WorkerMessage:
+    messages: Queue[WorkerMessage] = Queue()
+    run_formal_data_worker(
+        "formal-task",
+        messages,
+        cancel or Event(),
+        _command_values(),
+        "D:/formal/capture",
+        "D:/sdk/python.exe",
+        "D:/repo/tools/eastmoney_bridge.py",
+        "private-eastmoney-token",
+        executor=executor,
+    )
+    emitted: list[WorkerMessage] = []
+    while not messages.empty():
+        emitted.append(messages.get_nowait())
+    return emitted[-1]
+
+
+def test_worker_returns_only_sealed_capture_audit_fields() -> None:
+    def execute(**_: object) -> FormalCaptureResult:
+        return FormalCaptureResult(
+            command_digest=_digest("d"),
+            capture_id=_digest("e"),
+            seal_digest=_digest("f"),
+            chunk_count=2,
+            row_count=2,
+        )
+
+    terminal = _run_worker(execute)
+
+    assert terminal.kind is WorkerMessageKind.SUCCEEDED
+    assert terminal.progress == 100
+    assert terminal.payload == {
+        "command_digest": _digest("d"),
+        "capture_id": _digest("e"),
+        "seal_digest": _digest("f"),
+        "chunk_count": 2,
+        "row_count": 2,
+    }
+    serialized = repr(terminal)
+    assert "private-eastmoney-token" not in serialized
+    assert "D:/formal" not in serialized
+
+
+def test_worker_cancellation_never_reports_success_or_fake_seal() -> None:
+    def execute(**_: object) -> FormalCaptureResult:
+        raise CaptureCanceled("stop after persisted page")
+
+    terminal = _run_worker(execute)
+
+    assert terminal.kind is WorkerMessageKind.CANCELED
+    assert terminal.payload is None
+    assert terminal.current_step == "canceled"
+
+
+def test_worker_source_has_no_database_or_legacy_provider_capability() -> None:
+    source = inspect.getsource(run_formal_data_worker).casefold()
+
+    assert "sqlalchemy" not in source
+    assert "qualificationrepository" not in source
+    assert "from astraquant_api.data_worker import" not in source
+    assert "import astraquant_api.data_worker" not in source
+    assert "akshare" not in source
+    assert "csv" not in source
