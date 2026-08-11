@@ -37,7 +37,7 @@
 - Create: `packages/data/src/astraquant_data/temporal.py`
 - Test: `tests/data/test_temporal_visibility.py`
 
-- [ ] 先编码 2010 bar 在 2026 首次抓取、随后修订的 scenario：
+- [x] 先编码 2010 bar 在 2026 首次抓取、随后修订的 scenario：
 
 ```python
 assert visible_at(old_bar, ReplayAsDelivered()) == old_bar.source_available_time
@@ -48,12 +48,12 @@ assert not is_visible(
 assert revised_bar.vintage_id != old_bar.vintage_id
 ```
 
-- [ ] 测试 REPLAY_AS_DELIVERED 报告必须披露 data vintage cutoff/占比且不能标 PIT_STRICT；PIT_STRICT 只能在 proven+available 后消费 exact version；PAPER/MIRROR 使用 max(source available, observed receive, source revision)。
-- [ ] 覆盖 LIVE 与 PAPER/MIRROR 同一 online visibility contract；按 `vintage_kind` 推导/验证 `vintage_proven_time`：source-certified/versioned 使用权威 revision proof，locally-observed 使用首次观测证据，unversioned 不得伪造严格 PIT proof。
-- [ ] 运行 `uv run pytest tests/data/test_temporal_visibility.py -q`，确认红灯。
-- [ ] 实现 `VisibilityPolicy`、`RevisionPolicy`、`VintageMode` 和 reasoned rejection；旧 decision 不被新 revision 回写。
-- [ ] 重跑 tests，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 实现版本化时间可见性"`
+- [x] 测试 REPLAY_AS_DELIVERED 报告必须披露 data vintage cutoff/占比且不能标 PIT_STRICT；PIT_STRICT 只能在 proven+available 后消费 exact version；PAPER/MIRROR 使用 max(source available, observed receive, source revision)。
+- [x] 覆盖 LIVE 与 PAPER/MIRROR 同一 online visibility contract；按 `vintage_kind` 推导/验证 `vintage_proven_time`：source-certified/versioned 使用权威 revision proof，locally-observed 使用首次观测证据，unversioned 不得伪造严格 PIT proof。
+- [x] 运行 `uv run pytest tests/data/test_temporal_visibility.py -q`，确认红灯。
+- [x] 实现 `VisibilityPolicy`、`RevisionPolicy`、`VintageMode` 和 reasoned rejection；旧 decision 不被新 revision 回写。
+- [x] 重跑 tests，期望全绿。
+- [x] 提交：`git commit -m "feat(data): 实现版本化时间可见性"`
 
 ## Task 3: 建立 coverage 与正式质量门
 
