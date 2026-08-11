@@ -162,6 +162,52 @@ def test_bridge_client_fetches_explicit_history_ranges_with_coverage_proof() -> 
     assert batch.pages[0].evidence.spec == spec
 
 
+def test_bridge_client_preserves_each_history_call_for_immutable_capture() -> None:
+    spec = HistoryPageSpec(
+        index=0,
+        page_count=1,
+        cursor="2026-08-01/2026-08-02",
+        start_at=datetime(2026, 8, 1, tzinfo=UTC),
+        end_at=datetime(2026, 8, 2, tzinfo=UTC),
+    )
+    client = make_client()
+
+    with client:
+        captured = client.history_range_with_evidence(
+            symbol="SHSE.600000",
+            frequency="1d",
+            pages=(spec,),
+            adjust=0,
+            expected_total=1,
+        )
+
+    assert captured.batch.rows == (
+        {
+            "symbol": "SHSE.600000",
+            "bob": "2026-08-01T00:00:00+00:00",
+        },
+    )
+    assert len(captured.calls) == 1
+    call = captured.calls[0]
+    assert call.response.evidence.request_digest == call.page.evidence.request_digest
+    assert call.response.evidence.response_digest == call.page.evidence.response_digest
+    assert call.response.result == {
+        "rows": list(captured.batch.rows),
+        "page": {
+            "index": 0,
+            "page_count": 1,
+            "cursor": "2026-08-01/2026-08-02",
+            "start_at": "2026-08-01T00:00:00+00:00",
+            "end_at": "2026-08-02T00:00:00+00:00",
+            "frequency": "1d",
+            "adjust": 0,
+            "units": ["price=CNY", "volume=share"],
+            "returned_count": 1,
+            "declared_total": None,
+        },
+    }
+
+
 def test_bridge_client_rejects_history_without_total_or_external_proof() -> None:
     spec = HistoryPageSpec(
         index=0,

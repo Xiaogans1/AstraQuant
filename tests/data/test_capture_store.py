@@ -9,6 +9,7 @@ import pytest
 from astraquant_data.capture import (
     CaptureChunk,
     CapturePlan,
+    CapturePurpose,
     CaptureStatus,
     SecretMaterialError,
 )
@@ -35,6 +36,9 @@ def _plan(*, expected_chunk_count: int = 2) -> CapturePlan:
         approval_id=_digest("3"),
         endpoint="market.history",
         expected_chunk_count=expected_chunk_count,
+        expected_row_count=expected_chunk_count,
+        coverage_proof_digest=_digest("5"),
+        purpose=CapturePurpose.FORMAL_DATA,
     )
 
 
@@ -183,6 +187,8 @@ def test_capture_identity_changes_with_exact_approval_or_endpoint() -> None:
             approval_id=_digest("4"),
             endpoint=baseline.endpoint,
             expected_chunk_count=baseline.expected_chunk_count,
+            expected_row_count=baseline.expected_row_count,
+            coverage_proof_digest=baseline.coverage_proof_digest,
         ).capture_id
         != baseline.capture_id
     )
@@ -239,4 +245,39 @@ def test_chunk_rejects_secret_like_response_fields() -> None:
             declared_total=0,
             attempt=1,
             retry_of_request_digest=None,
+        )
+
+
+def test_qualification_probe_can_be_captured_before_report_or_approval() -> None:
+    plan = CapturePlan(
+        identity_digest=_digest("1"),
+        report_digest=None,
+        approval_id=None,
+        endpoint="market.history",
+        expected_chunk_count=1,
+        expected_row_count=1,
+        coverage_proof_digest=_digest("5"),
+        purpose=CapturePurpose.QUALIFICATION_PROBE,
+    )
+
+    assert plan.report_digest is None
+    assert plan.approval_id is None
+    assert plan.capture_id.startswith("sha256:")
+
+
+@pytest.mark.parametrize(("report", "approval"), [(None, _digest("3")), (_digest("2"), None)])
+def test_formal_capture_requires_exact_report_and_approval(
+    report: str | None,
+    approval: str | None,
+) -> None:
+    with pytest.raises(ValueError, match="formal capture"):
+        CapturePlan(
+            identity_digest=_digest("1"),
+            report_digest=report,
+            approval_id=approval,
+            endpoint="market.history",
+            expected_chunk_count=1,
+            expected_row_count=1,
+            coverage_proof_digest=_digest("5"),
+            purpose=CapturePurpose.FORMAL_DATA,
         )

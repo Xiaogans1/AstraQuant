@@ -99,6 +99,13 @@ class CaptureStore:
     def chunk_path(self, capture_id: str, chunk_id: str) -> Path:
         return self._chunks_root(capture_id) / f"{self._digest_name(chunk_id)}.json"
 
+    def read_chunk(self, capture_id: str, chunk_id: str) -> CaptureChunk:
+        self._read_plan(capture_id)
+        path = self.chunk_path(capture_id, chunk_id)
+        if not path.exists():
+            raise CaptureIntegrityError("capture chunk does not exist")
+        return self._read_chunk(path)
+
     def begin(self, plan: CapturePlan) -> str:
         _create_immutable(self._plan_path(plan.capture_id), plan.to_dict())
         return plan.capture_id
@@ -171,14 +178,22 @@ class CaptureStore:
             raise IncompleteCaptureError(
                 f"expected {plan.expected_chunk_count} chunks, found {len(chunks)}"
             )
-        declared_totals = {
-            chunk.declared_total for chunk in chunks if chunk.declared_total is not None
-        }
-        if len(declared_totals) != 1:
-            raise IncompleteCaptureError("capture declared total is missing or inconsistent")
-        declared_total = next(iter(declared_totals))
-        if sum(chunk.returned_count for chunk in chunks) != declared_total:
-            raise IncompleteCaptureError("capture declared total does not match returned rows")
+        declared_values = tuple(chunk.declared_total for chunk in chunks)
+        if any(value is None for value in declared_values) and any(
+            value is not None for value in declared_values
+        ):
+            raise IncompleteCaptureError("capture declared total is inconsistent")
+        if all(value is not None for value in declared_values):
+            declared_totals = {value for value in declared_values if value is not None}
+            if len(declared_totals) != 1:
+                raise IncompleteCaptureError("capture declared total is inconsistent")
+            proof_total = next(iter(declared_totals))
+            if proof_total != plan.expected_row_count:
+                raise IncompleteCaptureError("provider total disagrees with coverage proof")
+        else:
+            proof_total = plan.expected_row_count
+        if sum(chunk.returned_count for chunk in chunks) != proof_total:
+            raise IncompleteCaptureError("capture total does not match returned rows")
         envelope = CaptureEnvelope(
             plan=plan,
             chunk_ids=tuple(chunk.chunk_id for chunk in chunks),

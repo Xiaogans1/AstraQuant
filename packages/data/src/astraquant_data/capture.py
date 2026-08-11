@@ -36,6 +36,11 @@ class CaptureStatus(StrEnum):
     QUARANTINED = "QUARANTINED"
 
 
+class CapturePurpose(StrEnum):
+    QUALIFICATION_PROBE = "QUALIFICATION_PROBE"
+    FORMAL_DATA = "FORMAL_DATA"
+
+
 class SecretMaterialError(ValueError):
     """Raised when persisted evidence contains a secret-like field."""
 
@@ -90,18 +95,42 @@ def _schema(value: Mapping[str, object]) -> Mapping[str, object]:
 @dataclass(frozen=True, slots=True)
 class CapturePlan:
     identity_digest: str
-    report_digest: str
-    approval_id: str
+    report_digest: str | None
+    approval_id: str | None
     endpoint: str
     expected_chunk_count: int
+    expected_row_count: int
+    coverage_proof_digest: str
+    purpose: CapturePurpose = CapturePurpose.FORMAL_DATA
     schema_version: str = CAPTURE_PLAN_SCHEMA
 
     def __post_init__(self) -> None:
-        for name in ("identity_digest", "report_digest", "approval_id"):
-            object.__setattr__(self, name, validate_digest(name, getattr(self, name)))
+        object.__setattr__(
+            self,
+            "identity_digest",
+            validate_digest("identity_digest", self.identity_digest),
+        )
+        if not isinstance(self.purpose, CapturePurpose):
+            raise ValueError("purpose must be a known CapturePurpose")
+        if self.purpose is CapturePurpose.FORMAL_DATA:
+            if self.report_digest is None or self.approval_id is None:
+                raise ValueError("formal capture requires exact report and approval")
+        elif self.report_digest is not None or self.approval_id is not None:
+            raise ValueError("qualification probe cannot claim report or approval")
+        for name in ("report_digest", "approval_id"):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, validate_digest(name, value))
         object.__setattr__(self, "endpoint", _canonical_text("endpoint", self.endpoint))
         if self.expected_chunk_count <= 0:
             raise ValueError("expected_chunk_count must be positive")
+        if self.expected_row_count < 0:
+            raise ValueError("expected_row_count must be non-negative")
+        object.__setattr__(
+            self,
+            "coverage_proof_digest",
+            validate_digest("coverage_proof_digest", self.coverage_proof_digest),
+        )
         if self.schema_version != CAPTURE_PLAN_SCHEMA:
             raise ValueError("unsupported capture plan schema")
 
@@ -113,6 +142,9 @@ class CapturePlan:
             "approval_id": self.approval_id,
             "endpoint": self.endpoint,
             "expected_chunk_count": self.expected_chunk_count,
+            "expected_row_count": self.expected_row_count,
+            "coverage_proof_digest": self.coverage_proof_digest,
+            "purpose": self.purpose.value,
         }
 
     @property
@@ -124,10 +156,15 @@ class CapturePlan:
         try:
             return cls(
                 identity_digest=str(value["identity_digest"]),
-                report_digest=str(value["report_digest"]),
-                approval_id=str(value["approval_id"]),
+                report_digest=(
+                    None if value["report_digest"] is None else str(value["report_digest"])
+                ),
+                approval_id=(None if value["approval_id"] is None else str(value["approval_id"])),
                 endpoint=str(value["endpoint"]),
                 expected_chunk_count=int(str(value["expected_chunk_count"])),
+                expected_row_count=int(str(value["expected_row_count"])),
+                coverage_proof_digest=str(value["coverage_proof_digest"]),
+                purpose=CapturePurpose(str(value["purpose"])),
                 schema_version=str(value["schema_version"]),
             )
         except (KeyError, TypeError, ValueError) as error:

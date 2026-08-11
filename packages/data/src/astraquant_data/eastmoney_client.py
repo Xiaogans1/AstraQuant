@@ -138,6 +138,18 @@ class BridgeResponse:
     evidence: BridgeCallEvidence
 
 
+@dataclass(frozen=True, slots=True)
+class HistoryCall:
+    page: HistoryPage
+    response: BridgeResponse
+
+
+@dataclass(frozen=True, slots=True)
+class HistoryRangeCapture:
+    batch: HistoryBatch
+    calls: tuple[HistoryCall, ...]
+
+
 def _digest(value: object) -> str:
     return f"sha256:{hashlib.sha256(canonical_json_bytes(value)).hexdigest()}"
 
@@ -310,6 +322,25 @@ class EastmoneyBridgeClient:
         units: tuple[str, ...] = ("price=CNY", "volume=share"),
         expected_total: int | None = None,
     ) -> HistoryBatch:
+        return self.history_range_with_evidence(
+            symbol=symbol,
+            frequency=frequency,
+            pages=pages,
+            adjust=adjust,
+            units=units,
+            expected_total=expected_total,
+        ).batch
+
+    def history_range_with_evidence(
+        self,
+        *,
+        symbol: str,
+        frequency: str,
+        pages: Sequence[HistoryPageSpec],
+        adjust: int = 0,
+        units: tuple[str, ...] = ("price=CNY", "volume=share"),
+        expected_total: int | None = None,
+    ) -> HistoryRangeCapture:
         if not symbol or symbol != symbol.strip():
             raise ValueError("symbol must be non-empty canonical text")
         if not frequency or frequency != frequency.strip():
@@ -317,7 +348,7 @@ class EastmoneyBridgeClient:
         if adjust not in (0, 1, 2):
             raise ValueError("adjust must be 0, 1 or 2")
         expected_specs = tuple(pages)
-        fetched: list[HistoryPage] = []
+        calls: list[HistoryCall] = []
         for spec in expected_specs:
             response = self._request_response(
                 "history_range",
@@ -335,12 +366,13 @@ class EastmoneyBridgeClient:
                     },
                 },
             )
-            fetched.append(self._history_page(response))
-        return validate_history_pages(
-            tuple(fetched),
+            calls.append(HistoryCall(page=self._history_page(response), response=response))
+        batch = validate_history_pages(
+            tuple(call.page for call in calls),
             expected_specs=expected_specs,
             expected_total=expected_total,
         )
+        return HistoryRangeCapture(batch=batch, calls=tuple(calls))
 
     @staticmethod
     def _history_page(response: BridgeResponse) -> HistoryPage:

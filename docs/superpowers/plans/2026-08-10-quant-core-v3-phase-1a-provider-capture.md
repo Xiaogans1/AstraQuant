@@ -87,7 +87,7 @@
 - [x] 实现 append-only chunks 与 atomic parent seal；seal 前可继续追加已验证 chunk，seal 后只能读取或创建 superseding capture。
 - [x] object layout 由 digest 派生，不以“最新目录”决定身份；request identity 排除 secret 值但保留 permission/endpoint 语义。
 - [x] 重跑 tests，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 持久化不可变原始采集证据"`
+- [x] 提交：`git commit -m "feat(data): 持久化不可变原始采集证据"`（`5393ff9`）
 
 ## Task 5: 实现 Eastmoney batch adapter
 
@@ -97,12 +97,12 @@
 - Test: `tests/data/test_eastmoney_batch.py`
 - Modify: `packages/data/src/astraquant_data/adapters/eastmoney.py`
 
-- [ ] 先测试日线按 instrument lifecycle/明确区间覆盖；分钟按交易日和时间段切 chunk，不假定一次 5000 条响应足够约 51 个交易日数据。
-- [ ] 先测试 chunk overlap reconciliation、expected sessions、分页 completeness 和 capture seal；任何缺口返回 incomplete report，不发布“尽力而为”结果。
-- [ ] 运行 `uv run pytest tests/data/test_eastmoney_batch.py tests/data/test_eastmoney_provider.py -q`，确认红灯。
-- [ ] 实现专用 batch adapter；现有 `eastmoney.py` 保留 live/UI legacy，不把两条路径混成同一 evidence class。
-- [ ] adapter 只输出 CaptureEnvelope，不直接构造 formal Bar/Parquet。
-- [ ] 重跑 tests，期望全绿。
+- [x] 先测试日线按 instrument lifecycle/明确区间覆盖；分钟按交易日和时间段切 chunk，不假定一次 5000 条响应足够约 51 个交易日数据。
+- [x] 先测试 chunk overlap reconciliation、expected sessions、分页 completeness 和 capture seal；任何缺口返回 incomplete report，不发布“尽力而为”结果。
+- [x] 运行 `uv run pytest tests/data/test_eastmoney_batch.py tests/data/test_eastmoney_provider.py -q`，确认红灯。
+- [x] 实现专用 batch adapter；现有 `eastmoney.py` 保留 live/UI legacy，不把两条路径混成同一 evidence class。
+- [x] adapter 只输出 CaptureEnvelope，不直接构造 formal Bar/Parquet。
+- [x] 重跑 tests，期望全绿。
 - [ ] 提交：`git commit -m "feat(data): 实现Eastmoney分块采集适配器"`
 
 ## Task 6: 编排 formal capture background tasks
