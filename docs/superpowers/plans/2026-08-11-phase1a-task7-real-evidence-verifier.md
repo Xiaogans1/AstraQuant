@@ -25,4 +25,4 @@
 
 - [x] 新建 `docs/verification/quant-core-v3/phase-1a-signoff.md`，状态固定为 `PENDING_REAL_EVIDENCE`，不填写伪 digest。
 - [x] 运行 verifier tests、Phase 1a 门、Ruff、mypy、`scripts/verify.ps1 -Scope All`。Phase 1a 门 `150 passed`；全仓 Python `595 passed, 1 skipped`、前端 `104 passed`、Rust `7 passed`，其余静态/构建/策略门全绿。
-- [ ] 提交并推送实现；只有后续真实受控运行成功，才允许独立 docs-only commit 将 sign-off 改为 PASS。
+- [x] 提交并推送实现（`74dccd0`）；只有后续真实受控运行成功，才允许独立 docs-only commit 将 sign-off 改为 PASS。
