@@ -43,7 +43,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--initial-cash", type=Decimal, default=Decimal("100000"))
     parser.add_argument("--commission-rate", type=Decimal, default=Decimal("0.00025"))
-    parser.add_argument("--minimum-commission", type=Decimal, default=Decimal("5"))
+    parser.add_argument("--minimum-commission", type=Decimal, default=Decimal("0"))
     parser.add_argument("--stamp-duty-rate", type=Decimal, default=Decimal("0.0005"))
     parser.add_argument("--transfer-fee-rate", type=Decimal, default=Decimal("0.00001"))
     parser.add_argument("--slippage-bps", type=Decimal, default=Decimal("2"))

@@ -128,6 +128,7 @@ def test_ast10_and_alpha158_share_one_executable_backtest(tmp_path: Path) -> Non
     assert result["fidelity"] == "BAR_NEXT_OPEN_CONSERVATIVE"
     assert result["shared_contract"]["test_rows"] == 20
     assert result["shared_contract"]["instrument_kind"] == "ETF"
+    assert result["shared_contract"]["minimum_commission"] == "0"
     assert set(result["models"]) == {
         "ASTRA10_LIGHTGBM",
         "QLIB_ALPHA158_LIGHTGBM",

@@ -115,7 +115,7 @@ class InstrumentKind(StrEnum):
 class ExecutionPolicy:
     initial_cash: Decimal = Decimal("100000")
     commission_rate: Decimal = Decimal("0.00025")
-    minimum_commission: Decimal = Decimal("5")
+    minimum_commission: Decimal = Decimal("0")
     stamp_duty_rate: Decimal = Decimal("0.0005")
     transfer_fee_rate: Decimal = Decimal("0.00001")
     slippage_bps: Decimal = Decimal("2")

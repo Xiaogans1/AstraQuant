@@ -65,6 +65,10 @@ def _policy(kind: InstrumentKind = InstrumentKind.STOCK, **changes: object) -> E
     return ExecutionPolicy(**values)  # type: ignore[arg-type]
 
 
+def test_default_policy_matches_paper_zero_minimum_commission() -> None:
+    assert ExecutionPolicy().minimum_commission == 0
+
+
 def test_stock_trade_uses_next_open_and_exact_cash_fees() -> None:
     report = run_executable_backtest(
         rows=[{"label": 1, "future_return": 0.1}],
