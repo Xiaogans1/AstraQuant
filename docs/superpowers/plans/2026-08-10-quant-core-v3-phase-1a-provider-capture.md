@@ -103,7 +103,7 @@
 - [x] 实现专用 batch adapter；现有 `eastmoney.py` 保留 live/UI legacy，不把两条路径混成同一 evidence class。
 - [x] adapter 只输出 CaptureEnvelope，不直接构造 formal Bar/Parquet。
 - [x] 重跑 tests，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 实现Eastmoney分块采集适配器"`
+- [x] 提交：`git commit -m "feat(data): 实现Eastmoney分块采集适配器"`（`90043c3`）
 
 ## Task 6: 编排 formal capture background tasks
 

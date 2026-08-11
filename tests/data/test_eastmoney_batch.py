@@ -192,6 +192,7 @@ def test_batch_adapter_seals_exact_real_call_bytes_without_adjustment_drift(
         expected_chunk_count=2,
         expected_row_count=2,
         coverage_proof_digest=request.coverage_proof_digest,
+        started_at=NOW,
         purpose=CapturePurpose.QUALIFICATION_PROBE,
     )
     store = CaptureStore(tmp_path)
@@ -220,6 +221,7 @@ def test_batch_adapter_maps_adjust_one_to_forward_not_none(tmp_path: Path) -> No
         expected_chunk_count=1,
         expected_row_count=1,
         coverage_proof_digest=request.coverage_proof_digest,
+        started_at=NOW,
         purpose=CapturePurpose.QUALIFICATION_PROBE,
     )
     store = CaptureStore(tmp_path)
@@ -249,6 +251,7 @@ def test_batch_adapter_uses_pinned_coverage_proof_when_provider_has_no_total(
         expected_chunk_count=1,
         expected_row_count=1,
         coverage_proof_digest=request.coverage_proof_digest,
+        started_at=NOW,
         purpose=CapturePurpose.QUALIFICATION_PROBE,
     )
     store = CaptureStore(tmp_path)
@@ -275,6 +278,7 @@ def test_batch_adapter_rejects_identity_or_runtime_schema_drift(tmp_path: Path) 
         expected_chunk_count=1,
         expected_row_count=1,
         coverage_proof_digest=request.coverage_proof_digest,
+        started_at=NOW,
         purpose=CapturePurpose.QUALIFICATION_PROBE,
     )
     adapter = EastmoneyBatchAdapter(
@@ -303,6 +307,7 @@ def test_batch_adapter_never_seals_when_client_cannot_prove_completeness(
         expected_chunk_count=1,
         expected_row_count=1,
         coverage_proof_digest=request.coverage_proof_digest,
+        started_at=NOW,
         purpose=CapturePurpose.QUALIFICATION_PROBE,
     )
     store = CaptureStore(tmp_path)

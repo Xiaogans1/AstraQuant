@@ -101,6 +101,7 @@ class CapturePlan:
     expected_chunk_count: int
     expected_row_count: int
     coverage_proof_digest: str
+    started_at: datetime
     purpose: CapturePurpose = CapturePurpose.FORMAL_DATA
     schema_version: str = CAPTURE_PLAN_SCHEMA
 
@@ -131,6 +132,7 @@ class CapturePlan:
             "coverage_proof_digest",
             validate_digest("coverage_proof_digest", self.coverage_proof_digest),
         )
+        object.__setattr__(self, "started_at", _utc("started_at", self.started_at))
         if self.schema_version != CAPTURE_PLAN_SCHEMA:
             raise ValueError("unsupported capture plan schema")
 
@@ -144,6 +146,7 @@ class CapturePlan:
             "expected_chunk_count": self.expected_chunk_count,
             "expected_row_count": self.expected_row_count,
             "coverage_proof_digest": self.coverage_proof_digest,
+            "started_at": self.started_at.isoformat(),
             "purpose": self.purpose.value,
         }
 
@@ -164,6 +167,7 @@ class CapturePlan:
                 expected_chunk_count=int(str(value["expected_chunk_count"])),
                 expected_row_count=int(str(value["expected_row_count"])),
                 coverage_proof_digest=str(value["coverage_proof_digest"]),
+                started_at=datetime.fromisoformat(str(value["started_at"])),
                 purpose=CapturePurpose(str(value["purpose"])),
                 schema_version=str(value["schema_version"]),
             )

@@ -38,6 +38,7 @@ def _plan(*, expected_chunk_count: int = 2) -> CapturePlan:
         expected_chunk_count=expected_chunk_count,
         expected_row_count=expected_chunk_count,
         coverage_proof_digest=_digest("5"),
+        started_at=NOW,
         purpose=CapturePurpose.FORMAL_DATA,
     )
 
@@ -189,6 +190,20 @@ def test_capture_identity_changes_with_exact_approval_or_endpoint() -> None:
             expected_chunk_count=baseline.expected_chunk_count,
             expected_row_count=baseline.expected_row_count,
             coverage_proof_digest=baseline.coverage_proof_digest,
+            started_at=baseline.started_at,
+        ).capture_id
+        != baseline.capture_id
+    )
+    assert (
+        CapturePlan(
+            identity_digest=baseline.identity_digest,
+            report_digest=baseline.report_digest,
+            approval_id=baseline.approval_id,
+            endpoint=baseline.endpoint,
+            expected_chunk_count=baseline.expected_chunk_count,
+            expected_row_count=baseline.expected_row_count,
+            coverage_proof_digest=baseline.coverage_proof_digest,
+            started_at=baseline.started_at + timedelta(seconds=1),
         ).capture_id
         != baseline.capture_id
     )
@@ -257,6 +272,7 @@ def test_qualification_probe_can_be_captured_before_report_or_approval() -> None
         expected_chunk_count=1,
         expected_row_count=1,
         coverage_proof_digest=_digest("5"),
+        started_at=NOW,
         purpose=CapturePurpose.QUALIFICATION_PROBE,
     )
 
@@ -279,5 +295,6 @@ def test_formal_capture_requires_exact_report_and_approval(
             expected_chunk_count=1,
             expected_row_count=1,
             coverage_proof_digest=_digest("5"),
+            started_at=NOW,
             purpose=CapturePurpose.FORMAL_DATA,
         )
