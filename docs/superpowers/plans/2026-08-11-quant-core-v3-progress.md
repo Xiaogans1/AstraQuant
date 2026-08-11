@@ -34,3 +34,13 @@
 ## 下一结果
 
 扩大时间跨度并增加不同市场状态，重点验证 Logistic Regression 的微弱优势能否跨时期复现；只有净收益、回撤和成交分散性同时稳定后，才冻结候选并恢复 publication/model registry。
+
+## 后续任务顺序
+
+1. **S6 更长历史与更多标的**：继续通过真实 API 扩大分钟数据的时间跨度和市场状态，不改变本轮 `0.5` 阈值后重跑统一 panel。
+2. **S7 策略信号改进**：在相同 folds、费用和资金约束下研究跨标的排序、行业/风格中性与 Qlib 候选模型；以可执行净收益、回撤和成交分散性选择候选，不以单一 AUC 选择。
+3. **S8 稳健性压力测试**：固定候选后运行更高费率、滑点、延迟、容量与分市场状态报告；任何主要场景失效都继续 HOLD。
+4. **Shadow 前治理收口**：完成 Phase 1a 真实 endpoint sign-off、publication trusted head、model registry、lockbox 和晋级门。
+5. **Shadow/Paper**：先只读展示目标仓位，再接 Paper；只有账户、订单、费用、T+1 和对账语义全部通过后才讨论 LIVE。
+
+当前 Strategy Fast Lane 的 S1–S5 已完成，但整个 Quant Core v3 尚未完成；未完成项主要是更长历史下的策略有效性、Shadow/Paper 治理和后续实盘适配。

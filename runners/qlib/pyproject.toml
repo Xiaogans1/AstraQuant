@@ -26,4 +26,3 @@ pyqlib = { git = "https://github.com/microsoft/qlib.git", rev = "79633dd9506ea68
 addopts = "-ra --strict-config --strict-markers"
 pythonpath = ["src"]
 testpaths = ["tests"]
-

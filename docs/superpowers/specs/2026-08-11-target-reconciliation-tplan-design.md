@@ -101,4 +101,3 @@ available_to_new_sell = rule_sellable_quantity - reserved_sell_quantity
 - 两种 TPlan 都不超过未预占开盘可卖底仓；buy-first 还受现金限制。
 - S3 真实报告因交易数不足输出 HOLD；canonical validated forecast 能生成目标和 TPlan。
 - 相同输入两次 CLI 报告 SHA-256 一致。
-

@@ -30,4 +30,3 @@
 - 158 个特征由官方 config 与 expression engine 生成，使用东方财富 bars，不下载 Qlib 样例数据。
 - Alpha158 与现有十特征的 test row/fold coverage 完全一致。
 - 结论只看相同费用后的 OOS 结果，允许 Alpha158 不优于现有特征。
-
