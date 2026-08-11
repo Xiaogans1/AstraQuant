@@ -146,7 +146,7 @@ Expected: PASS。
 
 ### Task 3: 两种底仓做 T 计划草案
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `tests/quant/test_tplan.py`：
 
@@ -175,17 +175,17 @@ assert draft.second_side is OrderSide.BUY
 
 再测 buy-first 同量预留 opening lots、现金只能支持 500 时 planned=500；证据不足、净优势不足、无可卖底仓都 HOLD。
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 Run: `uv run pytest tests/quant/test_tplan.py -q --basetemp .astraquant/test-tmp/s4-tplan-red`
 
 Expected: import error，模块尚不存在。
 
-- [ ] **Step 3: 实现 `tplan.py`**
+- [x] **Step 3: 实现 `tplan.py`**
 
 定义 `TPlanType`、`TPlanStatus`、`TPlanReason`、`TPlanRequest`、`TPlanDraft` 和 `build_tplan()`。planned quantity 始终不超过 `opening_sellable - reserved`；buy-first 再受现金和 lot size 限制，且 `opening_quantity_to_reserve == planned_quantity`。
 
-- [ ] **Step 4: 验证 GREEN 与静态检查**
+- [x] **Step 4: 验证 GREEN 与静态检查**
 
 Run:
 
@@ -199,7 +199,7 @@ Expected: 全部通过。
 
 ### Task 4: S3 证据接入、可见报告和交付
 
-- [ ] **Step 1: 写 CLI 失败测试**
+- [x] **Step 1: 写 CLI 失败测试**
 
 `tests/research/test_plan_targets.py` 构造 S3 报告：ASTRA10 2 trades、Alpha158 1 trade。运行 CLI 后断言：
 
@@ -211,15 +211,15 @@ assert result["canonical_t1"]["unreachable_quantity"] == 1000
 assert result["canonical_tplans"]["SELL_THEN_BUYBACK"]["planned_quantity"] == 800
 ```
 
-- [ ] **Step 2: 实现 `plan_targets.py`**
+- [x] **Step 2: 实现 `plan_targets.py`**
 
 CLI 接受 S3 JSON、`--minimum-evidence-trades`（默认 30）、`--current-target` 和 `--output`。交易数不足时保持 BaseTarget；同时输出固定 canonical validated target/T+1/TPlan 场景，供 UI/API 后续直接消费。
 
-- [ ] **Step 3: 重复运行真实 S3 报告**
+- [x] **Step 3: 重复运行真实 S3 报告**
 
 对 `.astraquant/research/s3-159516-20260811/executable-fee-config-a.json` 运行两次 CLI，Expected: SHA-256 一致；两个模型均为 `INSUFFICIENT_EVIDENCE/HOLD`。
 
-- [ ] **Step 4: 运行目标、隔离 runner 和全量验证**
+- [x] **Step 4: 运行目标、隔离 runner 和全量验证**
 
 Run:
 
@@ -231,6 +231,6 @@ pwsh -File scripts/verify.ps1 -Scope All
 
 Expected: 全部通过。
 
-- [ ] **Step 5: 更新进度、提交和推送**
+- [x] **Step 5: 更新进度、提交和推送**
 
 勾选 fast lane S4 前两项；第三项 publication/model registry 保持延后。记录真实模型 HOLD、canonical T+1/TPlan 数量与报告 SHA，提交并推送当前分支。
