@@ -137,7 +137,7 @@
 - Create: `tools/verification/verify_phase_1a.py`
 - Create: `docs/verification/quant-core-v3/phase-1a-signoff.md`
 
-- [ ] 运行单元/故障注入门：
+- [x] 运行单元/故障注入门（含 verifier、reconciliation 与 integration 共 `150 passed`；Ruff/format/mypy 全绿）：
 
 ```powershell
 uv run pytest tests/data/test_provider_qualification.py tests/data/test_eastmoney_protocol.py tests/data/test_eastmoney_client.py tests/data/test_capture_store.py tests/data/test_eastmoney_batch.py tests/api/test_capture_repository.py tests/api/test_provider_qualification_routes.py tests/api/test_formal_data_worker.py tests/api/test_formal_data_routes.py tests/api/test_schema_registry.py -q
