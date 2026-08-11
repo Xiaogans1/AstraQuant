@@ -149,7 +149,7 @@ def test_0009_backfills_legacy_classes_and_seals_existing_paper(
 ) -> None:
     config, engine = _upgrade_to_0008_and_seed(tmp_path / "legacy.sqlite3")
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "0009_v3_legacy_evidence")
 
     with engine.connect() as connection:
         snapshot = connection.execute(sa.text("SELECT * FROM data_snapshots")).mappings().one()
