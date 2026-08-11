@@ -80,7 +80,7 @@ with pytest.raises(IncompleteCaptureError):
 - [x] **Step 2: 运行红灯**：`uv run pytest tests/api/test_formal_data_routes.py -q`，期望 route 404。
 - [x] **Step 3: 最小实现**：`AppState` 增 optional formal capture dependencies；router 仅调用 admission service 和 supervisor；task type 固定 `data.formal_capture`；worker args 只用 resolved command JSON、formal root、SDK Python、bridge script 和内存 token。
 - [x] **Step 4: API 回归**：route tests、`tests/api/test_app.py tests/api/test_data_routes.py tests/integration/test_runtime_round_trip.py` 全绿。
-- [ ] **Step 5: 提交**：`git commit -m "feat(api): 编排正式采集任务"`。
+- [x] **Step 5: 提交**：`git commit -m "feat(api): 编排正式采集任务"`（`133e87a`）。
 
 ### Task 5: Backfill/increment/reconcile CLI 与阶段验收
 
@@ -91,6 +91,8 @@ with pytest.raises(IncompleteCaptureError):
 - Create: `tools/data/reconcile_eastmoney.py`
 - Create: `tests/research/test_formal_capture_cli.py`
 - Modify: `docs/superpowers/plans/2026-08-10-quant-core-v3-phase-1a-provider-capture.md`
+
+**Progress:** backfill authenticated client 已按红灯测试实现；increment/reconcile 不得只在客户端携带 capture id 后调用普通 backfill，必须先补 server-side sealed lineage lookup/reconciliation contract，因此尚未勾选本任务。
 
 - [ ] **Step 1: 写 CLI 红灯**：三入口只向 authenticated formal route 发 request；token 仅从 `ASTRAQUANT_SESSION_TOKEN`；backfill 要 exact start/end，increment 要 exact last sealed capture，reconcile 要两个 exact capture ids；不得 import SDK/SQLAlchemy 或直写 capture root。
 - [ ] **Step 2: 运行红灯**：`uv run pytest tests/research/test_formal_capture_cli.py -q`，期望 module 缺失。
