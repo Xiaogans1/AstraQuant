@@ -105,6 +105,19 @@ def test_qlib_export_identity_changes_with_rows_folds_or_source_snapshot(tmp_pat
     assert all(item.content_digest != baseline.content_digest for item in changed)
 
 
+def test_qlib_export_accepts_generated_rows_with_close_audit_field(tmp_path: Path) -> None:
+    rows = [{**row, "close": 10.0 + index / 100} for index, row in enumerate(_rows())]
+
+    exported = _export(tmp_path / "generated", rows=rows)
+
+    assert pq.read_table(exported.rows_path).column_names == [
+        "row_id",
+        *MODEL_FEATURE_COLUMNS,
+        "label",
+        "future_return",
+    ]
+
+
 @pytest.mark.parametrize(
     ("changes", "match"),
     [

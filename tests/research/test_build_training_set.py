@@ -78,3 +78,18 @@ def test_build_features_json_produces_labeled_rows(tmp_path: Path) -> None:
         assert row["label"] == 0
         assert "future_return" in row
         assert "return_5" in row
+    raw_bars = payload["raw_bars"]
+    row_bar_indices = payload["row_bar_indices"]
+    assert isinstance(raw_bars, list)
+    assert isinstance(row_bar_indices, list)
+    assert len(raw_bars) == 60
+    assert row_bar_indices == list(range(30, 55))
+    assert raw_bars[0] == {
+        "timestamp": "2026-08-06T01:30:00+00:00",
+        "open": 10.0,
+        "high": 10.0,
+        "low": 10.0,
+        "close": 10.0,
+        "volume": 100.0,
+        "vwap": 10.0,
+    }

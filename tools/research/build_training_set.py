@@ -10,7 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from astraquant_data.research_store import load_dataset_bars, load_dataset_provenance
-from astraquant_quant.research_features import build_training_rows
+from astraquant_quant.research_features import build_training_bundle
 
 _HORIZON = 5
 _THRESHOLD = Decimal("0.005")
@@ -27,17 +27,30 @@ def build_features_json(
     if not bars:
         raise ValueError(f"dataset {dataset_id} has no bars")
     source_snapshot_id, provider_id = load_dataset_provenance(data_root, dataset_id)
-    rows = build_training_rows(bars, horizon=horizon, threshold=threshold)
+    bundle = build_training_bundle(bars, horizon=horizon, threshold=threshold)
     return {
         "dataset_id": dataset_id,
         "source_snapshot_id": source_snapshot_id,
         "provider_id": provider_id,
         "instrument_id": instrument_id,
-        "row_count": len(rows),
+        "row_count": len(bundle.rows),
         "bar_count": len(bars),
         "date_range": (f"{bars[0].timestamp.date()}..{bars[-1].timestamp.date()}"),
         "built_at": datetime.now().isoformat(),
-        "rows": rows,
+        "rows": bundle.rows,
+        "row_bar_indices": bundle.row_bar_indices,
+        "raw_bars": [
+            {
+                "timestamp": bar.timestamp.isoformat(),
+                "open": float(bar.open),
+                "high": float(bar.high),
+                "low": float(bar.low),
+                "close": float(bar.close),
+                "volume": float(bar.volume),
+                "vwap": float(bar.close if bar.volume == 0 else bar.turnover / bar.volume),
+            }
+            for bar in bundle.ordered_bars
+        ],
     }
 
 

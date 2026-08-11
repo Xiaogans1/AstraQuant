@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import Final
@@ -9,6 +10,13 @@ from typing import Final
 from astraquant_data.market_bars import MarketBar
 
 _WINDOW: Final = 30
+
+
+@dataclass(slots=True)
+class TrainingRowBundle:
+    ordered_bars: list[MarketBar]
+    rows: list[dict[str, float | int]]
+    row_bar_indices: list[int]
 
 
 def label_future_return(
@@ -53,12 +61,25 @@ def build_training_rows(
     processed independently so overnight gaps cannot pollute intraday
     statistics. Rows without enough completed future bars are dropped.
     """
-    by_day: dict[date, list[MarketBar]] = {}
-    for bar in bars:
-        by_day.setdefault(bar.timestamp.date(), []).append(bar)
+    return build_training_bundle(bars, horizon=horizon, threshold=threshold).rows
+
+
+def build_training_bundle(
+    bars: list[MarketBar],
+    *,
+    horizon: int,
+    threshold: Decimal,
+) -> TrainingRowBundle:
+    """Build training rows plus their exact positions in the ordered raw-bar context."""
+    ordered_bars = sorted(bars, key=lambda item: item.timestamp)
+    by_day: dict[date, list[tuple[int, MarketBar]]] = {}
+    for bar_index, bar in enumerate(ordered_bars):
+        by_day.setdefault(bar.timestamp.date(), []).append((bar_index, bar))
     rows: list[dict[str, float | int]] = []
+    row_bar_indices: list[int] = []
     for day in sorted(by_day):
-        day_bars = sorted(by_day[day], key=lambda item: item.timestamp)
+        indexed_day_bars = by_day[day]
+        day_bars = [item for _, item in indexed_day_bars]
         features = build_feature_rows(day_bars)
         for offset, feature in enumerate(features):
             index = offset + _WINDOW
@@ -73,7 +94,12 @@ def build_training_rows(
             future = _holding_period_return(day_bars, index=index, horizon=horizon)
             assert future is not None
             rows.append({**feature, "label": label, "future_return": float(future)})
-    return rows
+            row_bar_indices.append(indexed_day_bars[index][0])
+    return TrainingRowBundle(
+        ordered_bars=ordered_bars,
+        rows=rows,
+        row_bar_indices=row_bar_indices,
+    )
 
 
 def build_feature_rows(bars: list[MarketBar]) -> list[dict[str, float | int]]:

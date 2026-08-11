@@ -10,7 +10,9 @@
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
 - S2a Qlib 公平对照：3/3 已完成；同一 Eastmoney 行集/folds 可在固定 commit 的独立 Qlib LightGBM runner 训练，再由 AstraQuant 统一按相同费率与阈值评分。
-- 当前阶段：S2b Alpha158 特征对照；保持数据日期、walk-forward folds 和成本不变，只比较现有十特征与 Alpha158 的 OOS 净收益。
+- S2b Alpha158 特征对照：已完成；固定 Qlib 官方 158 个表达式直接消费东方财富 raw bars，未使用 Qlib 示例数据或自写近似公式。
+- 真实结果（snapshot `7ae18d...cbec`，159516.SZSE，1,500 OOS rows）：十特征 AUC/净收益 `0.53454/0.04359`，Alpha158 `0.52992/0.02229`；Alpha158 净收益低 `0.02130`，因此不替换现有十特征。
+- 当前阶段：进入 S3 A 股净收益回测，优先把真实费税、下一可执行价格、滑点和容量作用到策略结果。
 
 ## 延后而非删除
 
@@ -20,4 +22,4 @@
 
 ## 下一结果
 
-在真实 Eastmoney snapshot 上生成 native LightGBM/Qlib LightGBM 差异报告，然后接入 Alpha158 特征组；任何模型只有 OOS 扣费净收益为正才保留为候选。
+在同一真实 snapshot 上把当前十特征信号接入 A 股可执行回测，回答加入真实费税、下一 bar 成交、滑点与容量后净收益还剩多少。

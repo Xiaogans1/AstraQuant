@@ -8,6 +8,7 @@ import logging
 import math
 import os
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -69,7 +70,10 @@ def run_request(request_path: Path, output_path: Path) -> dict[str, Any]:
             num_boost_round=40,
             early_stopping_rounds=0,
         )
-        with R.start(experiment_name="AstraQuantQlibRunner"):
+        with R.start(experiment_name="AstraQuantQlibRunner"), warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", message="Only training set found, disabling early stopping."
+            )
             model.fit(dataset, verbose_eval=0)
         values = model.predict(dataset, segment="test")
         if list(values.index) != test_indices:

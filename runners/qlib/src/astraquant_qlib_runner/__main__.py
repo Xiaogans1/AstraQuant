@@ -1,9 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
+from typing import Any
 
 from . import run_request
+
+
+def run_cli_request(request: Path, output: Path) -> dict[str, Any]:
+    value = json.loads(request.read_text(encoding="utf-8"))
+    if isinstance(value, dict) and value.get("schema_version") == (
+        "astraquant.qlib-alpha158-request/v1"
+    ):
+        from .alpha158 import run_alpha158_request
+
+        return run_alpha158_request(request, output)
+    return run_request(request, output)
 
 
 def main() -> None:
@@ -11,7 +24,7 @@ def main() -> None:
     parser.add_argument("--request", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    run_request(args.request, args.output)
+    run_cli_request(args.request, args.output)
 
 
 if __name__ == "__main__":

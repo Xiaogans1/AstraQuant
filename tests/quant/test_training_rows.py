@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from astraquant_data.market_bars import MarketBar
-from astraquant_quant.research_features import build_training_rows
+from astraquant_quant.research_features import build_training_bundle, build_training_rows
 
 
 def _bars(closes: list[str], *, day: int = 7) -> list[MarketBar]:
@@ -57,6 +57,23 @@ def test_training_rows_do_not_span_across_days() -> None:
     for row in rows:
         assert "label" in row
         assert "future_return" in row
+
+
+def test_training_bundle_maps_each_row_to_its_ordered_decision_bar() -> None:
+    first_day = _bars(["10"] * 40, day=6)
+    second_day = _bars(["11"] * 40, day=7)
+
+    bundle = build_training_bundle(
+        [*second_day, *first_day],
+        horizon=5,
+        threshold=Decimal("0.005"),
+    )
+
+    assert bundle.ordered_bars == [*first_day, *second_day]
+    assert bundle.row_bar_indices == [30, 31, 32, 33, 34, 70, 71, 72, 73, 74]
+    assert [bundle.ordered_bars[index].close for index in bundle.row_bar_indices] == [
+        Decimal(str(row["close"])) for row in bundle.rows
+    ]
 
 
 def test_label_and_future_return_use_the_same_holding_interval() -> None:

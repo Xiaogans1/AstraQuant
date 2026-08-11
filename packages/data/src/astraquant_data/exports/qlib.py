@@ -129,10 +129,13 @@ def _validate_rows(rows: tuple[dict[str, float | int], ...]) -> None:
     if not rows:
         raise ValueError("Qlib export rows must not be empty")
     required = {*QLIB_FEATURE_COLUMNS, "label", "future_return"}
+    allowed = {*required, "close"}
     for row in rows:
-        if set(row) != required:
+        if not required.issubset(row) or not set(row).issubset(allowed):
             raise ValueError("Qlib export row schema does not match S1 features")
         values = [float(row[name]) for name in (*QLIB_FEATURE_COLUMNS, "future_return")]
+        if "close" in row:
+            values.append(float(row["close"]))
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Qlib export row values must be finite")
         if isinstance(row["label"], bool) or int(row["label"]) not in (0, 1):

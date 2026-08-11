@@ -32,7 +32,7 @@
 - [x] 导出与 S1 相同的行集/folds 到 Qlib handler。
 - [x] 固定 Qlib commit/Python 环境，以共同十特征运行 Qlib LightGBM。
 - [x] 对比原生 LightGBM 与 Qlib 的 row set、folds、预测和净收益差异。
-- [ ] 保持 row set/folds/成本不变，增加 Alpha158 特征组并与现有十特征比较。
+- [x] 保持 row set/folds/成本不变，增加 Alpha158 特征组并与现有十特征比较。
 
 ## S3 A 股净收益回测
 
