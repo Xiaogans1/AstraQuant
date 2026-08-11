@@ -70,7 +70,7 @@ Expected: PASS。
 
 ### Task 2: 建立人民币资金级可执行评分器
 
-- [ ] **Step 1: 写费税和 next-open 失败测试**
+- [x] **Step 1: 写费税和 next-open 失败测试**
 
 在 `tests/quant/test_executable_backtest.py` 固定 100,000 CNY、100 股整数手、10→11 的 next-open round trip：
 
@@ -95,13 +95,13 @@ assert result.total_stamp_duty > 0
 
 再分别测试 ETF 印花税/过户费为零、最低佣金、滑点不利、100 股取整和双端容量。
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 Run: `uv run pytest tests/quant/test_executable_backtest.py -q`
 
 Expected: ERROR，模块尚不存在。
 
-- [ ] **Step 3: 实现配置、交易和汇总类型**
+- [x] **Step 3: 实现配置、交易和汇总类型**
 
 在 `executable_backtest.py` 定义：
 
@@ -125,7 +125,7 @@ class ExecutionPolicy:
 
 实现 `run_executable_backtest(rows, raw_bars, row_bar_indices, folds, predictions, prediction_threshold, holding_bars, policy)`，逐 fold 独立从初始现金开始，顺序处理信号。
 
-- [ ] **Step 4: 写重叠和指标失败测试**
+- [x] **Step 4: 写重叠和指标失败测试**
 
 ```python
 assert report.executed_trades == 2
@@ -135,11 +135,11 @@ assert report.max_drawdown >= 0
 assert 0 <= report.win_rate <= 1
 ```
 
-- [ ] **Step 5: 实现顺序资金曲线**
+- [x] **Step 5: 实现顺序资金曲线**
 
 同一 fold 内 `decision_index <= active_exit_index` 的新信号计入 `overlap_skips`。每笔交易使用 entry/exit 两端 `floor(volume * participation / lot_size) * lot_size` 的较小值和现金上限，逐笔更新 cash/equity，并汇总 drawdown、win rate、turnover、费用与滑点损耗。
 
-- [ ] **Step 6: 验证 GREEN**
+- [x] **Step 6: 验证 GREEN**
 
 Run: `uv run pytest tests/quant/test_executable_backtest.py -q`
 
