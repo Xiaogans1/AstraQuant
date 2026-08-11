@@ -22,6 +22,7 @@ def test_allow_source_and_small_fixture_files() -> None:
         "packages/data/pyproject.toml",
         "packages/data/src/astraquant_data/providers.py",
         "tests/data/test_providers.py",
+        "tools/data/qualify_eastmoney.py",
         "tests/fixtures/market_data/cn_equity_daily_bars.csv",
         "packages/domain/src/astraquant_domain/orders.py",
         "tests/fixtures/orders/sample_order.json",

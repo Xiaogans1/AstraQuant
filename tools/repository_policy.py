@@ -62,6 +62,7 @@ FORBIDDEN_ARTIFACT_DIRECTORIES = {
 SOURCE_DATA_PREFIXES = (
     PurePosixPath("packages/data"),
     PurePosixPath("tests/data"),
+    PurePosixPath("tools/data"),
 )
 
 _SECRET_ASSIGNMENT = re.compile(
