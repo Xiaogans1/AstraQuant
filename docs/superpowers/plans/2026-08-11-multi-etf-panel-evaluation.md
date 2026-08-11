@@ -16,17 +16,17 @@
 - Create: `packages/quant/src/astraquant_quant/panel_research.py`
 - Create: `tests/quant/test_panel_research.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 构造 A/B 两标的共享四个 timestamps 的 rows，断言 `build_panel()` 按 `(timestamp, instrument_id)` 排序；`panel_walk_forward(..., purge_timestamp_count=1)` 中相同 timestamp 不跨集合，且 train 最大 timestamp 严格早于 purge 后的 test 起点。
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 Run: `uv run pytest tests/quant/test_panel_research.py -q --basetemp .astraquant/test-tmp/s5-panel-red`
 
 Expected: `ModuleNotFoundError: astraquant_quant.panel_research`。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 实现不可变 `PanelInstrumentData`、`PanelObservation`、`PanelDataset`，以及：
 
@@ -45,7 +45,7 @@ def panel_walk_forward(
 
 所有数量必须为正；instrument 唯一；rows、bars mapping 数量一致；bar index 有效；同 timestamp 只进入一个集合。
 
-- [ ] **Step 4: GREEN 与静态检查**
+- [x] **Step 4: GREEN 与静态检查**
 
 Run:
 
