@@ -10,6 +10,7 @@ from typing import ClassVar
 import pytest
 
 from tools.data.backfill_eastmoney import main as backfill_main
+from tools.data.increment_eastmoney import main as increment_main
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -122,6 +123,7 @@ def test_formal_capture_cli_source_has_no_database_sdk_or_direct_store_write() -
         for path in (
             "tools/data/formal_capture_cli.py",
             "tools/data/backfill_eastmoney.py",
+            "tools/data/increment_eastmoney.py",
         )
     )
 
@@ -129,3 +131,31 @@ def test_formal_capture_cli_source_has_no_database_sdk_or_direct_store_write() -
     assert "eastmoneybridgeclient" not in sources
     assert "capturestore" not in sources
     assert "sqlite" not in sources
+
+
+def test_increment_posts_only_exact_sealed_predecessor_and_end(
+    api_server: tuple[str, list[dict[str, object]]],
+) -> None:
+    api_url, requests = api_server
+    capture_id = "sha256:" + "9" * 64
+
+    exit_code = increment_main(
+        [
+            "--api-url",
+            api_url,
+            "--idempotency-key",
+            "formal-increment-600000-20260814",
+            "--predecessor-capture-id",
+            capture_id,
+            "--end",
+            "2026-08-14",
+        ],
+        environ={"ASTRAQUANT_SESSION_TOKEN": "private-session-token"},
+    )
+
+    assert exit_code == 0
+    assert requests[-1]["path"] == "/v1/formal-data/captures/increment"
+    assert requests[-1]["body"] == {
+        "predecessor_capture_id": capture_id,
+        "end": "2026-08-14",
+    }

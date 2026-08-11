@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from tests.api.test_formal_data_worker import NOW, _command_values
 
@@ -12,6 +13,7 @@ from astraquant_api.data_repository import DataCatalogRepository
 from astraquant_api.database import create_database, migrate_database
 from astraquant_api.formal_data_schemas import (
     FormalCaptureRequest,
+    FormalIncrementRequest,
     ResolvedFormalCaptureCommand,
 )
 from astraquant_api.logging import ActivityBuffer
@@ -177,3 +179,43 @@ def test_formal_route_fails_closed_without_trusted_runtime_dependencies(tmp_path
 
     assert response.status_code == 503
     assert supervisor.starts == []
+
+
+def test_increment_route_resolves_only_from_sealed_server_side_predecessor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, supervisor = _state(tmp_path)
+    command = ResolvedFormalCaptureCommand.model_validate(
+        {**_command_values(), "predecessor_capture_id": "sha256:" + "9" * 64}
+    )
+    seen: dict[str, object] = {}
+
+    def resolve_increment(self: object, request: object, *, created_at: datetime) -> object:
+        seen["request"] = request
+        assert created_at.tzinfo is not None
+        return command
+
+    monkeypatch.setattr(
+        "astraquant_api.formal_data_routes.FormalCaptureLineageService.resolve_increment",
+        resolve_increment,
+    )
+    response = TestClient(create_app(state)).post(
+        "/v1/formal-data/captures/increment",
+        json={
+            "predecessor_capture_id": "sha256:" + "9" * 64,
+            "end": "2026-08-14",
+        },
+        headers={
+            "Authorization": f"Bearer {TOKEN}",
+            "Idempotency-Key": "formal-increment-600000-20260814",
+        },
+    )
+
+    assert response.status_code == 201
+    assert isinstance(seen["request"], FormalIncrementRequest)
+    assert seen["request"].predecessor_capture_id == "sha256:" + "9" * 64
+    assert len(supervisor.starts) == 1
+    command_values = supervisor.starts[0][1][0]
+    assert isinstance(command_values, dict)
+    assert command_values["predecessor_capture_id"] == "sha256:" + "9" * 64

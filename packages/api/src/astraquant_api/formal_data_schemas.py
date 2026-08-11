@@ -29,6 +29,18 @@ class FormalCaptureRequest(BaseModel):
         return self
 
 
+class FormalIncrementRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    predecessor_capture_id: str = Field(min_length=71, max_length=71)
+    end: date
+
+    @model_validator(mode="after")
+    def validate_predecessor(self) -> FormalIncrementRequest:
+        validate_digest("predecessor_capture_id", self.predecessor_capture_id)
+        return self
+
+
 class ResolvedFormalCaptureCommand(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 

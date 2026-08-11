@@ -92,7 +92,7 @@ with pytest.raises(IncompleteCaptureError):
 - Create: `tests/research/test_formal_capture_cli.py`
 - Modify: `docs/superpowers/plans/2026-08-10-quant-core-v3-phase-1a-provider-capture.md`
 
-**Progress:** backfill authenticated client 已按红灯测试实现；increment/reconcile 不得只在客户端携带 capture id 后调用普通 backfill，必须先补 server-side sealed lineage lookup/reconciliation contract，因此尚未勾选本任务。
+**Progress:** backfill authenticated client 与 increment sealed-lineage 路径已按红灯测试实现；increment 只提交 exact predecessor capture id/end，服务端重验 seal/chunks、从原始请求证据推导 scope，并把 predecessor 写入新 CapturePlan 哈希。reconcile 仍需 immutable reconciliation report contract，因此尚未勾选本任务。
 
 - [ ] **Step 1: 写 CLI 红灯**：三入口只向 authenticated formal route 发 request；token 仅从 `ASTRAQUANT_SESSION_TOKEN`；backfill 要 exact start/end，increment 要 exact last sealed capture，reconcile 要两个 exact capture ids；不得 import SDK/SQLAlchemy 或直写 capture root。
 - [ ] **Step 2: 运行红灯**：`uv run pytest tests/research/test_formal_capture_cli.py -q`，期望 module 缺失。
