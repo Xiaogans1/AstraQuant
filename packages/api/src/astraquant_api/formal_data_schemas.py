@@ -46,6 +46,7 @@ class ResolvedFormalCaptureCommand(BaseModel):
     coverage_membership_digest: str
     policy_digest: str
     created_at: datetime
+    predecessor_capture_id: str | None = None
     schema_version: str = "astraquant.formal-capture-command/v1"
 
     @model_validator(mode="after")
@@ -58,6 +59,8 @@ class ResolvedFormalCaptureCommand(BaseModel):
             "policy_digest",
         ):
             validate_digest(name, getattr(self, name))
+        if self.predecessor_capture_id is not None:
+            validate_digest("predecessor_capture_id", self.predecessor_capture_id)
         if self.schema_version != "astraquant.formal-capture-command/v1":
             raise ValueError("unsupported formal capture command schema")
         if self.created_at.tzinfo is None or self.created_at.utcoffset() is None:

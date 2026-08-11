@@ -9,7 +9,10 @@ from threading import Event
 import pytest
 from pydantic import ValidationError
 
-from astraquant_api.formal_data_schemas import FormalCaptureRequest
+from astraquant_api.formal_data_schemas import (
+    FormalCaptureRequest,
+    ResolvedFormalCaptureCommand,
+)
 from astraquant_api.formal_data_service import (
     FormalCaptureAdmissionError,
     FormalCaptureAdmissionService,
@@ -17,6 +20,7 @@ from astraquant_api.formal_data_service import (
 )
 from astraquant_api.formal_data_worker import (
     FormalCaptureResult,
+    _capture_plan_from_command,
     run_formal_data_worker,
 )
 from astraquant_api.worker import WorkerMessage, WorkerMessageKind
@@ -269,6 +273,23 @@ def test_worker_cancellation_never_reports_success_or_fake_seal() -> None:
     assert terminal.kind is WorkerMessageKind.CANCELED
     assert terminal.payload is None
     assert terminal.current_step == "canceled"
+
+
+def test_worker_plan_binds_command_and_predecessor_lineage() -> None:
+    command = ResolvedFormalCaptureCommand.model_validate(
+        {**_command_values(), "predecessor_capture_id": _digest("9")}
+    )
+
+    plan = _capture_plan_from_command(
+        command,
+        endpoint="market.history",
+        expected_chunk_count=2,
+        expected_row_count=2,
+        coverage_proof_digest=_digest("a"),
+    )
+
+    assert plan.command_digest == command.command_digest
+    assert plan.predecessor_capture_id == _digest("9")
 
 
 def test_worker_source_has_no_database_or_legacy_provider_capability() -> None:

@@ -211,6 +211,35 @@ def test_capture_identity_changes_with_exact_approval_or_endpoint() -> None:
     )
 
 
+def test_formal_capture_plan_binds_command_and_optional_predecessor() -> None:
+    baseline = _plan(expected_chunk_count=1)
+    linked = CapturePlan(
+        identity_digest=baseline.identity_digest,
+        report_digest=baseline.report_digest,
+        approval_id=baseline.approval_id,
+        endpoint=baseline.endpoint,
+        expected_chunk_count=baseline.expected_chunk_count,
+        expected_row_count=baseline.expected_row_count,
+        coverage_proof_digest=baseline.coverage_proof_digest,
+        started_at=baseline.started_at,
+        purpose=baseline.purpose,
+        command_digest=_digest("8"),
+        predecessor_capture_id=_digest("9"),
+    )
+
+    assert linked.capture_id != baseline.capture_id
+    assert CapturePlan.from_dict(linked.to_dict()) == linked
+
+
+def test_legacy_capture_plan_without_lineage_fields_remains_stable() -> None:
+    plan = _plan(expected_chunk_count=1)
+    legacy = plan.to_dict()
+
+    assert "command_digest" not in legacy
+    assert "predecessor_capture_id" not in legacy
+    assert CapturePlan.from_dict(legacy).capture_id == plan.capture_id
+
+
 def test_append_rejects_page_count_that_disagrees_with_parent_plan(tmp_path: Path) -> None:
     store = CaptureStore(tmp_path)
     plan = _plan(expected_chunk_count=2)

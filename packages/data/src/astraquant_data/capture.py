@@ -103,6 +103,8 @@ class CapturePlan:
     coverage_proof_digest: str
     started_at: datetime
     purpose: CapturePurpose = CapturePurpose.FORMAL_DATA
+    command_digest: str | None = None
+    predecessor_capture_id: str | None = None
     schema_version: str = CAPTURE_PLAN_SCHEMA
 
     def __post_init__(self) -> None:
@@ -133,11 +135,17 @@ class CapturePlan:
             validate_digest("coverage_proof_digest", self.coverage_proof_digest),
         )
         object.__setattr__(self, "started_at", _utc("started_at", self.started_at))
+        for name in ("command_digest", "predecessor_capture_id"):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, validate_digest(name, value))
+        if self.predecessor_capture_id is not None and self.command_digest is None:
+            raise ValueError("predecessor capture requires a bound command digest")
         if self.schema_version != CAPTURE_PLAN_SCHEMA:
             raise ValueError("unsupported capture plan schema")
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        value: dict[str, object] = {
             "schema_version": self.schema_version,
             "identity_digest": self.identity_digest,
             "report_digest": self.report_digest,
@@ -149,6 +157,11 @@ class CapturePlan:
             "started_at": self.started_at.isoformat(),
             "purpose": self.purpose.value,
         }
+        if self.command_digest is not None:
+            value["command_digest"] = self.command_digest
+        if self.predecessor_capture_id is not None:
+            value["predecessor_capture_id"] = self.predecessor_capture_id
+        return value
 
     @property
     def capture_id(self) -> str:
@@ -169,6 +182,14 @@ class CapturePlan:
                 coverage_proof_digest=str(value["coverage_proof_digest"]),
                 started_at=datetime.fromisoformat(str(value["started_at"])),
                 purpose=CapturePurpose(str(value["purpose"])),
+                command_digest=(
+                    None if value.get("command_digest") is None else str(value["command_digest"])
+                ),
+                predecessor_capture_id=(
+                    None
+                    if value.get("predecessor_capture_id") is None
+                    else str(value["predecessor_capture_id"])
+                ),
                 schema_version=str(value["schema_version"]),
             )
         except (KeyError, TypeError, ValueError) as error:

@@ -151,16 +151,12 @@ def _execute_formal_capture(
     )
     if request.coverage_membership_digest != command.coverage_membership_digest:
         raise ValueError("resolved coverage membership digest does not match command")
-    plan = CapturePlan(
-        identity_digest=command.identity_digest,
-        report_digest=command.report_digest,
-        approval_id=command.approval_id,
+    plan = _capture_plan_from_command(
+        command,
         endpoint=identity.endpoint,
         expected_chunk_count=len(request.pages),
         expected_row_count=request.expected_total,
         coverage_proof_digest=request.coverage_proof_digest,
-        started_at=command.created_at,
-        purpose=CapturePurpose.FORMAL_DATA,
     )
     client = EastmoneyBridgeClient(
         python_executable=sdk_python,
@@ -187,6 +183,29 @@ def _execute_formal_capture(
         seal_digest=envelope.seal_digest,
         chunk_count=len(envelope.chunk_ids),
         row_count=request.expected_total,
+    )
+
+
+def _capture_plan_from_command(
+    command: ResolvedFormalCaptureCommand,
+    *,
+    endpoint: str,
+    expected_chunk_count: int,
+    expected_row_count: int,
+    coverage_proof_digest: str,
+) -> CapturePlan:
+    return CapturePlan(
+        identity_digest=command.identity_digest,
+        report_digest=command.report_digest,
+        approval_id=command.approval_id,
+        endpoint=endpoint,
+        expected_chunk_count=expected_chunk_count,
+        expected_row_count=expected_row_count,
+        coverage_proof_digest=coverage_proof_digest,
+        started_at=command.created_at,
+        purpose=CapturePurpose.FORMAL_DATA,
+        command_digest=command.command_digest,
+        predecessor_capture_id=command.predecessor_capture_id,
     )
 
 
