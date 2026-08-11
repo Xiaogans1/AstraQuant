@@ -33,6 +33,7 @@ Expected: `ModuleNotFoundError: astraquant_quant.panel_research`。
 ```python
 def build_panel(instruments: Sequence[PanelInstrumentData]) -> PanelDataset: ...
 
+
 def panel_walk_forward(
     panel: PanelDataset,
     *,
@@ -85,6 +86,7 @@ def localize_predictions(
     instrument_id: str,
 ) -> tuple[tuple[WalkForwardFold, ...], tuple[dict[str, object], ...]]: ...
 
+
 def run_panel_executable_model(
     panel: PanelDataset,
     *,
@@ -125,7 +127,7 @@ CLI 参数固定为：
 
 ```text
 run-panel-executable-backtest DATASET_ID... --data-root PATH --output PATH
-  --minimum-train-timestamps 6000 --test-timestamp-count 1500 --fold-count 3
+  --minimum-train-timestamps 5000 --test-timestamp-count 1500 --fold-count 3
   --holding-bars 5 --prediction-threshold 0.5 --minimum-evidence-trades 30
 ```
 
@@ -150,11 +152,11 @@ Expected: 全部通过。
 - Modify: `docs/superpowers/plans/2026-08-11-strategy-effect-fast-lane.md`
 - Modify: `docs/superpowers/plans/2026-08-11-multi-etf-panel-evaluation.md`
 
-- [ ] **Step 1: 真实运行两次**
+- [x] **Step 1: 真实运行两次**
 
-使用 spec 固定的 10 个 dataset IDs、当前持久化费率、`6000/1500/3` folds 运行两次，比较 SHA-256。Expected: 完全一致；记录每模型交易数、净收益、胜率、最差单标的回撤和证据状态。
+使用 spec 固定的 10 个 dataset IDs、当前持久化费率、`5000/1500/3` folds 运行两次，比较 SHA-256。Expected: 完全一致；记录每模型交易数、净收益、胜率、最差单标的回撤和证据状态。51 个交易日经每日预热与标签尾部删除后只有 10,164 个有效 timestamps，因此首轮训练下限由原估算 6,000 修正为可执行的 5,000，OOS 4,500 timestamps、阈值和成本保持不变。
 
-- [ ] **Step 2: 全量验证**
+- [x] **Step 2: 全量验证**
 
 Run:
 
@@ -165,6 +167,6 @@ pwsh -File scripts/verify.ps1 -Scope All
 
 Expected: 全部通过。
 
-- [ ] **Step 3: 更新进度、commit、push**
+- [x] **Step 3: 更新进度、commit、push**
 
 如实记录结果；若仍不足 30 笔，不改阈值并继续 HOLD。只 stage 本计划所列文件，保留 `.pytest-data/`，推送 `codex/quant-core-v3-phase1a-task3`。

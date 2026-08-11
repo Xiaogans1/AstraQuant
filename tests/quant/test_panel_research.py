@@ -125,9 +125,7 @@ def test_global_predictions_are_localized_without_losing_coverage() -> None:
         for row_id in folds[0].test_indices
     )
 
-    local_folds, local_predictions = localize_predictions(
-        panel, folds, predictions, "A.SSE"
-    )
+    local_folds, local_predictions = localize_predictions(panel, folds, predictions, "A.SSE")
 
     assert local_folds[0].test_indices == (10, 11)
     assert [item["row_id"] for item in local_predictions] == [10, 11]

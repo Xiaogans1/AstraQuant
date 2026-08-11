@@ -46,6 +46,12 @@
 - [x] 加入 T+1 可卖量、底仓做 T、风险减仓和目标不可达原因。
 - [ ] Shadow/Paper 前恢复 publication ledger、模型 registry 与晋级门。
 
+## S5 多标的策略证据
+
+- [x] 任意 Eastmoney dataset IDs 可进入统一时间 panel，同一分钟不跨 train/test。
+- [x] 预测回落到各标的真实 K 线，复用 next-open、费率、滑点、容量和整数手执行。
+- [x] 首轮 10 ETF、44,934 OOS rows 重复运行一致；LightGBM 仍证据不足，Logistic Regression 仅形成弱候选。
+
 ## 当前退出标准
 
 S1 完成时，用户能对同一份真实数据直接看到三个模型谁更好、扣费后是否仍有优势；不能用 AUC 单指标宣称策略有效。

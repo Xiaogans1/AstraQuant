@@ -19,7 +19,11 @@
 - S4 真实模型状态：ASTRA10 仅 2 笔、Alpha158 仅 1 笔，均低于 30 笔证据门槛；程序保留当前目标并输出 `INSUFFICIENT_EVIDENCE/HOLD`，不伪选“最佳模型”。
 - S4 canonical 场景：实际持仓 2,000、规则可卖 1,000、目标 0 时，只提出卖出 1,000，剩余 1,000 明确为 `T1_FROZEN`；sell-first 做 T 受已有预占限制为 800，buy-first 做 T 受现金限制为 500。
 - 两次 S4 目标规划报告 SHA-256 均为 `343DAC4F35EEFCF87E9AB0EB410A9EED22E91B166C945BD92319E7EE9AABE1AC`。
-- 当前阶段：到达策略研究重新梳理节点；目标执行语义已经具备，下一步应优先扩大真实交易机会与 OOS 样本，再决定候选模型和 Shadow/Paper 晋级，不继续在 1–2 笔成交上堆执行功能。
+- S5 通用多标的评估：已完成；CLI 接受任意数量的 Eastmoney dataset IDs，按统一 decision timestamp 构造带 purge 的 folds，再将预测落回每只标的独立执行，不写死首批 10 只 ETF。
+- S5 首轮真实结果（10 ETF、44,934 OOS rows）：no-skill 0 笔；LightGBM 9 笔、等权净收益 `+0.1152%`，仍为 `INSUFFICIENT_EVIDENCE`；Logistic Regression 79 笔、胜率 `53.16%`、等权净收益仅 `+0.0274%`、最差单标的回撤 `5.34%`，状态仅为 `CANDIDATE`。
+- Logistic Regression 的 79 笔中 48 笔来自 `512480.SSE`，扣除佣金 `3,888.60` 元并承受滑点成本 `3,110.89` 元后，300 万元等权测试资本只增加 `820.82` 元；优势过薄且成交集中，不能进入 Shadow/Paper。
+- 两次 S5 报告 SHA-256 均为 `F7D5FF095797B310C6F7BBF27D8AD0722439B02C9ED19D39A958C17D94A99195`。
+- 当前阶段：多标的通路已经证明可用；下一策略节点应验证更长历史和跨市场状态稳定性，并改善模型信号，而不是通过降低 0.5 阈值放大这次微弱收益。
 
 ## 延后而非删除
 
@@ -29,4 +33,4 @@
 
 ## 下一结果
 
-扩大真实标的、时间跨度和可交易机会，先让统一成本口径下的 OOS 成交数达到证据门槛；随后冻结候选模型、恢复 publication/model registry，并接入 Shadow/Paper 只读目标展示。
+扩大时间跨度并增加不同市场状态，重点验证 Logistic Regression 的微弱优势能否跨时期复现；只有净收益、回撤和成交分散性同时稳定后，才冻结候选并恢复 publication/model registry。

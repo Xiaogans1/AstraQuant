@@ -273,12 +273,8 @@ def run_panel_executable_model(
         turnover=sum(item.turnover * float(item.initial_equity) for item in exact_reports)
         / float(initial),
         worst_instrument_max_drawdown=max(item.max_drawdown for item in exact_reports),
-        total_commission=sum(
-            (item.total_commission for item in exact_reports), start=Decimal("0")
-        ),
-        total_stamp_duty=sum(
-            (item.total_stamp_duty for item in exact_reports), start=Decimal("0")
-        ),
+        total_commission=sum((item.total_commission for item in exact_reports), start=Decimal("0")),
+        total_stamp_duty=sum((item.total_stamp_duty for item in exact_reports), start=Decimal("0")),
         total_transfer_fee=sum(
             (item.total_transfer_fee for item in exact_reports), start=Decimal("0")
         ),

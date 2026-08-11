@@ -172,8 +172,7 @@ def _instrument(payload: Mapping[str, object]) -> PanelInstrumentData:
     typed_rows: list[dict[str, float | int]] = []
     for row in rows:
         if any(
-            isinstance(value, bool) or not isinstance(value, (int, float))
-            for value in row.values()
+            isinstance(value, bool) or not isinstance(value, (int, float)) for value in row.values()
         ):
             raise ValueError("panel model row values must be numeric")
         typed_rows.append(dict(row))

@@ -52,7 +52,7 @@ fold 以唯一 decision timestamp 切分，而不是按拼接后的行号切分�
 - `>= 30` 笔但等权净收益 `<= 0`：`NO_NET_EDGE`。
 - `>= 30` 笔且等权净收益 `> 0`：仅为 `CANDIDATE`，仍不能进入 Shadow/Paper。
 
-重复运行必须产生相同 JSON SHA-256。无论结果好坏都写入进度文档；不得改变 threshold 后覆盖原结论。
+首轮使用至少 5,000 个训练 timestamps 和三段各 1,500 timestamps 的 OOS；现有 51 个交易日经每日 feature warm-up 与标签尾部删除后共有约 10,164 个有效 decision timestamps。重复运行必须产生相同 JSON SHA-256。无论结果好坏都写入进度文档；不得改变 threshold 后覆盖原结论。
 
 ## 代码边界
 
