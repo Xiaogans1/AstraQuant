@@ -63,17 +63,17 @@ Expected: 全部通过。
 - Modify: `packages/quant/src/astraquant_quant/panel_research.py`
 - Modify: `tests/quant/test_panel_research.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 固定两标的 global predictions，断言 `localize_predictions()` 生成的 local folds/predictions 完整且无重复；调用 `run_panel_executable_model()` 后，总交易数等于 instrument reports 之和、初始/期末权益相加、panel net return 用总权益计算、字段名为 `worst_instrument_max_drawdown`。
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 Run: `uv run pytest tests/quant/test_panel_research.py -q --basetemp .astraquant/test-tmp/s5-execution-red`
 
 Expected: 缺少 `localize_predictions` 或 `run_panel_executable_model`。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 实现：
 
@@ -99,7 +99,7 @@ def run_panel_executable_model(
 
 模型只训练一次 global panel；每个 instrument 只执行属于自己的 OOS predictions。aggregate 从 instrument reports 加总，不拼接成交时间制造共享现金。
 
-- [ ] **Step 4: GREEN 与静态检查**
+- [x] **Step 4: GREEN 与静态检查**
 
 运行 Task 1 命令，Expected: 全部通过。
 
