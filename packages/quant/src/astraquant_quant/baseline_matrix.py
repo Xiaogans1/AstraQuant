@@ -188,6 +188,34 @@ def score_fold_predictions(
     )
 
 
+def predict_fold_probabilities(
+    model: BaselineModel,
+    rows: Sequence[dict[str, float | int]],
+    *,
+    folds: Sequence[WalkForwardFold],
+    seed: int,
+) -> list[dict[str, object]]:
+    """Train one baseline model per fold and return frozen OOS probabilities."""
+    _validate_rows(rows)
+    exact_folds = tuple(folds)
+    if not exact_folds:
+        raise ValueError("folds must not be empty")
+    predictions: list[dict[str, object]] = []
+    for fold in exact_folds:
+        train = [rows[index] for index in fold.train_indices]
+        test = [rows[index] for index in fold.test_indices]
+        probabilities = _predict(model, train, test, seed=seed)
+        predictions.extend(
+            {
+                "fold_id": fold.fold_id,
+                "row_id": row_id,
+                "probability": probability,
+            }
+            for row_id, probability in zip(fold.test_indices, probabilities, strict=True)
+        )
+    return predictions
+
+
 def _validate_rows(rows: Sequence[dict[str, float | int]]) -> None:
     if not rows:
         raise ValueError("rows must not be empty")
@@ -207,19 +235,7 @@ def _evaluate_model(
     prediction_threshold: float,
     seed: int,
 ) -> ModelSummary:
-    predictions: list[dict[str, object]] = []
-    for fold in folds:
-        train = [rows[index] for index in fold.train_indices]
-        test = [rows[index] for index in fold.test_indices]
-        probabilities = _predict(model, train, test, seed=seed)
-        predictions.extend(
-            {
-                "fold_id": fold.fold_id,
-                "row_id": row_id,
-                "probability": probability,
-            }
-            for row_id, probability in zip(fold.test_indices, probabilities, strict=True)
-        )
+    predictions = predict_fold_probabilities(model, rows, folds=folds, seed=seed)
     scored = score_fold_predictions(
         rows,
         folds=folds,

@@ -147,7 +147,7 @@ Expected: PASS。
 
 ### Task 3: 让 ASTRA10 与 Alpha158 使用同一执行器
 
-- [ ] **Step 1: 写 prediction API 失败测试**
+- [x] **Step 1: 写 prediction API 失败测试**
 
 扩展 `tests/quant/test_baseline_matrix.py`：
 
@@ -158,13 +158,13 @@ predictions = predict_fold_probabilities(
 assert {(item["fold_id"], item["row_id"]) for item in predictions} == expected
 ```
 
-- [ ] **Step 2: 验证 RED 并实现公开 API**
+- [x] **Step 2: 验证 RED 并实现公开 API**
 
 Run: `uv run pytest tests/quant/test_baseline_matrix.py -q`
 
 Expected: FAIL，API 尚不存在。随后把 `_evaluate_model()` 内的 prediction 生成提取为 `predict_fold_probabilities()`，原 S1 行为保持不变。
 
-- [ ] **Step 3: 写 CLI 端到端失败测试**
+- [x] **Step 3: 写 CLI 端到端失败测试**
 
 `tests/research/test_run_executable_backtest.py` 生成冻结 Alpha158 request/response，运行 CLI 并断言：
 
@@ -176,11 +176,11 @@ assert set(result["models"]) == {"ASTRA10_LIGHTGBM", "QLIB_ALPHA158_LIGHTGBM"}
 assert result["models"]["ASTRA10_LIGHTGBM"]["executed_trades"] >= 0
 ```
 
-- [ ] **Step 4: 实现 CLI**
+- [x] **Step 4: 实现 CLI**
 
 `run_executable_backtest.py` 校验 request/response digest、读取 `rows.parquet`/`bars.parquet`/`row_bar_indices`/folds，生成 host ASTRA10 predictions，并让两组 predictions 调用同一 `run_executable_backtest()`。输出冻结的 policy、共同 coverage、逐模型 metrics 和差值。
 
-- [ ] **Step 5: 验证端到端**
+- [x] **Step 5: 验证端到端**
 
 Run: `uv run pytest tests/quant/test_baseline_matrix.py tests/research/test_run_executable_backtest.py -q`
 

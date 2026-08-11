@@ -8,6 +8,7 @@ from astraquant_quant.baseline_matrix import (
     BaselineModel,
     MatrixStatus,
     expanding_walk_forward,
+    predict_fold_probabilities,
     run_baseline_matrix,
     score_fold_predictions,
 )
@@ -162,3 +163,18 @@ def test_external_predictions_use_the_same_auc_fee_and_return_scorer() -> None:
             fee_rate=Decimal("0.001"),
             prediction_threshold=0.5,
         )
+
+
+def test_public_prediction_api_covers_every_shared_fold_test_row() -> None:
+    rows = _model_rows(12)
+    folds = expanding_walk_forward(rows, minimum_train_size=4, test_size=4, fold_count=2)
+
+    predictions = predict_fold_probabilities(
+        BaselineModel.LIGHTGBM,
+        rows,
+        folds=folds,
+        seed=7,
+    )
+
+    expected = {(fold.fold_id, row_id) for fold in folds for row_id in fold.test_indices}
+    assert {(str(item["fold_id"]), item["row_id"]) for item in predictions} == expected
