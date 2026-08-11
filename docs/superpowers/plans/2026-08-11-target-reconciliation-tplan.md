@@ -91,7 +91,7 @@ Expected: PASS。
 
 ### Task 2: T+1 与活动委托下的目标可达性
 
-- [ ] **Step 1: 写 T+1 失败测试**
+- [x] **Step 1: 写 T+1 失败测试**
 
 ```python
 result = reconcile_target(
@@ -115,17 +115,17 @@ assert result.unreachable_quantity == 1000
 assert TargetReason.T1_FROZEN in result.reasons
 ```
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 Run: `uv run pytest tests/quant/test_targets.py::test_t1_target_zero_only_sells_opening_quantity -q --basetemp .astraquant/test-tmp/s4-reconcile-red`
 
 Expected: FAIL，API 尚不存在。
 
-- [ ] **Step 3: 实现 reconciliation**
+- [x] **Step 3: 实现 reconciliation**
 
 增加 `PositionProjection`、`TargetIntentKind`、`TargetReconciliation` 与 `reconcile_target()`。先用 working orders 计算 projected quantity，再分别按现金/可卖未预占量限制 BUY/SELL。
 
-- [ ] **Step 4: 写活动单、预占、现金和风险测试**
+- [x] **Step 4: 写活动单、预占、现金和风险测试**
 
 覆盖：
 
@@ -138,7 +138,7 @@ assert TargetReason.SELL_RESERVED in reserved_result.reasons
 assert TargetReason.RISK_REDUCTION_PARTIAL in risk_result.reasons
 ```
 
-- [ ] **Step 5: 验证 GREEN**
+- [x] **Step 5: 验证 GREEN**
 
 Run: `uv run pytest tests/quant/test_targets.py -q --basetemp .astraquant/test-tmp/s4-reconcile-green`
 

@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from astraquant_domain import OrderSide
 from astraquant_quant.targets import (
     ForecastEvidenceStatus,
     ForecastInput,
     ForecastTargetPolicy,
+    PositionProjection,
+    TargetIntentKind,
     TargetReason,
     build_base_target,
+    reconcile_target,
 )
 
 
@@ -103,3 +107,114 @@ def test_validated_bearish_forecast_targets_zero() -> None:
 
     assert target.target_quantity == 0
     assert target.reason is TargetReason.FORECAST_TARGET
+
+
+def test_t1_target_zero_only_sells_opening_quantity() -> None:
+    result = reconcile_target(
+        target_quantity=0,
+        position=PositionProjection(
+            actual_quantity=2000,
+            rule_sellable_quantity=1000,
+            reserved_sell_quantity=0,
+            working_buy_quantity=0,
+            working_sell_quantity=0,
+        ),
+        cash_available=Decimal("0"),
+        price=Decimal("10"),
+        buy_cost_buffer_rate=Decimal("0.001"),
+        lot_size=100,
+    )
+
+    assert result.proposed_side is OrderSide.SELL
+    assert result.proposed_quantity == 1000
+    assert result.reachable_quantity == 1000
+    assert result.unreachable_quantity == 1000
+    assert TargetReason.T1_FROZEN in result.reasons
+
+
+def test_working_sell_that_reaches_target_does_not_duplicate_order() -> None:
+    result = reconcile_target(
+        target_quantity=500,
+        position=PositionProjection(
+            actual_quantity=1000,
+            rule_sellable_quantity=1000,
+            reserved_sell_quantity=500,
+            working_buy_quantity=0,
+            working_sell_quantity=500,
+        ),
+        cash_available=Decimal("0"),
+        price=Decimal("10"),
+        buy_cost_buffer_rate=Decimal("0.001"),
+        lot_size=100,
+    )
+
+    assert result.projected_quantity == 500
+    assert result.proposed_side is None
+    assert result.proposed_quantity == 0
+    assert TargetReason.WORKING_ORDER_COVERS_DELTA in result.reasons
+
+
+def test_buy_target_reports_cash_limited_reachable_quantity() -> None:
+    result = reconcile_target(
+        target_quantity=1000,
+        position=PositionProjection(
+            actual_quantity=0,
+            rule_sellable_quantity=0,
+            reserved_sell_quantity=0,
+            working_buy_quantity=0,
+            working_sell_quantity=0,
+        ),
+        cash_available=Decimal("10000"),
+        price=Decimal("10"),
+        buy_cost_buffer_rate=Decimal("0.001"),
+        lot_size=100,
+    )
+
+    assert result.proposed_side is OrderSide.BUY
+    assert result.proposed_quantity == 900
+    assert result.reachable_quantity == 900
+    assert result.unreachable_quantity == 100
+    assert TargetReason.CASH_LIMIT in result.reasons
+
+
+def test_active_reservation_reduces_new_sell_and_explains_shortfall() -> None:
+    result = reconcile_target(
+        target_quantity=0,
+        position=PositionProjection(
+            actual_quantity=2000,
+            rule_sellable_quantity=1500,
+            reserved_sell_quantity=1000,
+            working_buy_quantity=0,
+            working_sell_quantity=0,
+        ),
+        cash_available=Decimal("0"),
+        price=Decimal("10"),
+        buy_cost_buffer_rate=Decimal("0.001"),
+        lot_size=100,
+    )
+
+    assert result.proposed_quantity == 500
+    assert result.reachable_quantity == 1500
+    assert TargetReason.SELL_RESERVED in result.reasons
+    assert TargetReason.T1_FROZEN in result.reasons
+
+
+def test_risk_reduction_never_claims_frozen_quantity_was_removed() -> None:
+    result = reconcile_target(
+        target_quantity=0,
+        position=PositionProjection(
+            actual_quantity=2000,
+            rule_sellable_quantity=1000,
+            reserved_sell_quantity=0,
+            working_buy_quantity=0,
+            working_sell_quantity=0,
+        ),
+        cash_available=Decimal("0"),
+        price=Decimal("10"),
+        buy_cost_buffer_rate=Decimal("0.001"),
+        lot_size=100,
+        intent_kind=TargetIntentKind.RISK_REDUCTION,
+    )
+
+    assert result.reachable_quantity == 1000
+    assert TargetReason.RISK_REDUCTION_PARTIAL in result.reasons
