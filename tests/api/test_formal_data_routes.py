@@ -20,6 +20,10 @@ from astraquant_api.logging import ActivityBuffer
 from astraquant_api.repository import TaskRepository
 from astraquant_api.secret_store import MemorySecretStore
 from astraquant_api.task_model import TaskRecord, TaskStatus, transition_task
+from astraquant_data.capture_reconciliation import (
+    CaptureReconciliationReport,
+    CaptureReconciliationStatus,
+)
 
 TOKEN = "z" * 43
 
@@ -219,3 +223,53 @@ def test_increment_route_resolves_only_from_sealed_server_side_predecessor(
     command_values = supervisor.starts[0][1][0]
     assert isinstance(command_values, dict)
     assert command_values["predecessor_capture_id"] == "sha256:" + "9" * 64
+
+
+def test_reconcile_route_accepts_only_two_exact_capture_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state, supervisor = _state(tmp_path, ready=False)
+    left = "sha256:" + "7" * 64
+    right = "sha256:" + "8" * 64
+    seen: dict[str, object] = {}
+    report = CaptureReconciliationReport(
+        left_capture_id=left,
+        right_capture_id=right,
+        left_seal_digest="sha256:" + "1" * 64,
+        right_seal_digest="sha256:" + "2" * 64,
+        left_scope_digest="sha256:" + "3" * 64,
+        right_scope_digest="sha256:" + "3" * 64,
+        left_content_digest="sha256:" + "4" * 64,
+        right_content_digest="sha256:" + "5" * 64,
+        status=CaptureReconciliationStatus.CONTENT_MISMATCH,
+        differences=("CONTENT",),
+    )
+
+    def reconcile(store: object, left_id: str, right_id: str) -> object:
+        seen.update(store=store, left=left_id, right=right_id)
+        return report
+
+    monkeypatch.setattr("astraquant_api.formal_data_routes.reconcile_captures", reconcile)
+    response = TestClient(create_app(state)).post(
+        "/v1/formal-data/captures/reconcile",
+        json={"left_capture_id": left, "right_capture_id": right},
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {**report.to_dict(), "report_digest": report.report_digest}
+    assert seen["left"] == left
+    assert seen["right"] == right
+    assert supervisor.starts == []
+
+    invalid = TestClient(create_app(state)).post(
+        "/v1/formal-data/captures/reconcile",
+        json={
+            "left_capture_id": left,
+            "right_capture_id": right,
+            "provider": "fixture",
+        },
+        headers={"Authorization": f"Bearer {TOKEN}"},
+    )
+    assert invalid.status_code == 422

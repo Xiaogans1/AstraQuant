@@ -11,6 +11,7 @@ from pathlib import Path
 from astraquant_domain.run_manifest import canonical_json_bytes
 
 from .capture import CaptureChunk, CaptureEnvelope, CapturePlan
+from .capture_reconciliation import CaptureReconciliationReport
 
 
 class CaptureStoreError(RuntimeError):
@@ -95,6 +96,10 @@ class CaptureStore:
 
     def _chunks_root(self, capture_id: str) -> Path:
         return self._capture_root(capture_id) / "chunks"
+
+    def _reconciliation_path(self, report_digest: str) -> Path:
+        name = self._digest_name(report_digest)
+        return self.root / "reconciliations" / name[:2] / f"{name}.json"
 
     def chunk_path(self, capture_id: str, chunk_id: str) -> Path:
         return self._chunks_root(capture_id) / f"{self._digest_name(chunk_id)}.json"
@@ -235,3 +240,20 @@ class CaptureStore:
         if actual_ids != envelope.chunk_ids:
             raise CaptureIntegrityError("capture chunk digest set does not match seal")
         return envelope
+
+    def write_reconciliation(self, report: CaptureReconciliationReport) -> str:
+        _create_immutable(
+            self._reconciliation_path(report.report_digest),
+            report.to_dict(),
+        )
+        return report.report_digest
+
+    def read_reconciliation(self, report_digest: str) -> CaptureReconciliationReport:
+        path = self._reconciliation_path(report_digest)
+        try:
+            report = CaptureReconciliationReport.from_dict(_read_object(path))
+        except ValueError as error:
+            raise CaptureIntegrityError("capture reconciliation report is invalid") from error
+        if report.report_digest != report_digest:
+            raise CaptureIntegrityError("capture reconciliation digest does not match path")
+        return report

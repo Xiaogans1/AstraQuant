@@ -92,13 +92,13 @@ with pytest.raises(IncompleteCaptureError):
 - Create: `tests/research/test_formal_capture_cli.py`
 - Modify: `docs/superpowers/plans/2026-08-10-quant-core-v3-phase-1a-provider-capture.md`
 
-**Progress:** backfill authenticated client 与 increment sealed-lineage 路径已按红灯测试实现；increment 只提交 exact predecessor capture id/end，服务端重验 seal/chunks、从原始请求证据推导 scope，并把 predecessor 写入新 CapturePlan 哈希。reconcile 仍需 immutable reconciliation report contract，因此尚未勾选本任务。
+**Progress:** completed。backfill、increment 与 reconcile 均只经 authenticated formal API；increment 从 exact sealed predecessor 推导并绑定 lineage；reconcile 重验两端 seal/chunks，生成稳定、不可变且可重验的 scope/content 差异报告。
 
-- [ ] **Step 1: 写 CLI 红灯**：三入口只向 authenticated formal route 发 request；token 仅从 `ASTRAQUANT_SESSION_TOKEN`；backfill 要 exact start/end，increment 要 exact last sealed capture，reconcile 要两个 exact capture ids；不得 import SDK/SQLAlchemy 或直写 capture root。
-- [ ] **Step 2: 运行红灯**：`uv run pytest tests/research/test_formal_capture_cli.py -q`，期望 module 缺失。
-- [ ] **Step 3: 最小实现**：共享 HTTP client 与安全 JSON 输出；API unavailable/non-2xx nonzero；不打印 token/raw/path。
-- [ ] **Step 4: 全验收**：运行 Task 6 roadmap 指定 API/data/integration tests、Ruff format/check、mypy 和 `./scripts/verify.ps1 -Scope All`。
-- [ ] **Step 5: 更新清单并提交**：勾选 roadmap Task 6，提交 `feat(api): 编排正式真实接口采集任务`；推送分支并确认远端 SHA/CI。
+- [x] **Step 1: 写 CLI 红灯**：三入口只向 authenticated formal route 发 request；token 仅从 `ASTRAQUANT_SESSION_TOKEN`；backfill 要 exact start/end，increment 要 exact last sealed capture，reconcile 要两个 exact capture ids；不得 import SDK/SQLAlchemy 或直写 capture root。
+- [x] **Step 2: 运行红灯**：`uv run pytest tests/research/test_formal_capture_cli.py -q`，确认 increment/reconcile module 缺失。
+- [x] **Step 3: 最小实现**：共享 HTTP client 与安全 JSON 输出；API unavailable/non-2xx nonzero；不打印 token/raw/path。
+- [x] **Step 4: 全验收**：Task 6 指定测试 `144 passed`；全仓 `589 passed, 1 skipped`、前端 `104 passed`、Rust `7 passed`，Ruff/mypy/build/repository policy 全绿。
+- [x] **Step 5: 更新清单并提交**：勾选 roadmap Task 6，提交并推送分支、确认远端 SHA/CI。
 
 ## Self-review
 

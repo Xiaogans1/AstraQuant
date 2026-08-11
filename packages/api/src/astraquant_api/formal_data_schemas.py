@@ -41,6 +41,19 @@ class FormalIncrementRequest(BaseModel):
         return self
 
 
+class FormalReconciliationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    left_capture_id: str = Field(min_length=71, max_length=71)
+    right_capture_id: str = Field(min_length=71, max_length=71)
+
+    @model_validator(mode="after")
+    def validate_capture_ids(self) -> FormalReconciliationRequest:
+        validate_digest("left_capture_id", self.left_capture_id)
+        validate_digest("right_capture_id", self.right_capture_id)
+        return self
+
+
 class ResolvedFormalCaptureCommand(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 

@@ -116,16 +116,19 @@
 - Create: `tools/data/backfill_eastmoney.py`
 - Create: `tools/data/increment_eastmoney.py`
 - Create: `tools/data/reconcile_eastmoney.py`
+- Create: `packages/data/src/astraquant_data/capture_reconciliation.py`
 - Test: `tests/api/test_formal_data_worker.py`
 - Create: `tests/api/test_formal_data_routes.py`
+- Create: `tests/data/test_capture_reconciliation.py`
+- Create: `tests/research/test_formal_capture_cli.py`
 
-- [ ] 先测试 command 在创建时解析并固定 qualification id、provider identity、instrument/date range、expected coverage 和 policy digest；API 重试同 idempotency key 得到同一 task。
-- [ ] 先测试 Worker 无 SQLite write capability，只返回 sealed capture digest/result message；取消保留完整 chunks，但不伪造 parent seal。
-- [ ] 先测试 route 需要本地认证，不回显 token/raw payload/path；旧 `data_worker.py`、AKShare、CSV 不能被 formal route 选择。
-- [ ] 运行目标 tests，确认红灯。
-- [ ] 实现 worker/route/app wiring 与 backfill/increment/reconcile CLI；所有长任务可取消、可恢复且 audit trail 完整。
-- [ ] 重跑 tests 与 `tests/integration/test_runtime_round_trip.py`。
-- [ ] 提交：`git commit -m "feat(api): 编排正式真实接口采集任务"`
+- [x] 先测试 command 在创建时解析并固定 qualification id、provider identity、instrument/date range、expected coverage 和 policy digest；API 重试同 idempotency key 得到同一 task。
+- [x] 先测试 Worker 无 SQLite write capability，只返回 sealed capture digest/result message；取消保留完整 chunks，但不伪造 parent seal。
+- [x] 先测试 route 需要本地认证，不回显 token/raw payload/path；旧 `data_worker.py`、AKShare、CSV 不能被 formal route 选择。
+- [x] 运行目标 tests，确认红灯。
+- [x] 实现 worker/route/app wiring 与 backfill/increment/reconcile CLI；所有长任务可取消、可恢复且 audit trail 完整。
+- [x] 重跑 tests 与 `tests/integration/test_runtime_round_trip.py`。
+- [x] 提交：`git commit -m "feat(api): 编排正式真实接口采集任务"`
 
 ## Task 7: Phase 1a endpoint 实证验收
 

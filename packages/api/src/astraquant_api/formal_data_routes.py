@@ -15,6 +15,7 @@ from astraquant_api.formal_data_lineage import FormalCaptureLineageService
 from astraquant_api.formal_data_schemas import (
     FormalCaptureRequest,
     FormalIncrementRequest,
+    FormalReconciliationRequest,
     ResolvedFormalCaptureCommand,
 )
 from astraquant_api.formal_data_service import FormalCaptureAdmissionError
@@ -23,6 +24,7 @@ from astraquant_api.repository import TaskRepository
 from astraquant_api.schemas import TaskResponse
 from astraquant_api.secret_store import SecretStore, SecretStoreUnavailable
 from astraquant_api.task_model import TaskRecord
+from astraquant_data.capture_reconciliation import reconcile_captures
 from astraquant_data.capture_store import CaptureStore
 
 
@@ -168,6 +170,21 @@ def build_formal_data_router(
             ),
         )
         return _task_json(running, 201)
+
+    @router.post("/captures/reconcile")
+    def reconcile_capture_pair(request: FormalReconciliationRequest) -> JSONResponse:
+        try:
+            report = reconcile_captures(
+                CaptureStore(state.state_dir / "formal" / "capture"),
+                request.left_capture_id,
+                request.right_capture_id,
+            )
+        except (OSError, RuntimeError, ValueError) as error:
+            raise HTTPException(422, "formal capture reconciliation failed") from error
+        return JSONResponse(
+            status_code=200,
+            content={**report.to_dict(), "report_digest": report.report_digest},
+        )
 
     return router
 
