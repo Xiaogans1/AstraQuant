@@ -67,7 +67,7 @@ with pytest.raises(IncompleteCaptureError):
 - [x] **Step 2: 运行红灯**：`uv run pytest tests/api/test_formal_data_worker.py -q`，期望缺 worker/result type。
 - [x] **Step 3: 最小实现**：增加 `FormalCaptureResult`；worker 从 JSON 重建 command/identity/request/plan，token 只传给 `EastmoneyBridgeClient.configure()`，异常只回传稳定 `error_type`，finally 停止 bridge。
 - [x] **Step 4: 运行绿灯**：worker tests、Ruff、mypy 全绿。
-- [ ] **Step 5: 提交**：`git commit -m "feat(api): 增加正式采集子进程"`。
+- [x] **Step 5: 提交**：`git commit -m "feat(api): 增加正式采集子进程"`（`4410ff2`）。
 
 ### Task 4: Authenticated route 与幂等任务编排
 
@@ -76,10 +76,10 @@ with pytest.raises(IncompleteCaptureError):
 - Modify: `packages/api/src/astraquant_api/app.py`
 - Create: `tests/api/test_formal_data_routes.py`
 
-- [ ] **Step 1: 写 route 红灯**：无/错 bearer 401；无 `Idempotency-Key` 400；同 key 返回同 task；route 在启动 worker 前已解析 immutable command；无 trusted coverage resolver/secret/SDK runtime 时 503；请求 schema 无 provider 字段，因此 fixture/AKShare/CSV 不可选；响应不含 token/raw/path。
-- [ ] **Step 2: 运行红灯**：`uv run pytest tests/api/test_formal_data_routes.py -q`，期望 route 404。
-- [ ] **Step 3: 最小实现**：`AppState` 增 optional formal capture dependencies；router 仅调用 admission service 和 supervisor；task type 固定 `data.formal_capture`；worker args 只用 resolved command JSON、formal root、SDK Python、bridge script 和内存 token。
-- [ ] **Step 4: API 回归**：route tests、`tests/api/test_app.py tests/api/test_data_routes.py tests/integration/test_runtime_round_trip.py` 全绿。
+- [x] **Step 1: 写 route 红灯**：无/错 bearer 401；无 `Idempotency-Key` 400；同 key 返回同 task；route 在启动 worker 前已解析 immutable command；无 trusted coverage resolver/secret/SDK runtime 时 503；请求 schema 无 provider 字段，因此 fixture/AKShare/CSV 不可选；响应不含 token/raw/path。
+- [x] **Step 2: 运行红灯**：`uv run pytest tests/api/test_formal_data_routes.py -q`，期望 route 404。
+- [x] **Step 3: 最小实现**：`AppState` 增 optional formal capture dependencies；router 仅调用 admission service 和 supervisor；task type 固定 `data.formal_capture`；worker args 只用 resolved command JSON、formal root、SDK Python、bridge script 和内存 token。
+- [x] **Step 4: API 回归**：route tests、`tests/api/test_app.py tests/api/test_data_routes.py tests/integration/test_runtime_round_trip.py` 全绿。
 - [ ] **Step 5: 提交**：`git commit -m "feat(api): 编排正式采集任务"`。
 
 ### Task 5: Backfill/increment/reconcile CLI 与阶段验收

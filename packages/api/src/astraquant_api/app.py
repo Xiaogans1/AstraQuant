@@ -32,6 +32,7 @@ from astraquant_data.live_providers import LiveMarketProvider
 
 if TYPE_CHECKING:
     from astraquant_api.capture_repository import QualificationRepository
+    from astraquant_api.formal_data_routes import FormalCaptureAdmission
     from astraquant_api.paper_strategy_service import PaperStrategyService
 
 
@@ -71,6 +72,9 @@ class AppState:
     paper_strategy_service: PaperStrategyService | None = None
     secret_store: SecretStore | None = None
     qualification_repository: QualificationRepository | None = None
+    formal_capture_service: FormalCaptureAdmission | None = None
+    formal_sdk_python: Path | None = None
+    formal_bridge_script: Path | None = None
     market_provider_factory: Callable[[Path, float], LiveMarketProvider] | None = None
     allowed_data_instruments: frozenset[str] = frozenset({"600000.SSE", "RB0.SHFE"})
     enable_akshare: bool = False
@@ -260,8 +264,16 @@ def create_app(state: AppState) -> FastAPI:
         )
 
     from astraquant_api.data_routes import build_data_router
+    from astraquant_api.formal_data_routes import build_formal_data_router
 
     app.include_router(build_data_router(state, authenticated))
+    app.include_router(
+        build_formal_data_router(
+            state,
+            authenticated,
+            _validate_idempotency_key,
+        )
+    )
     if state.qualification_repository is not None:
         from astraquant_api.provider_qualification_routes import (
             build_provider_qualification_router,
