@@ -64,14 +64,14 @@
 - Modify: `tests/api/test_schema_registry.py`
 - Test: `tests/research/test_eastmoney_qualification_cli.py`
 
-- [ ] 先测试 CLI 只执行/保存 probe，不因结果全绿自动 APPROVED；批准/撤销必须通过 authenticated API command 和 API 单写者事务，带 reviewer、policy version、report digest、revocation kind 与 effective interval。CLI 不得绕过 route 直接写 repository。
-- [ ] 先测试 report/approval append-only；revocation 新增记录，不更新历史行；permission/schema/build 变化使旧 approval lookup 失败。普通 supersede/revoke 只阻止 effective time 后的新 capture，`RETROACTIVE_COMPROMISE` 才隔离历史 lineage。
-- [ ] 运行目标 tests，确认红灯。
-- [ ] 在 0010 创建 provider identity、qualification report、approval/revocation 和 capture index 表，`down_revision="0009_v3_legacy_evidence"`；不保存 token/cookie/raw payload；同步更新 schema registry 与真实 0009→head parity test。
-- [ ] 实现 repository compare-and-append、identity uniqueness、authenticated approve/revoke schema/service/routes 与 audit events；API 是唯一 approval writer。
-- [ ] 实现 CLI 的日线/分钟/退市标的/修订 probe 矩阵，正文写入 Phase 0 `RuntimeConfig.formal_qualification_root`，CLI 经 authenticated API 提交审批命令；不得使用硬编码 `.astraquant/qualification` 或输出正文到 Git。
-- [ ] 重跑 tests 和 migration smoke，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 持久化数据源资格与审批"`
+- [x] 先测试 CLI 只执行/保存 probe，不因结果全绿自动 APPROVED；批准/撤销必须通过 authenticated API command 和 API 单写者事务，带 reviewer、policy version、report digest、revocation kind 与 effective interval。CLI 不得绕过 route 直接写 repository。
+- [x] 先测试 report/approval append-only；revocation 新增记录，不更新历史行；permission/schema/build 变化使旧 approval lookup 失败。普通 supersede/revoke 只阻止 effective time 后的新 capture，`RETROACTIVE_COMPROMISE` 才隔离历史 lineage。
+- [x] 运行目标 tests，确认红灯。
+- [x] 在 0010 创建 provider identity、qualification report、approval/revocation 和 capture index 表，`down_revision="0009_v3_legacy_evidence"`；不保存 token/cookie/raw payload；同步更新 schema registry 与真实 0009→head parity test。
+- [x] 实现 repository compare-and-append、identity uniqueness、authenticated approve/revoke schema/service/routes 与 audit events；API 是唯一 approval writer。
+- [ ] 实现按 endpoint 独立运行的日线/分钟/退市标的/修订 probe 矩阵；矩阵必须由真实 bridge 调用证据派生，不能接受调用者自报 PASS。正文写入 Phase 0 `RuntimeConfig.formal_qualification_root`，CLI 经 authenticated API 提交报告与审批命令；不得使用硬编码 `.astraquant/qualification` 或输出正文到 Git。
+- [x] 重跑 tests 和 migration smoke，期望全绿。
+- [x] 提交：`git commit -m "feat(data): 持久化数据源资格与审批"`
 
 ## Task 4: 建立不可变 CaptureEnvelope/Store
 
@@ -81,12 +81,12 @@
 - Create: `packages/data/src/astraquant_data/capture_store.py`
 - Test: `tests/data/test_capture_store.py`
 
-- [ ] 先写 tests 覆盖 request canonical bytes、response representation/canonical bytes/hash、requested/received/recorded、serialization version/dtype/schema/units/adjust、pages/retries、qualification id、chunk parent seal 和 idempotent duplicate。
-- [ ] 先测试已经 seal 的 capture 发生一字节变化、parent 缺 chunk、相同 id 不同 payload、secret-like field 未 redact 均拒绝。
-- [ ] 运行 `uv run pytest tests/data/test_capture_store.py -q`，确认红灯。
-- [ ] 实现 append-only chunks 与 atomic parent seal；seal 前可继续追加已验证 chunk，seal 后只能读取或创建 superseding capture。
-- [ ] object layout 由 digest 派生，不以“最新目录”决定身份；request identity 排除 secret 值但保留 permission/endpoint 语义。
-- [ ] 重跑 tests，期望全绿。
+- [x] 先写 tests 覆盖 request canonical bytes、response representation/canonical bytes/hash、requested/received/recorded、serialization version/dtype/schema/units/adjust、pages/retries、qualification id、chunk parent seal 和 idempotent duplicate。
+- [x] 先测试已经 seal 的 capture 发生一字节变化、parent 缺 chunk、相同 sequence 不同 payload、secret-like field 未 redact 均拒绝。
+- [x] 运行 `uv run pytest tests/data/test_capture_store.py -q`，确认红灯。
+- [x] 实现 append-only chunks 与 atomic parent seal；seal 前可继续追加已验证 chunk，seal 后只能读取或创建 superseding capture。
+- [x] object layout 由 digest 派生，不以“最新目录”决定身份；request identity 排除 secret 值但保留 permission/endpoint 语义。
+- [x] 重跑 tests，期望全绿。
 - [ ] 提交：`git commit -m "feat(data): 持久化不可变原始采集证据"`
 
 ## Task 5: 实现 Eastmoney batch adapter
