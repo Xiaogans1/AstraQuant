@@ -42,11 +42,12 @@ def _holding_period_return(
 ) -> Decimal | None:
     if index < 0 or horizon <= 0:
         return None
-    end = index + horizon
-    if end >= len(bars):
+    entry_index = index + 1
+    exit_index = index + horizon + 1
+    if exit_index >= len(bars):
         return None
-    entry = bars[index].close
-    return (bars[end].close - entry) / entry
+    entry = bars[entry_index].open
+    return (bars[exit_index].open - entry) / entry
 
 
 def build_training_rows(

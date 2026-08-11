@@ -33,6 +33,8 @@ def build_features_json(
         "source_snapshot_id": source_snapshot_id,
         "provider_id": provider_id,
         "instrument_id": instrument_id,
+        "holding_bars": horizon,
+        "label_price_contract": "NEXT_OPEN_TO_NEXT_OPEN",
         "row_count": len(bundle.rows),
         "bar_count": len(bars),
         "date_range": (f"{bars[0].timestamp.date()}..{bars[-1].timestamp.date()}"),

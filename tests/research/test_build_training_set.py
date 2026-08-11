@@ -68,9 +68,11 @@ def test_build_features_json_produces_labeled_rows(tmp_path: Path) -> None:
 
     assert payload["instrument_id"] == "159516.SZSE"
     assert payload["provider_id"] == "eastmoney"
+    assert payload["holding_bars"] == 5
+    assert payload["label_price_contract"] == "NEXT_OPEN_TO_NEXT_OPEN"
     assert isinstance(payload["source_snapshot_id"], str)
     assert payload["source_snapshot_id"]
-    assert payload["row_count"] == 60 - 30 - 5
+    assert payload["row_count"] == 60 - 30 - 5 - 1
     assert payload["date_range"] == "2026-08-06..2026-08-06"
     rows = payload["rows"]
     assert isinstance(rows, list)
@@ -83,7 +85,7 @@ def test_build_features_json_produces_labeled_rows(tmp_path: Path) -> None:
     assert isinstance(raw_bars, list)
     assert isinstance(row_bar_indices, list)
     assert len(raw_bars) == 60
-    assert row_bar_indices == list(range(30, 55))
+    assert row_bar_indices == list(range(30, 54))
     assert raw_bars[0] == {
         "timestamp": "2026-08-06T01:30:00+00:00",
         "open": 10.0,

@@ -25,7 +25,7 @@
 
 ### Task 1: 将训练标签改为下一可执行开盘价
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 在 `tests/quant/test_training_rows.py` 构造 decision close 相同但 `i+1.open` 与 `i+horizon+1.open` 不同的 bars：
 
@@ -36,13 +36,13 @@ def test_training_return_uses_next_open_entry_and_exit() -> None:
     assert rows[0]["label"] == 1
 ```
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 Run: `uv run pytest tests/quant/test_training_rows.py -q`
 
 Expected: FAIL，旧实现仍使用 decision close 和 `index+horizon.close`。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 把 `_holding_period_return()` 改为：
 
@@ -62,7 +62,7 @@ return (bars[exit_index].open - entry) / entry
 "label_price_contract": "NEXT_OPEN_TO_NEXT_OPEN",
 ```
 
-- [ ] **Step 4: 验证 GREEN 与回归**
+- [x] **Step 4: 验证 GREEN 与回归**
 
 Run: `uv run pytest tests/quant/test_training_rows.py tests/research/test_build_training_set.py tests/research/test_train_model.py -q`
 
@@ -218,4 +218,3 @@ git add -- <本计划列出的代码、测试和文档>
 git commit -m "feat(strategy): 完成A股可执行净收益回测"
 git push origin codex/quant-core-v3-phase1a-task3
 ```
-

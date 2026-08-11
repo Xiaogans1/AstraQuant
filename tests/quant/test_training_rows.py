@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
+
 from astraquant_data.market_bars import MarketBar
 from astraquant_quant.research_features import build_training_bundle, build_training_rows
 
@@ -53,7 +55,7 @@ def test_training_rows_do_not_span_across_days() -> None:
         threshold=Decimal("0.005"),
     )
 
-    assert len(rows) == 2 * (40 - 30 - 5)
+    assert len(rows) == 2 * (40 - 30 - 5 - 1)
     for row in rows:
         assert "label" in row
         assert "future_return" in row
@@ -70,7 +72,7 @@ def test_training_bundle_maps_each_row_to_its_ordered_decision_bar() -> None:
     )
 
     assert bundle.ordered_bars == [*first_day, *second_day]
-    assert bundle.row_bar_indices == [30, 31, 32, 33, 34, 70, 71, 72, 73, 74]
+    assert bundle.row_bar_indices == [30, 31, 32, 33, 70, 71, 72, 73]
     assert [bundle.ordered_bars[index].close for index in bundle.row_bar_indices] == [
         Decimal(str(row["close"])) for row in bundle.rows
     ]
@@ -88,4 +90,25 @@ def test_label_and_future_return_use_the_same_holding_interval() -> None:
     first = rows[0]
     assert first["close"] == 10.0
     assert first["label"] == 0
-    assert first["future_return"] == -0.1
+    assert first["future_return"] == pytest.approx(-2 / 11)
+
+
+def test_training_return_uses_next_open_entry_and_exit() -> None:
+    bars = _bars(["10"] * 34)
+    exit_bar = bars[33]
+    bars[33] = MarketBar(
+        timestamp=exit_bar.timestamp,
+        open=Decimal("11"),
+        high=Decimal("11"),
+        low=Decimal("10"),
+        close=Decimal("10"),
+        volume=exit_bar.volume,
+        turnover=Decimal("1050"),
+        previous_close=exit_bar.previous_close,
+    )
+
+    rows = build_training_rows(bars, horizon=2, threshold=Decimal("0.05"))
+
+    assert len(rows) == 1
+    assert rows[0]["future_return"] == pytest.approx(0.10)
+    assert rows[0]["label"] == 1
