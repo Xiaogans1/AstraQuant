@@ -83,13 +83,13 @@ assert revised_bar.vintage_id != old_bar.vintage_id
 - Create: `tests/data/test_snapshot_v2.py`
 - Modify: `tests/data/test_parquet_store.py`
 
-- [ ] 先测试同一 canonical rows/code/config 在不同重抓中 `content_digest` 相同，但 capture/publication lineage 不同使 `snapshot_id` 不同；任一 cutoff/policy/parent/file byte 改变都会改变相应 digest。
-- [ ] 先测试 manifest v2 固定 captures/raw/file hashes、parents/supersedes、evidence、vintage/PIT/revision/availability、coverage、quality 和 environment/code identities。
-- [ ] 运行目标 tests，确认红灯。
-- [ ] 实现 canonical serialization、stable content digest 和 publication id；v1 仍可读取但返回 legacy evidence。
-- [ ] Parquet writer 使用 temp materialization 与 fsync/atomic rename；未 seal 目录不对 query 可见。
-- [ ] 重跑 tests，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 升级不可变数据快照契约"`
+- [x] 先测试同一 canonical rows/code/config 在不同重抓中 `content_digest` 相同，但 capture/publication lineage 不同使 `snapshot_id` 不同；任一 cutoff/policy/parent/file byte 改变都会改变相应 digest。
+- [x] 先测试 manifest v2 固定 captures/raw/file hashes、parents/supersedes、evidence、vintage/PIT/revision/availability、coverage、quality 和 environment/code identities。
+- [x] 运行目标 tests，确认红灯。
+- [x] 实现 canonical serialization、stable content digest 和 publication id；v1 仍可读取但返回 legacy evidence。
+- [x] Parquet writer 使用 temp materialization 与 fsync/atomic rename；未 seal 目录不对 query 可见。
+- [x] 重跑 tests，期望全绿。
+- [x] 提交：`git commit -m "feat(data): 升级不可变数据快照契约"`
 
 ## Task 5: 建立 publication ledger 与 formal read verifier
 

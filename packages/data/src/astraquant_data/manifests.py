@@ -14,6 +14,19 @@ from astraquant_data.quality import (
     QualityReport,
     QualitySeverity,
 )
+from astraquant_data.snapshot_v2 import (
+    SnapshotContentV2,
+    SnapshotFileV2,
+    SnapshotManifestV2,
+    SnapshotPublicationV2,
+)
+
+__all__ = [
+    "SnapshotContentV2",
+    "SnapshotFileV2",
+    "SnapshotManifestV2",
+    "SnapshotPublicationV2",
+]
 
 
 @dataclass(frozen=True, slots=True)

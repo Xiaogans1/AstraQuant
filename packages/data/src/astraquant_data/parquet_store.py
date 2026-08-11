@@ -14,8 +14,16 @@ from uuid import uuid4
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
 from astraquant_data.arrow_schema import bars_to_table
+from astraquant_data.canonical import CanonicalBarObservation
+from astraquant_data.canonical_schema import canonical_bars_to_table
 from astraquant_data.manifests import SnapshotFile, SnapshotManifest
 from astraquant_data.quality import QualityReport, evaluate_bars
+from astraquant_data.snapshot_v2 import (
+    SnapshotContentV2,
+    SnapshotFileV2,
+    SnapshotManifestV2,
+    SnapshotPublicationV2,
+)
 from astraquant_domain import Bar, Clock, SystemClock, Venue
 
 _DATASET_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,99}$")
@@ -34,6 +42,14 @@ class PublishedSnapshot:
     snapshot_path: Path
     manifest_path: Path
     manifest: SnapshotManifest
+
+
+@dataclass(frozen=True, slots=True)
+class PublishedCanonicalSnapshotV2:
+    snapshot_id: str
+    snapshot_path: Path
+    manifest_path: Path
+    manifest: SnapshotManifestV2
 
 
 class ParquetSnapshotStore:
@@ -156,6 +172,116 @@ class ParquetSnapshotStore:
         return tuple(files)
 
 
+class CanonicalSnapshotStoreV2:
+    """Atomically publish canonical observations with separate content/publication identity."""
+
+    def __init__(self, data_root: Path) -> None:
+        self._formal_root = data_root.resolve() / "formal"
+        self._staging_root = self._formal_root / ".staging"
+        self._datasets_root = self._formal_root / "datasets"
+        self._staging_root.mkdir(parents=True, exist_ok=True)
+        self._datasets_root.mkdir(parents=True, exist_ok=True)
+
+    def publish(
+        self,
+        *,
+        content: SnapshotContentV2,
+        observations: Sequence[CanonicalBarObservation],
+        created_at: datetime,
+        capture_digests: tuple[str, ...],
+        raw_digests: tuple[str, ...],
+        evidence_manifest_digest: str,
+        run_manifest_digest: str,
+        parent_snapshot_ids: tuple[str, ...] = (),
+        supersedes_snapshot_id: str | None = None,
+    ) -> PublishedCanonicalSnapshotV2:
+        rows = content.assert_matches_observations(list(observations))
+        staging_path = self._staging_root / str(uuid4())
+        staging_path.mkdir()
+        try:
+            files = self._write_partitions(staging_path, rows)
+            publication = SnapshotPublicationV2(
+                created_at=created_at,
+                capture_digests=capture_digests,
+                raw_digests=raw_digests,
+                files=files,
+                parent_snapshot_ids=parent_snapshot_ids,
+                supersedes_snapshot_id=supersedes_snapshot_id,
+                evidence_manifest_digest=evidence_manifest_digest,
+                run_manifest_digest=run_manifest_digest,
+            )
+            manifest = SnapshotManifestV2.create(content, publication)
+            manifest_path = staging_path / "manifest.json"
+            manifest_path.write_text(manifest.to_json(), encoding="utf-8", newline="\n")
+            _fsync_file(manifest_path)
+            _fsync_directory(staging_path)
+
+            target = (
+                self._datasets_root
+                / content.dataset_id
+                / "snapshots"
+                / manifest.snapshot_id.removeprefix("sha256:")
+            )
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if target.exists():
+                existing = SnapshotManifestV2.from_path(target / "manifest.json")
+                if existing != manifest:
+                    raise RuntimeError("snapshot hash collision with different manifest")
+                _verify_v2_files(target, existing.publication.files)
+                shutil.rmtree(staging_path)
+            else:
+                os.replace(staging_path, target)
+                _fsync_directory(target.parent)
+            return PublishedCanonicalSnapshotV2(
+                snapshot_id=manifest.snapshot_id,
+                snapshot_path=target,
+                manifest_path=target / "manifest.json",
+                manifest=manifest,
+            )
+        except Exception:
+            if staging_path.exists():
+                shutil.rmtree(staging_path)
+            raise
+
+    def _write_partitions(
+        self,
+        staging_path: Path,
+        rows: tuple[CanonicalBarObservation, ...],
+    ) -> tuple[SnapshotFileV2, ...]:
+        groups: dict[tuple[str, str, str], list[CanonicalBarObservation]] = defaultdict(list)
+        for value in rows:
+            asset_class = "equity" if value.instrument_id.venue in _EQUITY_VENUES else "futures"
+            groups[(asset_class, value.frequency.value, value.trading_date.isoformat())].append(
+                value
+            )
+        files: list[SnapshotFileV2] = []
+        for (asset_class, frequency, trading_date), observations in sorted(groups.items()):
+            relative = Path(
+                "market=cn",
+                f"asset_class={asset_class}",
+                f"frequency={frequency}",
+                f"trading_date={trading_date}",
+                "part-0.parquet",
+            )
+            path = staging_path / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            pq.write_table(
+                canonical_bars_to_table(observations),
+                path,
+                compression="zstd",
+                version="2.6",
+            )
+            _fsync_file(path)
+            files.append(
+                SnapshotFileV2(
+                    path=relative.as_posix(),
+                    file_digest=f"sha256:{_sha256_file(path)}",
+                    rows=len(observations),
+                )
+            )
+        return tuple(files)
+
+
 def _sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -167,3 +293,22 @@ def _sha256_file(path: Path) -> str:
 def _fsync_file(path: Path) -> None:
     with path.open("rb+") as handle:
         os.fsync(handle.fileno())
+
+
+def _fsync_directory(path: Path) -> None:
+    if os.name == "nt":
+        return
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _verify_v2_files(snapshot_path: Path, files: tuple[SnapshotFileV2, ...]) -> None:
+    for value in files:
+        path = snapshot_path / Path(value.path)
+        if not path.is_file() or f"sha256:{_sha256_file(path)}" != value.file_digest:
+            raise RuntimeError(f"published snapshot file verification failed: {value.path}")
+        if pq.read_metadata(path).num_rows != value.rows:
+            raise RuntimeError(f"published snapshot row count verification failed: {value.path}")
