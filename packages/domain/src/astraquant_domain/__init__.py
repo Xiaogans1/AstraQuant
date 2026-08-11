@@ -5,7 +5,15 @@ from astraquant_domain.events import EventEnvelope
 from astraquant_domain.features import FeatureFrame, FeatureRow
 from astraquant_domain.identifiers import InstrumentId, Venue
 from astraquant_domain.live_market import LiveQuote, MarketEventQuality, QuoteLevel
-from astraquant_domain.market_data import Adjustment, Bar, BarFrequency, Tick
+from astraquant_domain.market_data import (
+    Adjustment,
+    AvailabilityBasis,
+    Bar,
+    BarFrequency,
+    ObservationInterval,
+    Tick,
+    VintageKind,
+)
 from astraquant_domain.orders import (
     Environment,
     OrderRequest,
@@ -39,6 +47,7 @@ from astraquant_domain.signals import (
 __all__ = [
     "AccountMode",
     "Adjustment",
+    "AvailabilityBasis",
     "Bar",
     "BarFrequency",
     "Clock",
@@ -51,6 +60,7 @@ __all__ = [
     "InstrumentId",
     "LiveQuote",
     "MarketEventQuality",
+    "ObservationInterval",
     "OrderRequest",
     "OrderSide",
     "OrderStatus",
@@ -72,5 +82,6 @@ __all__ = [
     "TimeInForce",
     "UnsealedRunManifestError",
     "Venue",
+    "VintageKind",
     "transition_order",
 ]

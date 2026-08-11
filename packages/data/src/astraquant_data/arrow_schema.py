@@ -7,6 +7,8 @@ import pyarrow as pa  # type: ignore[import-untyped]
 
 from astraquant_domain import Adjustment, Bar, BarFrequency, InstrumentId, Venue
 
+from .canonical_schema import CANONICAL_BAR_SCHEMA as CANONICAL_BAR_SCHEMA
+
 _PRICE_QUANTUM = Decimal("0.00000001")
 _MEASURE_QUANTUM = Decimal("0.00000001")
 _DICTIONARY_STRING = pa.dictionary(pa.int8(), pa.string())

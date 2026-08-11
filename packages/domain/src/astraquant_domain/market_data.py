@@ -6,6 +6,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from astraquant_domain.identifiers import InstrumentId
+from astraquant_domain.run_manifest import validate_digest
 
 
 class BarFrequency(StrEnum):
@@ -20,9 +21,46 @@ class Adjustment(StrEnum):
     BACKWARD = "hfq"
 
 
+class VintageKind(StrEnum):
+    SOURCE_CERTIFIED = "SOURCE_CERTIFIED"
+    SOURCE_VERSIONED = "SOURCE_VERSIONED"
+    LOCALLY_OBSERVED = "LOCALLY_OBSERVED"
+    AS_DELIVERED_UNVERSIONED = "AS_DELIVERED_UNVERSIONED"
+
+
+class AvailabilityBasis(StrEnum):
+    SOURCE_DECLARED = "SOURCE_DECLARED"
+    SESSION_CLOSE = "SESSION_CLOSE"
+    SOURCE_REVISION = "SOURCE_REVISION"
+    FIRST_RECEIVED = "FIRST_RECEIVED"
+
+
 def _require_aware(name: str, value: datetime) -> None:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{name} must be timezone-aware")
+
+
+@dataclass(frozen=True, slots=True)
+class ObservationInterval:
+    interval_start: datetime
+    interval_end: datetime
+    event_time: datetime
+    calendar_snapshot_id: str
+
+    def __post_init__(self) -> None:
+        for name in ("interval_start", "interval_end", "event_time"):
+            _require_aware(name, getattr(self, name))
+        if self.interval_start >= self.interval_end:
+            raise ValueError("interval_start must precede interval_end")
+        if self.event_time != self.interval_end:
+            raise ValueError("bar event_time must equal exact interval_end")
+        object.__setattr__(
+            self,
+            "calendar_snapshot_id",
+            validate_digest("calendar_snapshot_id", self.calendar_snapshot_id),
+        )
+        if self.calendar_snapshot_id == f"sha256:{'0' * 64}":
+            raise ValueError("calendar_snapshot_id must not be a sentinel digest")
 
 
 @dataclass(frozen=True, slots=True)

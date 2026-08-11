@@ -5,10 +5,13 @@ import pytest
 
 from astraquant_domain import (
     Adjustment,
+    AvailabilityBasis,
     Bar,
     BarFrequency,
     InstrumentId,
+    ObservationInterval,
     Tick,
+    VintageKind,
 )
 
 
@@ -79,3 +82,40 @@ def test_tick_requires_positive_price_and_non_negative_volume() -> None:
             turnover=None,
             open_interest=None,
         )
+
+
+def test_observation_interval_binds_exact_calendar_close() -> None:
+    interval = ObservationInterval(
+        interval_start=datetime(2026, 7, 24, 1, 30, tzinfo=UTC),
+        interval_end=datetime(2026, 7, 24, 7, 0, tzinfo=UTC),
+        event_time=datetime(2026, 7, 24, 7, 0, tzinfo=UTC),
+        calendar_snapshot_id="sha256:" + "1" * 64,
+    )
+
+    assert interval.event_time == interval.interval_end
+    assert VintageKind.SOURCE_VERSIONED.value == "SOURCE_VERSIONED"
+    assert AvailabilityBasis.SESSION_CLOSE.value == "SESSION_CLOSE"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"interval_start": datetime(2026, 7, 24, 7, 0)},
+        {"interval_start": datetime(2026, 7, 24, 7, 0, tzinfo=UTC)},
+        {"event_time": datetime(2026, 7, 24, 6, 59, tzinfo=UTC)},
+        {"calendar_snapshot_id": "sha256:" + "0" * 64},
+    ],
+)
+def test_observation_interval_rejects_guessed_or_invalid_boundaries(
+    changes: dict[str, object],
+) -> None:
+    values: dict[str, object] = {
+        "interval_start": datetime(2026, 7, 24, 1, 30, tzinfo=UTC),
+        "interval_end": datetime(2026, 7, 24, 7, 0, tzinfo=UTC),
+        "event_time": datetime(2026, 7, 24, 7, 0, tzinfo=UTC),
+        "calendar_snapshot_id": "sha256:" + "1" * 64,
+    }
+    values.update(changes)
+
+    with pytest.raises(ValueError):
+        ObservationInterval(**values)  # type: ignore[arg-type]

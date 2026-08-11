@@ -21,14 +21,14 @@
 - Test: `tests/data/test_canonical_schema.py`
 - Test: `tests/domain/test_market_data.py`
 
-- [ ] 先写 typed schema tests：interval start/end、source available、observed received、recorded、source revision/id、vintage id/value hash/supersedes/first received/proven、vintage kind、availability basis、capture row lineage 全部必需或有明确 nullable rule。
-- [ ] 先测试 raw OHLCV 只能是 `Adjustment.NONE`；API 请求 `adjust=1` 却标 NONE、未知单位/时区、重复 canonical key 不同 value 均 quarantine。
-- [ ] 先测试 bar 的 nominal `event_time/interval_end` 来自对应交易 session/bar close，不能由 source/receive/recorded time 代替；跨午休、半日市与时区转换均引用 exact calendar snapshot。
-- [ ] 运行目标 tests，确认字段/模块缺失红灯。
-- [ ] 实现 immutable domain/canonical records、Arrow schema metadata/version 和 normalization validators；价格用 Decimal-compatible integer scale 或声明的精确 Arrow decimal。
-- [ ] 不把 observed receive time 强行要求早于/等于 source available time；历史回补的两者可以相差多年。
-- [ ] 重跑 tests，期望全绿。
-- [ ] 提交：`git commit -m "feat(data): 建立规范市场数据契约"`
+- [x] 先写 typed schema tests：interval start/end、source available、observed received、recorded、source revision/id、vintage id/value hash/supersedes/first received/proven、vintage kind、availability basis、capture row lineage 全部必需或有明确 nullable rule。
+- [x] 先测试 raw OHLCV 只能是 `Adjustment.NONE`；API 请求 `adjust=1` 却标 NONE、未知单位/时区、重复 canonical key 不同 value 均 quarantine。
+- [x] 先测试 bar 的 nominal `event_time/interval_end` 来自对应交易 session/bar close，不能由 source/receive/recorded time 代替；跨午休、半日市与时区转换均引用 exact calendar snapshot。
+- [x] 运行目标 tests，确认字段/模块缺失红灯。
+- [x] 实现 immutable domain/canonical records、Arrow schema metadata/version 和 normalization validators；价格用 Decimal-compatible integer scale 或声明的精确 Arrow decimal。
+- [x] 不把 observed receive time 强行要求早于/等于 source available time；历史回补的两者可以相差多年。
+- [x] 重跑 tests，期望全绿。
+- [x] 提交：`git commit -m "feat(data): 建立规范市场数据契约"`
 
 ## Task 2: 实现 AS_DELIVERED/PIT_STRICT/online 可见性
 
