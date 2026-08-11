@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
@@ -95,16 +96,12 @@ def _to_market_bar(bar: Bar) -> MarketBar:
 
 def load_dataset_bars(data_root: Path, dataset_id: str) -> tuple[list[MarketBar], str]:
     """Load the newest recorded snapshot of a dataset as MarketBar rows."""
-    snapshots_root = data_root / "datasets" / dataset_id / "snapshots"
-    manifests = sorted(snapshots_root.glob("*/manifest.json"))
-    if not manifests:
-        raise ValueError(f"no snapshots found for dataset {dataset_id}")
-    manifest = json.loads(manifests[-1].read_text(encoding="utf-8"))
+    snapshots_root, manifest_path, manifest = _selected_dataset_manifest(data_root, dataset_id)
     files = [item["path"] for item in manifest["files"]]
     bars: list[MarketBar] = []
     instrument_id = ""
     for relative in files:
-        path = snapshots_root / manifests[-1].parent.name / relative
+        path = snapshots_root / manifest_path.parent.name / relative
         with pq.ParquetFile(path) as handle:
             table = handle.read()
         if not instrument_id and table.column_names and "instrument_id" in table.column_names:
@@ -112,6 +109,34 @@ def load_dataset_bars(data_root: Path, dataset_id: str) -> tuple[list[MarketBar]
         for bar in table_to_bars(table):
             bars.append(_to_market_bar(bar))
     return sorted(bars, key=lambda item: item.timestamp), instrument_id
+
+
+def load_dataset_provenance(data_root: Path, dataset_id: str) -> tuple[str, str]:
+    """Return the selected snapshot and provider identities used by research tools."""
+
+    _, _, manifest = _selected_dataset_manifest(data_root, dataset_id)
+    provider = manifest.get("provider")
+    if not isinstance(provider, dict) or not isinstance(provider.get("id"), str):
+        raise ValueError(f"dataset {dataset_id} has no provider identity")
+    snapshot_id = manifest.get("snapshot_id")
+    if not isinstance(snapshot_id, str) or not snapshot_id:
+        raise ValueError(f"dataset {dataset_id} has no snapshot identity")
+    return snapshot_id, provider["id"]
+
+
+def _selected_dataset_manifest(
+    data_root: Path,
+    dataset_id: str,
+) -> tuple[Path, Path, dict[str, Any]]:
+    snapshots_root = data_root / "datasets" / dataset_id / "snapshots"
+    manifests = sorted(snapshots_root.glob("*/manifest.json"))
+    if not manifests:
+        raise ValueError(f"no snapshots found for dataset {dataset_id}")
+    manifest_path = manifests[-1]
+    value = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"dataset {dataset_id} manifest must be an object")
+    return snapshots_root, manifest_path, value
 
 
 def list_datasets(data_root: Path) -> list[DatasetInfo]:

@@ -57,3 +57,18 @@ def test_training_rows_do_not_span_across_days() -> None:
     for row in rows:
         assert "label" in row
         assert "future_return" in row
+
+
+def test_label_and_future_return_use_the_same_holding_interval() -> None:
+    closes = ["10"] * 31 + ["11"] + ["10"] * 3 + ["9"] + ["9"] * 5
+
+    rows = build_training_rows(
+        _bars(closes),
+        horizon=5,
+        threshold=Decimal("0.005"),
+    )
+
+    first = rows[0]
+    assert first["close"] == 10.0
+    assert first["label"] == 0
+    assert first["future_return"] == -0.1

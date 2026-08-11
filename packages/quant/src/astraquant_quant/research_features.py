@@ -18,17 +18,27 @@ def label_future_return(
     horizon: int,
     threshold: Decimal,
 ) -> int:
-    if index < 0 or horizon <= 0:
+    change = _holding_period_return(bars, index=index, horizon=horizon)
+    if change is None:
         return -1
-    end = index + horizon
-    if end >= len(bars):
-        return -1
-    entry = bars[index].close
-    exit_price = bars[end].close
-    change = (exit_price - entry) / entry
     if change >= threshold:
         return 1
     return 0
+
+
+def _holding_period_return(
+    bars: list[MarketBar],
+    *,
+    index: int,
+    horizon: int,
+) -> Decimal | None:
+    if index < 0 or horizon <= 0:
+        return None
+    end = index + horizon
+    if end >= len(bars):
+        return None
+    entry = bars[index].close
+    return (bars[end].close - entry) / entry
 
 
 def build_training_rows(
@@ -60,12 +70,9 @@ def build_training_rows(
             )
             if label < 0:
                 continue
-            future = (
-                float((day_bars[index + 1].close - day_bars[index].close) / day_bars[index].close)
-                if index + 1 < len(day_bars)
-                else 0.0
-            )
-            rows.append({**feature, "label": label, "future_return": future})
+            future = _holding_period_return(day_bars, index=index, horizon=horizon)
+            assert future is not None
+            rows.append({**feature, "label": label, "future_return": float(future)})
     return rows
 
 

@@ -67,6 +67,9 @@ def test_build_features_json_produces_labeled_rows(tmp_path: Path) -> None:
     )
 
     assert payload["instrument_id"] == "159516.SZSE"
+    assert payload["provider_id"] == "eastmoney"
+    assert isinstance(payload["source_snapshot_id"], str)
+    assert payload["source_snapshot_id"]
     assert payload["row_count"] == 60 - 30 - 5
     assert payload["date_range"] == "2026-08-06..2026-08-06"
     rows = payload["rows"]

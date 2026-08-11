@@ -9,7 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 
-from astraquant_data.research_store import load_dataset_bars
+from astraquant_data.research_store import load_dataset_bars, load_dataset_provenance
 from astraquant_quant.research_features import build_training_rows
 
 _HORIZON = 5
@@ -26,9 +26,12 @@ def build_features_json(
     bars, instrument_id = load_dataset_bars(data_root, dataset_id)
     if not bars:
         raise ValueError(f"dataset {dataset_id} has no bars")
+    source_snapshot_id, provider_id = load_dataset_provenance(data_root, dataset_id)
     rows = build_training_rows(bars, horizon=horizon, threshold=threshold)
     return {
         "dataset_id": dataset_id,
+        "source_snapshot_id": source_snapshot_id,
+        "provider_id": provider_id,
         "instrument_id": instrument_id,
         "row_count": len(rows),
         "bar_count": len(bars),

@@ -8,7 +8,8 @@
 
 ## 当前开发
 
-- Strategy Fast Lane S1：公平开源基线矩阵，0/6；当前首先修正标签收益口径。
+- Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
+- 下一阶段：S2 Qlib 对照，先让 Qlib Alpha158/LightGBM 消费与 S1 相同的样本和 folds，再比较是否真正增益。
 
 ## 延后而非删除
 

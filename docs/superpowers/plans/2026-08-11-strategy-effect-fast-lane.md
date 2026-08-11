@@ -20,12 +20,12 @@
 
 ## S1 公平开源基线矩阵（当前）
 
-- [ ] 修正 label 与 `future_return` 使用同一 entry/exit 区间。
-- [ ] 建立 expanding walk-forward folds，测试期严格晚于训练期。
-- [ ] 在同一 folds 比较 `NO_SKILL`、`LOGISTIC_REGRESSION`、`LIGHTGBM`。
-- [ ] 统一扣除双边费率，输出 fold 和汇总 AUC/gross/net/trades。
-- [ ] 相同输入/seed 报告确定性一致；全模型无净优势时返回 `NO_EDGE`。
-- [ ] 提供读取现有训练 JSON 的 CLI，随后连接 exact Eastmoney snapshot builder。
+- [x] 修正 label 与 `future_return` 使用同一 entry/exit 区间。
+- [x] 建立 expanding walk-forward folds，测试期严格晚于训练期。
+- [x] 在同一 folds 比较 `NO_SKILL`、`LOGISTIC_REGRESSION`、`LIGHTGBM`。
+- [x] 统一扣除双边费率，输出 fold 和汇总 AUC/gross/net/trades。
+- [x] 相同输入/seed 报告确定性一致；全模型无净优势时返回 `NO_EDGE`。
+- [x] 提供读取现有训练 JSON 的 CLI，并在训练集固化 Eastmoney provider 与 source snapshot identity。
 
 ## S2 Qlib 对照
 
