@@ -109,17 +109,17 @@ def run_panel_executable_model(
 - Create: `tools/research/run_panel_executable_backtest.py`
 - Create: `tests/research/test_run_panel_executable_backtest.py`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 发布两个 Eastmoney fixture snapshots，运行 CLI 两次并断言 bytes 相同、source snapshot 列表完整、三个模型共享 fold/test rows；交易不足 30 时状态为 `INSUFFICIENT_EVIDENCE`。把任一 provider 改为 fixture 时 CLI 返回 1。
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 Run: `uv run pytest tests/research/test_run_panel_executable_backtest.py -q --basetemp .astraquant/test-tmp/s5-cli-red`
 
 Expected: `ModuleNotFoundError: tools.research.run_panel_executable_backtest`。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 CLI 参数固定为：
 
@@ -131,7 +131,7 @@ run-panel-executable-backtest DATASET_ID... --data-root PATH --output PATH
 
 使用 `build_features_json()` 重建每个 dataset，要求 `provider_id == "eastmoney"`；ETF policy 读取命令行显式费率，默认与当前持久化配置一致。输出 `astraquant.multi-etf-panel-executable/v1`，不写生成时间。
 
-- [ ] **Step 4: GREEN 与静态检查**
+- [x] **Step 4: GREEN 与静态检查**
 
 Run:
 
