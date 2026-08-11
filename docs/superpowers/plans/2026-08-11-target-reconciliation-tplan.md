@@ -24,7 +24,7 @@
 
 ### Task 1: Forecast 转换为 BaseTarget
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `tests/quant/test_targets.py` 先覆盖证据、成本和 no-trade band：
 
@@ -53,13 +53,13 @@ assert target.reason is TargetReason.FORECAST_TARGET
 
 证据不足、`abs(expected_return) <= cost`、`0.45 < p < 0.55` 均保持当前 target；validated 低概率且负 expected return 输出 target 0。
 
-- [ ] **Step 2: 验证 RED**
+- [x] **Step 2: 验证 RED**
 
 Run: `uv run pytest tests/quant/test_targets.py -q --basetemp .astraquant/test-tmp/s4-target-red`
 
 Expected: import error，`astraquant_quant.targets` 尚不存在。
 
-- [ ] **Step 3: 最小实现**
+- [x] **Step 3: 最小实现**
 
 在 `targets.py` 定义：
 
@@ -79,11 +79,11 @@ class TargetReason(StrEnum):
 
 实现 `build_base_target()`：高概率用 `(p-0.5)/0.5` 强度乘最大风险预算并向下取整；低概率目标 0；其余保持 current target。
 
-- [ ] **Step 4: 旧接口复用整数手 helper**
+- [x] **Step 4: 旧接口复用整数手 helper**
 
 把 `strategy_layer.build_target_position()` 改为调用 `targets.quantity_for_budget()`，保持现有测试和 API 行为不变。
 
-- [ ] **Step 5: 验证 GREEN**
+- [x] **Step 5: 验证 GREEN**
 
 Run: `uv run pytest tests/quant/test_targets.py tests/quant/test_strategy_layer.py -q --basetemp .astraquant/test-tmp/s4-target-green`
 
@@ -234,4 +234,3 @@ Expected: 全部通过。
 - [ ] **Step 5: 更新进度、提交和推送**
 
 勾选 fast lane S4 前两项；第三项 publication/model registry 保持延后。记录真实模型 HOLD、canonical T+1/TPlan 数量与报告 SHA，提交并推送当前分支。
-

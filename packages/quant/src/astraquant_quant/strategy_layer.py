@@ -19,6 +19,7 @@ from astraquant_domain import (
 )
 from astraquant_quant.engine import QuantDecision
 from astraquant_quant.features import RealtimeFeatureSnapshot, RealtimeFeatureStatus
+from astraquant_quant.targets import quantity_for_budget
 
 MODEL_FEATURE_COLUMNS: Final = [
     "return_1",
@@ -57,9 +58,7 @@ def build_target_position(
     """Convert signal strength into a share target, capped by risk and rounded to 100-share lots."""
     budget = equity * min(constructor.max_position_percent, risk.max_position_percent)
     budget = budget * signal_strength / Decimal("100")
-    if budget <= 0 or price <= 0:
-        return 0
-    return int(budget / price / 100) * 100
+    return quantity_for_budget(budget, price=price, lot_size=100)
 
 
 def side_of(action: SignalAction) -> OrderSide | None:
