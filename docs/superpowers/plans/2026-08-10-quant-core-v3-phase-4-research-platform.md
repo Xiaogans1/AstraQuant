@@ -10,6 +10,10 @@
 
 ---
 
+## 2026-08-11 策略效果优先执行顺序
+
+不再先完成 research package、数据库迁移、lockbox UI 和完整审计体系。先按 `2026-08-11-strategy-effect-fast-lane.md` 在现有研究链上完成真实 Eastmoney 数据的 no-skill/线性/LightGBM 公平矩阵，再接 Qlib；当模型具备稳定 OOS 净收益、准备进入 Shadow/Paper 时，再补本路线图的不可变 registry、lockbox、迁移和 UI。原 Tasks 保留为上线治理清单，但不再代表当前开发优先级。
+
 ## Task 1: 创建 astraquant_research 并隔离 legacy research
 
 **Files:**

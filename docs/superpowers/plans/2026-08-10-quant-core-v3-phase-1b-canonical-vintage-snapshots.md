@@ -93,6 +93,8 @@ assert revised_bar.vintage_id != old_bar.vintage_id
 
 ## Task 5: 建立 publication ledger 与 formal read verifier
 
+> **2026-08-11 priority:** 延后到模型晋级 Shadow/Paper 前。当前 snapshot v2 的内容身份、来源身份和原子发布已足够支撑策略研究；本 Task 的防回滚 trusted head 不再阻塞基线模型、Qlib 与回测开发。
+
 **Files:**
 
 - Create: `packages/data/src/astraquant_data/publication_ledger.py`

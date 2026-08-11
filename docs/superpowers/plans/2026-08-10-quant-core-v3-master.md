@@ -10,6 +10,12 @@
 
 ---
 
+## 0. 2026-08-11 策略效果优先修订
+
+当前开发从“按基础设施阶段全部做完再研究模型”调整为“已有真实数据能力支撑策略快速迭代”。Phase 0、Phase 1a Tasks 1–6、Phase 1b Tasks 1–4 已提供真实 Eastmoney API、质量校验、时间可见性和可复现快照，足以启动研究；Phase 1b Tasks 5–7 的防篡改 ledger/Merkle/trusted-head、完整故障注入与形式化 sign-off 延后到模型需要晋级 Shadow/Paper 之前，不再阻塞策略研究。
+
+当前主线改为 `S0 数据可用 → S1 公平基线矩阵 → S2 Qlib 模型 → S3 A 股净收益回测 → S4 目标仓位/做 T`。每个阶段必须先产生用户可理解的策略结果，再决定是否增加复杂度；不得以审计、UI、迁移或极端故障设施替代模型效果工作。详细顺序与实时进度见 `docs/superpowers/plans/2026-08-11-strategy-effect-fast-lane.md` 和 `docs/superpowers/plans/2026-08-11-quant-core-v3-progress.md`。
+
 ## 1. 权威输入与禁止绕过项
 
 - 设计基线：`docs/superpowers/specs/2026-08-10-quant-core-open-source-architecture-design.md`。
@@ -25,12 +31,13 @@
 
 ```text
 Phase 0 Legacy quarantine
-  └─ Phase 1 Data truth + RuleBook
+  └─ Phase 1 Data truth minimum (1a Tasks 1-6 + 1b Tasks 1-4)
+       ├─ Strategy fast lane S1-S3 (real Eastmoney data + baselines + Qlib)
        ├─ Phase 2a Task 1 canonical scenarios
        │    └─ Phase 3 Tasks 1–3 pre-kernel RQAlpha golden freeze
        │         └─ Phase 2a Tasks 2–5 → Phase 2b kernel → Phase 2c runtime
        │              └─ Phase 3 Tasks 4–8 post-kernel differential sign-off
-       └─ Phase 4 Research platform + honest baselines
+       └─ Phase 4 remaining research governance (before promotion)
                           └──────────────┬──────────────┘
                                          Phase 5 Daily champion + BaseTarget
                                            └─ Phase 6 Intraday T overlay
