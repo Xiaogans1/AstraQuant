@@ -16,7 +16,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 from .dataset import AstraFoldDataset
-from .models import create_double_ensemble_model
+from .model_adapters import create_double_ensemble_model
 
 QLIB_UPSTREAM_COMMIT = "79633dd9506ea689e5400dea0197717b5b3d74b7"
 REQUEST_SCHEMA = "astraquant.qlib-request/v1"

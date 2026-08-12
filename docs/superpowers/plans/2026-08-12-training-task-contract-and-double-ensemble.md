@@ -47,7 +47,7 @@
 
 **Files:**
 
-- Create: `runners/qlib/src/astraquant_qlib_runner/models/double_ensemble.py`
+- Create: `runners/qlib/src/astraquant_qlib_runner/model_adapters/double_ensemble.py`
 - Modify: `runners/qlib/src/astraquant_qlib_runner/__main__.py`
 - Modify: `runners/qlib/tests/test_runner.py`
 - Create: `tools/research/compare_double_ensemble.py`
