@@ -159,3 +159,43 @@ def test_panel_execution_aggregates_equal_capital_instrument_reports() -> None:
     assert report.worst_instrument_max_drawdown == max(
         item.max_drawdown for item in report.instruments
     )
+
+
+def test_panel_execution_exposes_time_fold_stability() -> None:
+    panel = build_panel((_executable_instrument("A.SSE"), _executable_instrument("B.SSE")))
+    folds = panel_walk_forward(
+        panel,
+        minimum_train_timestamps=6,
+        test_timestamp_count=2,
+        fold_count=2,
+        purge_timestamp_count=1,
+    )
+
+    report = run_panel_executable_model(
+        panel,
+        folds=folds,
+        model=BaselineModel.NO_SKILL,
+        seed=7,
+        prediction_threshold=0.5,
+        holding_bars=1,
+        policy=ExecutionPolicy(instrument_kind=InstrumentKind.ETF),
+    )
+
+    assert [item.fold_id for item in report.folds] == ["fold-01", "fold-02"]
+    assert report.positive_folds == sum(item.net_return > 0 for item in report.folds)
+    for fold, shared_fold in zip(report.folds, folds, strict=True):
+        test_times = [panel.observations[index].timestamp for index in shared_fold.test_indices]
+        assert fold.test_start == min(test_times)
+        assert fold.test_end == max(test_times)
+        instrument_folds = [
+            instrument_fold
+            for instrument in report.instruments
+            for instrument_fold in instrument.folds
+            if instrument_fold.fold_id == fold.fold_id
+        ]
+        assert fold.executed_trades == sum(item.executed_trades for item in instrument_folds)
+        assert fold.initial_equity == sum(item.initial_equity for item in instrument_folds)
+        assert fold.ending_equity == sum(item.ending_equity for item in instrument_folds)
+        assert fold.worst_instrument_max_drawdown == max(
+            item.max_drawdown for item in instrument_folds
+        )

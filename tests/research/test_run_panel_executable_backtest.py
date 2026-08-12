@@ -79,6 +79,11 @@ def test_cli_runs_arbitrary_eastmoney_datasets_repeatably(tmp_path: Path) -> Non
         "INSUFFICIENT_EVIDENCE"
     }
     assert len({item["test_rows"] for item in report["models"].values()}) == 1
+    for model in report["models"].values():
+        assert [item["fold_id"] for item in model["folds"]] == ["fold-01", "fold-02"]
+        assert all(item["test_start"].endswith("+00:00") for item in model["folds"])
+        assert all(item["test_start"] <= item["test_end"] for item in model["folds"])
+        assert model["positive_folds"] == sum(item["net_return"] > 0 for item in model["folds"])
 
 
 def test_cli_rejects_non_eastmoney_dataset(tmp_path: Path) -> None:
