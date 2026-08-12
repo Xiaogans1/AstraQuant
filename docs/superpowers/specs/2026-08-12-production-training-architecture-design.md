@@ -56,13 +56,16 @@ AstraQuant 不以“跑通某个模型”作为训练核心完成标准。最终
 Challenger 顺序：
 
 1. **DoubleEnsemble**：先建立可靠的树模型集成、样本重加权和特征选择基线。
-2. **StockMixer**：验证跨股票时序/截面混合是否稳定优于树模型。
-3. **MASTER**：引入市场状态条件化和股票间关系建模。
-4. **HIST**：引入行业/概念先验及潜在关系发现。
-5. **TRA**：让样本按时间模式路由到不同预测器。
-6. **DoubleAdapt**：处理滚动市场中的分布漂移和在线适应。
+2. **Kronos**：直接复用官方 `Kronos-base` 预训练权重，验证 K 线原生基础模型的 zero-shot 价格路径、预期收益、波动和不确定性；不从零重复预训练。
+3. **StockMixer**：验证跨股票时序/截面混合是否稳定优于树模型。
+4. **MASTER**：引入市场状态条件化和股票间关系建模。
+5. **HIST**：引入行业/概念先验及潜在关系发现。
+6. **TRA**：让样本按时间模式路由到不同预测器。
+7. **DoubleAdapt**：处理滚动市场中的分布漂移和在线适应。
 
 这是一条逐层增加能力的路线，不是“先做简单版就结束”。前一 challenger 的统一数据、切分、成本、日志和 gate 必须被后一 challenger 复用。
+
+Kronos 保持为独立外部基础模型通道，不覆盖自有训练架构。其官方源码固定在 `external/Kronos`，AstraQuant 适配代码位于 `runners/kronos`；缺少权重或 runner 失败时，自有模型必须继续工作。只有 zero-shot 公平验证通过后，才允许开发 K 线图“核预测”按钮与概率路径图层；只有预测在跨时期、跨证券和执行成本后稳定，才允许将其输出转换为组合因子。Kronos 永不直接产生订单。
 
 ## 5. 公平实验与晋级规则
 
@@ -86,7 +89,7 @@ Challenger 顺序：
 
 ### Stage B：全市场共享表征
 
-接入 StockMixer，完成动态 universe、证券/行业特征、缺失与停牌 mask，验证全市场共享训练。
+在 Stage A 的真实多标的评价链路完成后，先接入 Kronos zero-shot 独立 runner，再接入 StockMixer；完成动态 universe、证券/行业特征、缺失与停牌 mask，验证外部预训练表征和自有全市场共享训练。
 
 ### Stage C：关系与市场状态
 
@@ -120,4 +123,4 @@ Challenger 顺序：
 - [HIST](https://arxiv.org/abs/2110.13716)
 - [TRA](https://arxiv.org/abs/2106.12950)
 - [DoubleAdapt](https://github.com/SJTU-DMTai/DoubleAdapt)
-
+- [Kronos](https://github.com/shiyu-coder/Kronos)

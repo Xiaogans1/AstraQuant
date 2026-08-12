@@ -6,6 +6,8 @@
 
 **Architecture:** 稳定任务/分数语义进入 `astraquant_domain`；Qlib 模型保持在固定 commit 的隔离 runner。DoubleEnsemble 训练 future return 并输出 `EXPECTED_RETURN`，主进程依据版本化 selection policy 评分，绝不把原始回归值冒充概率。完成本计划只关闭 DoubleEnsemble challenger。
 
+**后续边界：** 本计划 Task 4 完成后，才启动已封存的 Kronos zero-shot runner；其官方 `Kronos-base` 权重作为独立 K 线基础模型通道，不替换 DoubleEnsemble 或后续 StockMixer/MASTER。K 线图“核预测”图层排在 zero-shot 公平验证之后，Kronos 组合因子排在跨时期稳定性验证之后。
+
 **Tech Stack:** Python 3.12、frozen dataclasses/Enum、pytest、Qlib `79633dd9506ea689e5400dea0197717b5b3d74b7`、LightGBM DoubleEnsemble runner。
 
 ---
@@ -69,3 +71,16 @@
 - [ ] 报告按 fold、instrument、liquidity/regime 展示收益、回撤、换手、容量和成交集中度。
 - [ ] 结论可以是 `INSUFFICIENT_EVIDENCE`；无论结果如何只更新 challenger 状态，不关闭训练核心。
 - [ ] 提交：`test(research): 验收DoubleEnsemble挑战模型`
+
+## Task 5: 交接 Kronos 独立 challenger（未来批次）
+
+**Files:**
+
+- Reference: `docs/superpowers/specs/2026-08-12-kronos-foundation-model-integration-design.md`
+- Reference: `runners/kronos/upstream-manifest.json`
+- Future plan: `docs/superpowers/plans/2026-08-12-kronos-zero-shot-runner.md`
+
+- [ ] Task 4 报告和公平评价入口稳定后，另写 Kronos zero-shot runner 微计划，不在本计划内临时安装依赖或下载权重。
+- [ ] 直接加载官方 `NeoQuasar/Kronos-base` 与 tokenizer，输入 AstraQuant 行情；不使用官方样例数据代替真实评估，不从零训练模型。
+- [ ] 复用 Task 4 的 snapshot、fold、费用、滑点、容量和报告协议，与自有模型公平比较。
+- [ ] 验证通过后再分别制定 K 线预测图层和组合因子计划；两项均不得阻塞自有模型运行或让 Kronos 直接下单。
