@@ -94,9 +94,18 @@ def _to_market_bar(bar: Bar) -> MarketBar:
     )
 
 
-def load_dataset_bars(data_root: Path, dataset_id: str) -> tuple[list[MarketBar], str]:
-    """Load the newest recorded snapshot of a dataset as MarketBar rows."""
-    snapshots_root, manifest_path, manifest = _selected_dataset_manifest(data_root, dataset_id)
+def load_dataset_bars(
+    data_root: Path,
+    dataset_id: str,
+    *,
+    snapshot_id: str | None = None,
+) -> tuple[list[MarketBar], str]:
+    """Load one exact snapshot, or the newest snapshot for legacy callers."""
+    snapshots_root, manifest_path, manifest = _selected_dataset_manifest(
+        data_root,
+        dataset_id,
+        snapshot_id=snapshot_id,
+    )
     files = [item["path"] for item in manifest["files"]]
     bars: list[MarketBar] = []
     instrument_id = ""
@@ -111,10 +120,15 @@ def load_dataset_bars(data_root: Path, dataset_id: str) -> tuple[list[MarketBar]
     return sorted(bars, key=lambda item: item.timestamp), instrument_id
 
 
-def load_dataset_provenance(data_root: Path, dataset_id: str) -> tuple[str, str]:
+def load_dataset_provenance(
+    data_root: Path,
+    dataset_id: str,
+    *,
+    snapshot_id: str | None = None,
+) -> tuple[str, str]:
     """Return the selected snapshot and provider identities used by research tools."""
 
-    _, _, manifest = _selected_dataset_manifest(data_root, dataset_id)
+    _, _, manifest = _selected_dataset_manifest(data_root, dataset_id, snapshot_id=snapshot_id)
     provider = manifest.get("provider")
     if not isinstance(provider, dict) or not isinstance(provider.get("id"), str):
         raise ValueError(f"dataset {dataset_id} has no provider identity")
@@ -127,15 +141,30 @@ def load_dataset_provenance(data_root: Path, dataset_id: str) -> tuple[str, str]
 def _selected_dataset_manifest(
     data_root: Path,
     dataset_id: str,
+    *,
+    snapshot_id: str | None = None,
 ) -> tuple[Path, Path, dict[str, Any]]:
     snapshots_root = data_root / "datasets" / dataset_id / "snapshots"
-    manifests = sorted(snapshots_root.glob("*/manifest.json"))
-    if not manifests:
-        raise ValueError(f"no snapshots found for dataset {dataset_id}")
-    manifest_path = manifests[-1]
+    if snapshot_id is None:
+        manifests = sorted(snapshots_root.glob("*/manifest.json"))
+        if not manifests:
+            raise ValueError(f"no snapshots found for dataset {dataset_id}")
+        manifest_path = manifests[-1]
+    else:
+        if (
+            len(snapshot_id) != 64
+            or any(character not in "0123456789abcdef" for character in snapshot_id)
+            or set(snapshot_id) == {"0"}
+        ):
+            raise ValueError("snapshot_id must be a non-sentinel SHA-256 identity")
+        manifest_path = snapshots_root / snapshot_id / "manifest.json"
+        if not manifest_path.is_file():
+            raise ValueError(f"snapshot {snapshot_id} not found for dataset {dataset_id}")
     value = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"dataset {dataset_id} manifest must be an object")
+    if snapshot_id is not None and value.get("snapshot_id") != snapshot_id:
+        raise ValueError(f"snapshot manifest identity mismatch for dataset {dataset_id}")
     return snapshots_root, manifest_path, value
 
 

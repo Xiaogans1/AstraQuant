@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 from astraquant_data.parquet_store import ParquetSnapshotStore
 from astraquant_data.research_store import load_dataset_bars
 from astraquant_domain import Adjustment, Bar, BarFrequency, InstrumentId
@@ -54,6 +56,33 @@ def test_load_market_bars_reads_newest_snapshot(tmp_path: Path) -> None:
     assert len(bars) == 60
     assert instrument_id == "159516.SZSE"
     assert bars[0].timestamp == datetime(2026, 8, 6, 1, 30, tzinfo=UTC)
+
+
+def test_load_market_bars_can_pin_an_exact_snapshot(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    dataset_id = _publish_snapshot(data_root)
+    manifests = sorted((data_root / "datasets" / dataset_id / "snapshots").glob("*/manifest.json"))
+    first_manifest = manifests[0]
+    first_snapshot_id = first_manifest.parent.name
+    first_bytes = first_manifest.read_bytes()
+
+    bars, instrument_id = load_dataset_bars(
+        data_root,
+        dataset_id,
+        snapshot_id=first_snapshot_id,
+    )
+
+    assert len(bars) == 60
+    assert instrument_id == "159516.SZSE"
+    assert first_manifest.read_bytes() == first_bytes
+
+
+def test_load_market_bars_rejects_unknown_snapshot_id(tmp_path: Path) -> None:
+    data_root = tmp_path / "data"
+    dataset_id = _publish_snapshot(data_root)
+
+    with pytest.raises(ValueError, match="snapshot"):
+        load_dataset_bars(data_root, dataset_id, snapshot_id="f" * 64)
 
 
 def test_build_features_json_produces_labeled_rows(tmp_path: Path) -> None:

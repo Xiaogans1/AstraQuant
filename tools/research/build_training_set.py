@@ -22,11 +22,16 @@ def build_features_json(
     *,
     horizon: int,
     threshold: Decimal,
+    snapshot_id: str | None = None,
 ) -> dict[str, object]:
-    bars, instrument_id = load_dataset_bars(data_root, dataset_id)
+    bars, instrument_id = load_dataset_bars(data_root, dataset_id, snapshot_id=snapshot_id)
     if not bars:
         raise ValueError(f"dataset {dataset_id} has no bars")
-    source_snapshot_id, provider_id = load_dataset_provenance(data_root, dataset_id)
+    source_snapshot_id, provider_id = load_dataset_provenance(
+        data_root,
+        dataset_id,
+        snapshot_id=snapshot_id,
+    )
     bundle = build_training_bundle(bars, horizon=horizon, threshold=threshold)
     return {
         "dataset_id": dataset_id,
