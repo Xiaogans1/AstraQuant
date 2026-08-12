@@ -31,6 +31,11 @@ from astraquant_domain.portfolio import (
     PortfolioSnapshot,
     Position,
 )
+from astraquant_domain.research import (
+    ScoreSemantics,
+    TrainingTaskKind,
+    TrainingTaskSpec,
+)
 from astraquant_domain.run_manifest import (
     RunClass,
     RunManifest,
@@ -74,12 +79,15 @@ __all__ = [
     "RunClass",
     "RunManifest",
     "RunManifestState",
+    "ScoreSemantics",
     "SignalAction",
     "SignalFrame",
     "SignalState",
     "SystemClock",
     "Tick",
     "TimeInForce",
+    "TrainingTaskKind",
+    "TrainingTaskSpec",
     "UnsealedRunManifestError",
     "Venue",
     "VintageKind",

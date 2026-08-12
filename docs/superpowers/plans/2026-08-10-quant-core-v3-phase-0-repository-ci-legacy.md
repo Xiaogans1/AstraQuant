@@ -1,5 +1,7 @@
 # Quant Core v3 Phase 0 Repository, CI, and Legacy Quarantine Stage Roadmap
 
+> **生产训练硬约束：** 本阶段必须为[生产级统一训练架构](../specs/2026-08-12-production-training-architecture-design.md)保留可扩展边界；legacy/demo 模型不得因被重新命名、复制或补元数据而进入未来多任务训练与发布链路。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 恢复可信的仓库验证基线，并确保现有 v1 snapshot、旧训练/回放、标量 Paper 账本和样例数据只能作为只读 legacy，绝不进入 v3 formal run。

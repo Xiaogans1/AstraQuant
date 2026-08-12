@@ -9,12 +9,29 @@ import pyarrow.parquet as pq  # type: ignore[import-untyped]
 import pytest
 
 from astraquant_data.exports.qlib import QLIB_UPSTREAM_COMMIT, export_qlib_request
+from astraquant_domain import ScoreSemantics, TrainingTaskKind, TrainingTaskSpec
 from astraquant_quant.baseline_matrix import WalkForwardFold, expanding_walk_forward
 from astraquant_quant.strategy_layer import MODEL_FEATURE_COLUMNS
 
 
 def _snapshot(character: str = "a") -> str:
     return f"sha256:{character * 64}"
+
+
+def _training_task(
+    *,
+    score_semantics: ScoreSemantics = ScoreSemantics.PROBABILITY,
+) -> TrainingTaskSpec:
+    return TrainingTaskSpec(
+        task_id="daily-base-target-v1",
+        kind=TrainingTaskKind.BASE_TARGET,
+        label_name="next_open_up_1d",
+        horizon_bars=1,
+        score_semantics=score_semantics,
+        universe_id="shared-panel-v1",
+        execution_policy_id="a-share-next-open-v1",
+        evaluation_metrics=("auc", "net_return"),
+    )
 
 
 def _rows(count: int = 80) -> list[dict[str, float | int]]:
@@ -57,6 +74,9 @@ def _export(root: Path, **changes: object):  # type: ignore[no-untyped-def]
         "fee_rate": Decimal("0.00025"),
         "prediction_threshold": 0.5,
         "seed": 7,
+        "training_task": _training_task(),
+        "model_kind": "LIGHTGBM_BINARY",
+        "target_column": "label",
     }
     values.update(changes)
     return export_qlib_request(**values)  # type: ignore[arg-type]
@@ -74,6 +94,10 @@ def test_qlib_export_is_repeatable_and_preserves_the_shared_rows_and_folds(
     assert request["content_digest"] == first.content_digest
     assert request["upstream_commit"] == QLIB_UPSTREAM_COMMIT
     assert request["provider_id"] == "eastmoney"
+    assert request["training_task_digest"] == _training_task().task_digest
+    assert request["model_kind"] == "LIGHTGBM_BINARY"
+    assert request["target_column"] == "label"
+    assert request["score_semantics"] == "PROBABILITY"
     assert request["feature_columns"] == MODEL_FEATURE_COLUMNS
     assert request["folds"][0]["train_indices"] == list(range(50))
     assert request["folds"][0]["test_indices"] == list(range(50, 60))
@@ -116,6 +140,63 @@ def test_qlib_export_accepts_generated_rows_with_close_audit_field(tmp_path: Pat
         "label",
         "future_return",
     ]
+
+
+def test_double_ensemble_export_uses_future_return_and_inner_validation_only(
+    tmp_path: Path,
+) -> None:
+    exported = _export(
+        tmp_path / "double-ensemble",
+        model_kind="DOUBLE_ENSEMBLE",
+        target_column="future_return",
+        prediction_threshold=None,
+        training_task=_training_task(score_semantics=ScoreSemantics.EXPECTED_RETURN),
+    )
+
+    request = json.loads(exported.request_path.read_text(encoding="utf-8"))
+    first_fold = request["folds"][0]
+    assert request["prediction_threshold"] is None
+    assert request["model_config"] == {
+        "decay": 0.5,
+        "enable_fs": True,
+        "enable_sr": True,
+        "epochs": 28,
+        "num_models": 3,
+    }
+    assert first_fold["fit_indices"] == list(range(40))
+    assert first_fold["validation_indices"] == list(range(40, 50))
+    assert first_fold["test_indices"] == list(range(50, 60))
+    assert set(first_fold["validation_indices"]).isdisjoint(first_fold["test_indices"])
+
+
+@pytest.mark.parametrize(
+    ("changes", "match"),
+    [
+        (
+            {
+                "model_kind": "DOUBLE_ENSEMBLE",
+                "target_column": "label",
+                "training_task": _training_task(score_semantics=ScoreSemantics.EXPECTED_RETURN),
+            },
+            "target_column",
+        ),
+        (
+            {
+                "model_kind": "LIGHTGBM_BINARY",
+                "target_column": "label",
+                "training_task": _training_task(score_semantics=ScoreSemantics.EXPECTED_RETURN),
+            },
+            "score semantics",
+        ),
+    ],
+)
+def test_qlib_export_rejects_incompatible_model_target_or_score_semantics(
+    tmp_path: Path,
+    changes: dict[str, object],
+    match: str,
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        _export(tmp_path / "invalid-model", **changes)
 
 
 @pytest.mark.parametrize(

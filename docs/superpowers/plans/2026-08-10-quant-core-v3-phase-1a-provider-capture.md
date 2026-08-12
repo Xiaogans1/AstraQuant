@@ -1,5 +1,7 @@
 # Quant Core v3 Phase 1a Provider Qualification and Capture Stage Roadmap
 
+> **生产训练硬约束：** 本阶段的数据接入必须支持未来任意股票/ETF/universe 的[全市场共享训练](../specs/2026-08-12-production-training-architecture-design.md)；小样本只用于验收接口，不得固化证券清单或成为训练核心完成证据。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 对每个真实 API endpoint 独立证明身份、权限、schema、范围和修订行为，并把每次请求/原始响应保存为不可变、可审计的 L0 Capture。

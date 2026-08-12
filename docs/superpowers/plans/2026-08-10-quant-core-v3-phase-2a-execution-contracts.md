@@ -1,5 +1,7 @@
 # Quant Core v3 Phase 2a Execution Contracts and Golden Scenarios Stage Roadmap
 
+> **生产训练硬约束：** 本阶段冻结的成交、费用和账户语义是[所有训练任务](../specs/2026-08-12-production-training-architecture-design.md)的统一可执行评价标准；任何模型不得使用更宽松的自定义成交语义获得优势。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 在写交易状态转换前，先冻结 A 股 canonical scenarios、稳定领域契约、事件因果顺序和确定性双边 journal，为统一内核建立不可随实现结果修改的裁判基座。

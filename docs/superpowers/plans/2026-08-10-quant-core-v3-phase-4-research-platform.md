@@ -1,8 +1,10 @@
 # Quant Core v3 Phase 4 Research Platform and Baselines Stage Roadmap
 
+> **生产训练硬约束：** 本阶段必须落实[生产级统一训练架构](../specs/2026-08-12-production-training-architecture-design.md)的 Stage A–D：统一训练协议与 DoubleEnsemble、StockMixer 全市场共享表征、MASTER/HIST 关系与状态建模、TRA/DoubleAdapt 路由与漂移适应。完成任一 challenger 只关闭该 challenger，不得把 Phase 4 或训练核心标记完成。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
-**Goal:** 建立独立的 `astraquant_research`、唯一 FeatureGraph/LabelSpec、不可变派生快照、无泄漏 walk-forward/lockbox/Trial Ledger，并在真实 API 日线数据上公平运行 no-skill、线性和树模型基线及 Qlib/vnpy.alpha 复现。
+**Goal:** 建立独立的 `astraquant_research`、唯一 FeatureGraph/LabelSpec、不可变派生快照、无泄漏 walk-forward/lockbox/Trial Ledger；在真实 API 数据上公平运行强基线与六类 challenger，并逐步形成全市场、多任务、关系感知、状态路由和漂移适应的训练平台。
 
 **Architecture:** 正式研究只消费 exact approved snapshot IDs；shared observations/forecast contracts 在 domain，研究编排在 research，数据 materialization 在 data。外部框架各用独立 lock/env，通过 versioned JSON+Arrow 交换。Phase 4 可在 Phase 1 后开发，但可执行价格/净收益验收必须等待 Phase 2/3 的 RuleBook、matcher、cost sign-off。
 
@@ -299,3 +301,29 @@ pnpm --dir apps/desktop build
 
 - [ ] sign-off 引用真实 matrix repeatability/lockbox-consumption artifact digest、预冻结 policy digests、Phase 2/3 executable-price/cost/oracle sign-offs 和所有 known fidelity limits；未获得这些证据时 Phase 4 不通过。
 - [ ] 提交：`git commit -m "test(research): 完成真实数据基线矩阵验收"`
+
+## Task 11: Stage A — 统一任务/分数协议与 DoubleEnsemble challenger
+
+- [ ] 新建共享 `TrainingTaskSpec`/`ScoreSemantics`，明确概率、预期收益、截面 rank 与风险分数不可混用阈值。
+- [ ] 让 native 与 Qlib runner 消费相同 task spec、future-return label、folds、成本和种子预算；DoubleEnsemble 输出声明为 `EXPECTED_RETURN`，不得伪装成概率。
+- [ ] 运行跨多标的、多时期 DoubleEnsemble 对照；通过只关闭 `DOUBLE_ENSEMBLE_CHALLENGER`，不关闭 Phase 4。
+
+## Task 12: Stage B — StockMixer 与全市场共享表征
+
+- [ ] 构建动态 universe panel、instrument/industry features、停牌与缺失 mask；不按股票分别训练独立模型。
+- [ ] 在隔离 runner 固定 StockMixer commit/env，和树模型使用同一 export/folds/execution scoring。
+- [ ] 只有跨证券、跨时期、跨流动性分层稳定改善才关闭 `STOCK_MIXER_CHALLENGER`。
+
+## Task 13: Stage C — MASTER/HIST 关系与市场状态
+
+- [ ] 建立时点正确的行业/概念/市场状态 snapshot 与关系图契约。
+- [ ] 分别验证 MASTER 的 market-guided 表征和 HIST 的显式/潜在关系；所有关系只使用 decision time 可见信息。
+- [ ] 对照无关系消融实验，证明改善来自关系/状态能力而非数据行集或执行差异。
+
+## Task 14: Stage D — TRA/DoubleAdapt 专门化与漂移适应
+
+- [ ] 实现趋势、反转、轮动、日内 T、风险等 task specialist 的统一 runner/forecast 协议。
+- [ ] 用 TRA 验证时间模式路由，用 DoubleAdapt 验证滚动分布适应；路由和更新记录进入 Trial Ledger。
+- [ ] 固化漂移检测、模型降权、回退基线和重新晋级条件；不得在线偷看未来 label。
+
+Task 11–14 只完成研究训练能力；多模型组合、目标仓位和 Shadow/Paper 反馈由 Phase 5/6 关闭 Stage E。

@@ -1,5 +1,7 @@
 # Quant Core v3 当前进度（2026-08-12）
 
+> **长期完成标准：** 当前 no-skill、Logistic、LightGBM 与 Qlib LightGBM 只是统一实验协议的基线。训练核心按[生产级统一训练架构](../specs/2026-08-12-production-training-architecture-design.md)继续推进，只有多任务、全市场共享表征、关系建模、状态路由、组合决策和 Shadow/Paper 反馈全部闭环才算完成。
+
 ## 已完成
 
 - Phase 0：49/49，旧 demo 数据、模型和 Paper 语义已隔离。
@@ -7,6 +9,8 @@
 - Phase 1b：Tasks 1–4 已完成；canonical、时间可见性、coverage/quality、snapshot v2 可用。
 
 ## 当前开发
+
+- 生产训练 Stage A：长期架构、统一 task/score 契约、声明式 Qlib runner 和 DoubleEnsemble 接入已完成；`DEnsembleModel` 与 native Ridge 现在使用同一个 expected-return selection policy，行级研究评分明确标记为 `RESEARCH_RETURN_ONLY`。当前关键节点是 Task 4：用真实多标的 API snapshot 把两者送入现有 A 股 executable backtest，生成可重复 challenger 报告。
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
 - S2a Qlib 公平对照：3/3 已完成；同一 Eastmoney 行集/folds 可在固定 commit 的独立 Qlib LightGBM runner 训练，再由 AstraQuant 统一按相同费率与阈值评分。
@@ -52,12 +56,13 @@ macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、
 
 ## 后续任务顺序
 
-1. **P0 macOS 数据源前置（已完成）**：AKShare 批量探索快照和延迟看盘均已接通；现有东财 `gm` 保留为 Windows Provider，不再定义通用配置和 UI。
-2. **S6 更长历史与更多标的**：时间稳定性报告已完成；探索数据用于扩大覆盖和候选筛选，正式结论继续通过已资格认证的真实 API 快照，不改变本轮 `0.5` 阈值后重跑统一 panel。
-3. **P1 第二认证源**：实测 Tushare Pro 与 Choice `EMQuantAPI C++ Mac`，完成 endpoint 资格、Apple Silicon/Rosetta bridge、授权与跨源差异报告；至少一个 Mac 可用 Provider 进入 Formal。
-4. **S7 策略信号改进**：在相同 folds、费用和资金约束下研究跨标的排序、行业/风格中性与 Qlib 候选模型；以可执行净收益、回撤和成交分散性选择候选，不以单一 AUC 选择。
-5. **S8 稳健性压力测试**：固定候选后运行更高费率、滑点、延迟、容量与分市场状态报告；任何主要场景失效都继续 HOLD。
-6. **Shadow 前治理收口**：完成 Phase 1a 真实 endpoint sign-off、publication trusted head、model registry、lockbox 和晋级门。
-7. **Shadow/Paper**：先只读展示目标仓位，再接 Paper；只有账户、订单、费用、T+1 和对账语义全部通过后才讨论 P2 Broker Gateway 与 LIVE。
+1. **Stage A 统一训练协议（进行中）**：完成 task/score 契约和 DoubleEnsemble；概率、预期收益、rank、风险各走声明过的选择规则。
+2. **扩大全市场真实历史**：探索数据用于覆盖验证，正式结论继续使用已资格认证的真实 API snapshot；训练接口不写死当前十只 ETF。
+3. **Stage B 全市场共享表征**：接入 StockMixer 和动态 universe panel，不为每只股票单独训练一套模型。
+4. **Stage C 关系与状态**：接入 MASTER/HIST，验证行业、概念、潜在关系和市场 regime 是否带来可重复净改善。
+5. **Stage D 路由与漂移**：接入 TRA/DoubleAdapt，形成任务专家、动态路由、滚动适应与可靠 fallback。
+6. **Stage E 组合和发布**：把各任务 forecast 校准并组合为唯一目标仓位，完成压力测试、治理收口与 Shadow/Paper 反馈。
+7. **P1 第二认证源与跨平台一致性**：实测 Tushare Pro/Choice；macOS 与 Windows 只保留 provider/runtime 差异，训练 artifact 语义一致。
+8. **LIVE 设计**：只有账户、订单、费用、T+1、对账及 Stage A–E 全部通过后才讨论 Broker Gateway 与 LIVE。
 
-当前 Strategy Fast Lane 的 S1–S5 与 S6 时间稳定性报告已完成，但整个 Quant Core v3 尚未完成；未完成项主要是更长历史下的策略有效性、Shadow/Paper 治理和后续实盘适配。
+当前 Strategy Fast Lane 的 S1–S5 与 S6 时间稳定性报告已完成，但它们只是训练协议基线。训练核心 Stage A–E 尚未完成；下一项代码是统一训练任务/分数契约，然后进入 DoubleEnsemble challenger。

@@ -8,13 +8,14 @@ import math
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
 from typing import Protocol
 
 import pyarrow as pa  # type: ignore[import-untyped]
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
+from astraquant_domain import ScoreSemantics, TrainingTaskSpec
 from astraquant_domain.run_manifest import canonical_json_bytes
 
 QLIB_UPSTREAM_COMMIT = "79633dd9506ea689e5400dea0197717b5b3d74b7"
@@ -31,6 +32,16 @@ QLIB_FEATURE_COLUMNS = (
     "ma5_gap",
     "ma20_gap",
 )
+QLIB_MODEL_LIGHTGBM_BINARY = "LIGHTGBM_BINARY"
+QLIB_MODEL_DOUBLE_ENSEMBLE = "DOUBLE_ENSEMBLE"
+_VALIDATION_FRACTION = Decimal("0.2")
+_DOUBLE_ENSEMBLE_CONFIG: dict[str, object] = {
+    "num_models": 3,
+    "epochs": 28,
+    "enable_sr": True,
+    "enable_fs": True,
+    "decay": 0.5,
+}
 _DATASET_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,99}$")
 _DIGEST_PATTERN = re.compile(r"^(?:sha256:)?([0-9a-f]{64})$")
 
@@ -62,8 +73,11 @@ def export_qlib_request(
     rows: Sequence[dict[str, float | int]],
     folds: Sequence[FoldLike],
     fee_rate: Decimal,
-    prediction_threshold: float,
+    prediction_threshold: float | None,
     seed: int,
+    training_task: TrainingTaskSpec,
+    model_kind: str,
+    target_column: str,
 ) -> QlibExport:
     if provider_id != "eastmoney":
         raise ValueError("Qlib research input must come from Eastmoney")
@@ -76,8 +90,12 @@ def export_qlib_request(
     fold_values = _validate_folds(exact_folds, row_count=len(exact_rows))
     if fee_rate < 0:
         raise ValueError("fee_rate must not be negative")
-    if not 0 < prediction_threshold < 1:
-        raise ValueError("prediction_threshold must be between zero and one")
+    _validate_model_contract(
+        model_kind=model_kind,
+        target_column=target_column,
+        score_semantics=training_task.score_semantics,
+        prediction_threshold=prediction_threshold,
+    )
 
     root = output_root.resolve()
     if root.exists():
@@ -99,6 +117,19 @@ def export_qlib_request(
         "fee_rate": str(fee_rate),
         "prediction_threshold": prediction_threshold,
         "seed": seed,
+        "training_task_digest": training_task.task_digest,
+        "model_kind": model_kind,
+        "target_column": target_column,
+        "score_semantics": training_task.score_semantics.value,
+        "model_config": (
+            dict(_DOUBLE_ENSEMBLE_CONFIG)
+            if model_kind == QLIB_MODEL_DOUBLE_ENSEMBLE
+            else {"runner_profile": "LIGHTGBM_BINARY_V1"}
+        ),
+        "validation_policy": {
+            "kind": "TRAIN_TAIL_FRACTION",
+            "fraction": str(_VALIDATION_FRACTION),
+        },
     }
     content_digest = _object_digest(body)
     request_path = root / "request.json"
@@ -117,6 +148,36 @@ def export_qlib_request(
         request_path=request_path,
         rows_path=rows_path,
     )
+
+
+def _validate_model_contract(
+    *,
+    model_kind: str,
+    target_column: str,
+    score_semantics: ScoreSemantics,
+    prediction_threshold: float | None,
+) -> None:
+    expected = {
+        QLIB_MODEL_LIGHTGBM_BINARY: ("label", ScoreSemantics.PROBABILITY),
+        QLIB_MODEL_DOUBLE_ENSEMBLE: (
+            "future_return",
+            ScoreSemantics.EXPECTED_RETURN,
+        ),
+    }
+    if model_kind not in expected:
+        raise ValueError(f"unsupported Qlib model_kind: {model_kind}")
+    expected_target, expected_semantics = expected[model_kind]
+    if target_column != expected_target:
+        raise ValueError(f"target_column must be {expected_target} for model_kind {model_kind}")
+    if score_semantics is not expected_semantics:
+        raise ValueError(
+            f"score semantics must be {expected_semantics.value} for model_kind {model_kind}"
+        )
+    if model_kind == QLIB_MODEL_LIGHTGBM_BINARY:
+        if prediction_threshold is None or not 0 < prediction_threshold < 1:
+            raise ValueError("prediction_threshold must be between zero and one")
+    elif prediction_threshold is not None:
+        raise ValueError("prediction_threshold must be null for expected-return models")
 
 
 def _validate_snapshot(value: str) -> None:
@@ -162,10 +223,24 @@ def _validate_folds(folds: tuple[FoldLike, ...], *, row_count: int) -> list[dict
             or max(train) >= min(test)
         ):
             raise ValueError(f"invalid Qlib fold: {fold.fold_id}")
+        validation_count = max(
+            1,
+            int(
+                (Decimal(len(train)) * _VALIDATION_FRACTION).to_integral_value(
+                    rounding=ROUND_CEILING
+                )
+            ),
+        )
+        if validation_count >= len(train):
+            raise ValueError(f"Qlib fold has no fit rows: {fold.fold_id}")
+        fit = train[:-validation_count]
+        validation = train[-validation_count:]
         values.append(
             {
                 "fold_id": fold.fold_id,
                 "train_indices": list(train),
+                "fit_indices": list(fit),
+                "validation_indices": list(validation),
                 "test_indices": list(test),
             }
         )

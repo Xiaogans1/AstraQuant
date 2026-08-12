@@ -1,5 +1,7 @@
 # Quant Core v3 Phase 1c RuleBook and Reference Data Stage Roadmap
 
+> **生产训练硬约束：** reference data 不只服务回放，还必须为[全市场共享表征与关系模型](../specs/2026-08-12-production-training-architecture-design.md)提供历史 universe、行业/概念、证券状态和公司行动的时点正确输入。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 建立带生效期、官方来源和不可变 hash 的 A 股 RuleBook/Fee/Tax/Settlement/Valuation 输入，以及真实 API 驱动的历史 universe、证券状态、公司行动和每日动态交易事实。

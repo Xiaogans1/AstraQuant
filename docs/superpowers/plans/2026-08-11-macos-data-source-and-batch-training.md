@@ -1,5 +1,7 @@
 # macOS 数据源与批量训练数据计划
 
+> **生产训练硬约束：** macOS 数据源与批量任务必须产出和 Windows 完全一致的 snapshot、training task 与 artifact 语义，并支撑[生产级全市场统一训练](../specs/2026-08-12-production-training-architecture-design.md)。平台差异只允许停留在 provider/runtime adapter；小样本或单平台跑通不得视为训练核心完成。
+
 日期：2026-08-11
 状态：P0 已完成，进入 P1 认证数据源资格验证
 适用范围：macOS 开发运行、A 股/ETF/指数行情、全市场批量分钟数据、后续训练数据扩展与未来 Broker Gateway

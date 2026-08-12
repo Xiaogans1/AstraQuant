@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://astraquant.local/contracts/research-runner/v1/request.schema.json",
+  "title": "AstraQuant Qlib research request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "content_digest",
+    "schema_version",
+    "upstream_commit",
+    "provider_id",
+    "dataset_id",
+    "source_snapshot_id",
+    "feature_columns",
+    "row_count",
+    "rows_file",
+    "folds",
+    "fee_rate",
+    "prediction_threshold",
+    "seed",
+    "training_task_digest",
+    "model_kind",
+    "target_column",
+    "score_semantics",
+    "model_config",
+    "validation_policy"
+  ],
+  "properties": {
+    "content_digest": { "$ref": "#/$defs/digest" },
+    "schema_version": { "const": "astraquant.qlib-request/v1" },
+    "upstream_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "provider_id": { "const": "eastmoney" },
+    "dataset_id": { "type": "string", "minLength": 1 },
+    "source_snapshot_id": { "$ref": "#/$defs/digest" },
+    "feature_columns": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "row_count": { "type": "integer", "minimum": 1 },
+    "rows_file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "digest"],
+      "properties": {
+        "path": { "const": "rows.parquet" },
+        "digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "folds": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["fold_id", "train_indices", "fit_indices", "validation_indices", "test_indices"],
+        "properties": {
+          "fold_id": { "type": "string", "minLength": 1 },
+          "train_indices": { "$ref": "#/$defs/indices" },
+          "fit_indices": { "$ref": "#/$defs/indices" },
+          "validation_indices": { "$ref": "#/$defs/indices" },
+          "test_indices": { "$ref": "#/$defs/indices" }
+        }
+      }
+    },
+    "fee_rate": { "type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)?$" },
+    "prediction_threshold": {
+      "anyOf": [
+        { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
+        { "type": "null" }
+      ]
+    },
+    "seed": { "type": "integer" },
+    "training_task_digest": { "$ref": "#/$defs/digest" },
+    "model_kind": { "enum": ["LIGHTGBM_BINARY", "DOUBLE_ENSEMBLE"] },
+    "target_column": { "enum": ["label", "future_return"] },
+    "score_semantics": { "enum": ["PROBABILITY", "EXPECTED_RETURN"] },
+    "model_config": { "type": "object" },
+    "validation_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "fraction"],
+      "properties": {
+        "kind": { "const": "TRAIN_TAIL_FRACTION" },
+        "fraction": { "type": "string", "pattern": "^0\\.[0-9]+$" }
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "indices": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "integer", "minimum": 0 }
+    }
+  }
+}

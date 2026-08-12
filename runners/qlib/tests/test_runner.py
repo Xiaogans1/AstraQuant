@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 
+import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 from astraquant_qlib_runner import QLIB_UPSTREAM_COMMIT, run_request
+from astraquant_qlib_runner.dataset import AstraFoldDataset
 
 FEATURES = (
     "return_1",
@@ -72,6 +75,10 @@ def _write_request(root: Path) -> Path:
         "fee_rate": "0.001",
         "prediction_threshold": 0.55,
         "seed": 7,
+        "training_task_digest": "sha256:" + "2" * 64,
+        "model_kind": "LIGHTGBM_BINARY",
+        "target_column": "label",
+        "score_semantics": "PROBABILITY",
     }
     content_digest = _digest_bytes(json.dumps(body, sort_keys=True, separators=(",", ":")).encode())
     request_path = root / "request.json"
@@ -96,6 +103,9 @@ def test_runner_is_deterministic_and_covers_every_test_row(tmp_path: Path) -> No
     assert first == second
     assert first["schema_version"] == "astraquant.qlib-response/v1"
     assert first["upstream_commit"] == QLIB_UPSTREAM_COMMIT
+    assert first["training_task_digest"] == "sha256:" + "2" * 64
+    assert first["model_kind"] == "LIGHTGBM_BINARY"
+    assert first["score_semantics"] == "PROBABILITY"
     assert [(item["fold_id"], item["row_id"]) for item in first["predictions"]] == [
         *(("fold-1", row_id) for row_id in range(24, 30)),
         *(("fold-2", row_id) for row_id in range(30, 36)),
@@ -131,3 +141,83 @@ def test_runner_rejects_tampered_rows(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="rows digest"):
         run_request(request_path, tmp_path / "output.json")
+
+
+def test_fold_dataset_uses_the_declared_regression_target() -> None:
+    source = {
+        "feature": [1.0, 2.0],
+        "label": [0, 1],
+        "future_return": [-0.02, 0.03],
+    }
+    dataset = AstraFoldDataset(
+        pd.DataFrame(source),
+        feature_columns=("feature",),
+        target_column="future_return",
+        train_indices=(0,),
+        valid_indices=(1,),
+        test_indices=(1,),
+    )
+
+    prepared = dataset.prepare("valid", col_set="label")
+    assert prepared.iloc[0, 0] == pytest.approx(0.03)
+
+
+def test_runner_rejects_incompatible_model_target_and_score_contract(tmp_path: Path) -> None:
+    request_path = _write_request(tmp_path / "input")
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    request.update(
+        {
+            "model_kind": "DOUBLE_ENSEMBLE",
+            "target_column": "label",
+            "score_semantics": "EXPECTED_RETURN",
+        }
+    )
+    body = {key: value for key, value in request.items() if key != "content_digest"}
+    request["content_digest"] = _digest_bytes(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    )
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="model/target/score"):
+        run_request(request_path, tmp_path / "output.json")
+
+
+def test_double_ensemble_returns_deterministic_expected_return_scores(tmp_path: Path) -> None:
+    request_path = _write_request(tmp_path / "input")
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    for fold in request["folds"]:
+        train = fold["train_indices"]
+        split = len(train) - math.ceil(len(train) * 0.2)
+        fold["fit_indices"] = train[:split]
+        fold["validation_indices"] = train[split:]
+    request.update(
+        {
+            "model_kind": "DOUBLE_ENSEMBLE",
+            "target_column": "future_return",
+            "score_semantics": "EXPECTED_RETURN",
+            "model_config": {
+                "num_models": 2,
+                "epochs": 10,
+                "enable_sr": True,
+                "enable_fs": True,
+                "decay": 0.5,
+            },
+            "validation_policy": {
+                "kind": "TRAIN_TAIL_FRACTION",
+                "fraction": "0.2",
+            },
+        }
+    )
+    body = {key: value for key, value in request.items() if key != "content_digest"}
+    request["content_digest"] = _digest_bytes(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    )
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+
+    first = run_request(request_path, tmp_path / "first-double.json")
+    second = run_request(request_path, tmp_path / "second-double.json")
+
+    assert first == second
+    assert first["model_kind"] == "DOUBLE_ENSEMBLE"
+    assert first["score_semantics"] == "EXPECTED_RETURN"
+    assert all("score" in item and "probability" not in item for item in first["predictions"])

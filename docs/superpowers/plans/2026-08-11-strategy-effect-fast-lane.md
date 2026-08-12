@@ -1,8 +1,10 @@
 # Strategy Effect Fast Lane Implementation Plan
 
+> **生产训练硬约束：** Fast Lane 只建立可复用实验协议和 challenger，不是降低最终目标。后续必须按[生产级统一训练架构](../specs/2026-08-12-production-training-architecture-design.md)继续完成 DoubleEnsemble、StockMixer、MASTER、HIST、TRA、DoubleAdapt、多任务组合和 Shadow/Paper 闭环；任何单模型结果都不能关闭训练核心任务。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 在真实 Eastmoney 数据上先建立可比较、可复现、扣费后的开源模型基线，再逐步接入 Qlib 与 A 股目标仓位。
+**Goal:** 在真实 API 数据上建立可比较、可复现、扣费后的开源模型基线，并把同一协议逐步扩展到全市场、多任务、关系模型、状态路由、A 股目标仓位和上线反馈。
 
 **Architecture:** 复用现有 snapshot/feature 工具，不先新建数据库和 UI。研究核心提供统一 walk-forward folds、模型 adapter 和收益报告；CLI 读取 Eastmoney 数据集生成机器可读矩阵。后续 Qlib 必须消费同一行集和 folds。
 
