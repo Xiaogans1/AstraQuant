@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -20,6 +21,7 @@ from astraquant_data.subscriptions import CORE_INDICES, SubscriptionBudget
 from astraquant_domain import Clock, InstrumentId, LiveQuote, SystemClock
 
 _CHINA_ZONE = ZoneInfo("Asia/Shanghai")
+LOGGER = logging.getLogger(__name__)
 _INTRADAY_BAR_CACHE_SECONDS = 8
 _KLINE_BAR_CACHE_SECONDS = 60
 type BarCacheKey = tuple[str, MarketPeriod, int]
@@ -391,12 +393,26 @@ class MarketDataService:
                 await asyncio.sleep(self._poll_interval_seconds)
             except asyncio.CancelledError:
                 raise
-            except Exception:
+            except Exception as error:
                 reconnect_count += 1
+                LOGGER.warning(
+                    "market provider poll failed provider=%s reconnect_count=%s error=%r",
+                    getattr(self._provider, "provider_id", "unknown"),
+                    reconnect_count,
+                    error,
+                )
                 self._connection = replace(
                     self._connection,
-                    state=ConnectionState.ERROR,
-                    error_code="provider_call_failed",
+                    state=(
+                        ConnectionState.STALE
+                        if self._connection.last_event_at is not None
+                        else ConnectionState.ERROR
+                    ),
+                    error_code=(
+                        "provider_temporarily_unavailable"
+                        if self._connection.last_event_at is not None
+                        else "provider_call_failed"
+                    ),
                     reconnect_count=reconnect_count,
                 )
                 assert self._provider is not None
@@ -413,9 +429,17 @@ class MarketDataService:
                 await asyncio.to_thread(self._provider.connect, token or "")
                 self._connection = replace(
                     self._connection,
-                    state=ConnectionState.CONNECTING,
+                    state=(
+                        ConnectionState.STALE
+                        if self._connection.last_event_at is not None
+                        else ConnectionState.CONNECTING
+                    ),
                     connected_at=self._clock.now(),
-                    error_code=None,
+                    error_code=(
+                        "provider_temporarily_unavailable"
+                        if self._connection.last_event_at is not None
+                        else None
+                    ),
                 )
 
     async def _is_trading_date(self, local_date: date) -> bool:

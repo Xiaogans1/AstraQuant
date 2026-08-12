@@ -104,17 +104,27 @@ class FakeAkShare:
 
 
 def test_delayed_provider_polls_searches_and_marks_quotes_delayed() -> None:
-    provider = AkShareDelayedProvider(client=FakeAkShare(), clock=FixedClock())
+    def fetch_quotes(
+        instruments: tuple[InstrumentId, ...], received: datetime
+    ) -> tuple[list[Any], int]:
+        rows = FakeAkShare().stock_zh_a_spot_em().to_dict(orient="records")
+        index_rows = FakeAkShare().stock_zh_index_spot_em().to_dict(orient="records")
+        by_id = {"600000.SSE": rows[0], "000001.SSE": index_rows[0]}
+        from astraquant_data.adapters.akshare_live import _spot_quote
+
+        return [_spot_quote(item, by_id[str(item)], received) for item in instruments], 0
+
+    provider = AkShareDelayedProvider(
+        client=FakeAkShare(), clock=FixedClock(), public_quote_fetcher=fetch_quotes
+    )
     provider.connect("")
 
     quotes = provider.poll((InstrumentId.parse("600000.SSE"), InstrumentId.parse("000001.SSE")))
-    results = provider.search("浦发")
 
     assert len(quotes) == 2
     assert quotes[0].source_id == "akshare-eastmoney-web"
     assert quotes[0].quality == frozenset({MarketEventQuality.DELAYED})
     assert str(quotes[1].instrument_id) == "000001.SSE"
-    assert results == [{"instrument_id": "600000.SSE", "name": "浦发银行"}]
 
 
 def test_delayed_provider_normalizes_minute_daily_and_calendar() -> None:

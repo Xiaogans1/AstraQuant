@@ -144,12 +144,14 @@ dependencies = [
 [package.optional-dependencies]
 akshare = [
     { name = "akshare" },
+    { name = "certifi" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "akshare", marker = "extra == 'akshare'", specifier = ">=1.18.64,<1.19" },
     { name = "astraquant-domain", editable = "packages/domain" },
+    { name = "certifi", marker = "extra == 'akshare'", specifier = ">=2026.1.4" },
     { name = "duckdb", specifier = ">=1.5,<2" },
     { name = "pyarrow", specifier = ">=25,<26" },
 ]

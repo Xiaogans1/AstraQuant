@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 from astraquant_data.live_providers import ConnectionState, ProviderHealth
 from astraquant_data.market_bars import MarketBar, MarketPeriod, aggregate_daily_bars
+from astraquant_data.public_quotes import fetch_public_quotes, search_public_instruments
 from astraquant_domain import Clock, InstrumentId, LiveQuote, MarketEventQuality, SystemClock, Venue
 
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -30,13 +31,20 @@ class AkShareDelayedProvider:
     provider_id = "akshare"
     requires_token = False
 
-    def __init__(self, *, client: Any | None = None, clock: Clock | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        client: Any | None = None,
+        clock: Clock | None = None,
+        public_quote_fetcher: Any | None = None,
+    ) -> None:
         if client is None:
             import akshare  # type: ignore[import-untyped]
 
             client = akshare
         self._client = client
         self._clock = clock or SystemClock()
+        self._public_quote_fetcher = public_quote_fetcher or fetch_public_quotes
         self._health = ProviderHealth(provider_id=self.provider_id)
         self._connected = False
         self._spot_rows: dict[str, Mapping[str, Any]] = {}
@@ -58,31 +66,11 @@ class AkShareDelayedProvider:
     def poll(self, instruments: Sequence[InstrumentId]) -> list[LiveQuote]:
         if not self._connected:
             raise RuntimeError("AKShare delayed provider is not connected")
-        frame = self._client.stock_zh_a_spot_em()
-        _require_columns(set(frame.columns), _SPOT_COLUMNS)
-        rows = tuple(frame.to_dict(orient="records"))
-        self._spot_rows = {str(_instrument(str(row["代码"]))): row for row in rows}
-        requested_indices = {str(item) for item in instruments} & _INDEX_IDS
-        if requested_indices:
-            index_frame = self._client.stock_zh_index_spot_em(symbol="沪深重要指数")
-            _require_columns(set(index_frame.columns), _SPOT_COLUMNS)
-            for row in index_frame.to_dict(orient="records"):
-                instrument_id = _index_instrument(str(row["代码"]))
-                if str(instrument_id) in requested_indices:
-                    self._spot_rows[str(instrument_id)] = row
         received = self._clock.now()
-        quotes: list[LiveQuote] = []
-        parse_errors = 0
-        for instrument in instruments:
-            if instrument.venue not in {Venue.SSE, Venue.SZSE, Venue.BSE}:
-                continue
-            row = self._spot_rows.get(str(instrument))
-            if row is None:
-                continue
-            try:
-                quotes.append(_spot_quote(instrument, row, received))
-            except (ArithmeticError, TypeError, ValueError):
-                parse_errors += 1
+        supported = tuple(
+            item for item in instruments if item.venue in {Venue.SSE, Venue.SZSE, Venue.BSE}
+        )
+        quotes, parse_errors = self._public_quote_fetcher(supported, received)
         self._health = replace(
             self._health,
             state=ConnectionState.LIVE if quotes else ConnectionState.CONNECTING,
@@ -148,28 +136,7 @@ class AkShareDelayedProvider:
         raise ValueError(f"unsupported AKShare period: {period}")
 
     def search(self, query: str) -> list[dict[str, Any]]:
-        needle = query.strip().casefold()
-        if not self._spot_rows:
-            frame = self._client.stock_zh_a_spot_em()
-            _require_columns(set(frame.columns), _SPOT_COLUMNS)
-            self._spot_rows = {
-                str(_instrument(str(row["代码"]))): row for row in frame.to_dict(orient="records")
-            }
-        results: list[dict[str, Any]] = []
-        for instrument_id, row in self._spot_rows.items():
-            symbol = str(row["代码"])
-            name = str(row["名称"])
-            if needle not in symbol.casefold() and needle not in name.casefold():
-                continue
-            results.append(
-                {
-                    "instrument_id": instrument_id,
-                    "name": name,
-                }
-            )
-            if len(results) == 30:
-                break
-        return results
+        return search_public_instruments(query)
 
     def trading_dates(self, start: date, end: date) -> list[date]:
         frame = self._client.tool_trade_date_hist_sina()

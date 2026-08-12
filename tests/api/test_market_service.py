@@ -485,3 +485,20 @@ def test_poll_failure_reconnects_before_resuming_quotes() -> None:
         await service.stop()
 
     asyncio.run(scenario())
+
+
+def test_poll_failure_keeps_recent_quotes_as_stale_during_reconnect() -> None:
+    async def scenario() -> None:
+        service, provider, _ = build_service()
+        await service.start()
+        await service.wait_for_quotes(6, timeout_seconds=1)
+        provider.fail_polls = 1
+        while provider.disconnect_count < 1:
+            await asyncio.sleep(0.005)
+
+        assert service.connection().state is ConnectionState.STALE
+        assert service.connection().error_code == "provider_temporarily_unavailable"
+        assert all(item.quote is not None for item in service.home_snapshot().core_indices)
+        await service.stop()
+
+    asyncio.run(scenario())
