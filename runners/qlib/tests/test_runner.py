@@ -3,14 +3,18 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import subprocess
+import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 from astraquant_qlib_runner import QLIB_UPSTREAM_COMMIT, run_request
 from astraquant_qlib_runner.dataset import AstraFoldDataset
+from astraquant_qlib_runner.model_adapters import create_double_ensemble_model
 
 FEATURES = (
     "return_1",
@@ -215,9 +219,116 @@ def test_double_ensemble_returns_deterministic_expected_return_scores(tmp_path: 
     request_path.write_text(json.dumps(request), encoding="utf-8")
 
     first = run_request(request_path, tmp_path / "first-double.json")
+    np.random.seed(9917)
+    np.random.random(1000)
     second = run_request(request_path, tmp_path / "second-double.json")
 
     assert first == second
     assert first["model_kind"] == "DOUBLE_ENSEMBLE"
     assert first["score_semantics"] == "EXPECTED_RETURN"
     assert all("score" in item and "probability" not in item for item in first["predictions"])
+
+
+def test_double_ensemble_is_deterministic_across_fresh_processes(tmp_path: Path) -> None:
+    request_path = _write_request(tmp_path / "input")
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    for fold in request["folds"]:
+        train = fold["train_indices"]
+        split = len(train) - math.ceil(len(train) * 0.2)
+        fold["fit_indices"] = train[:split]
+        fold["validation_indices"] = train[split:]
+    request.update(
+        {
+            "model_kind": "DOUBLE_ENSEMBLE",
+            "target_column": "future_return",
+            "score_semantics": "EXPECTED_RETURN",
+            "model_config": {
+                "num_models": 2,
+                "epochs": 10,
+                "enable_sr": True,
+                "enable_fs": True,
+                "decay": 0.5,
+            },
+            "validation_policy": {"kind": "TRAIN_TAIL_FRACTION", "fraction": "0.2"},
+        }
+    )
+    body = {key: value for key, value in request.items() if key != "content_digest"}
+    request["content_digest"] = _digest_bytes(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    )
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    outputs = (tmp_path / "first-process.json", tmp_path / "second-process.json")
+    for output in outputs:
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "astraquant_qlib_runner",
+                "--request",
+                str(request_path),
+                "--output",
+                str(output),
+            ],
+            check=True,
+        )
+
+    assert outputs[0].read_bytes() == outputs[1].read_bytes()
+
+
+def test_double_ensemble_adapter_resets_qlib_global_numpy_randomness(monkeypatch) -> None:
+    from qlib.contrib.model.double_ensemble import DEnsembleModel
+
+    observed: list[float] = []
+    monkeypatch.setattr(
+        DEnsembleModel,
+        "fit",
+        lambda self, dataset: observed.append(float(np.random.random())),
+    )
+    config = {
+        "num_models": 2,
+        "epochs": 10,
+        "enable_sr": True,
+        "enable_fs": True,
+        "decay": 0.5,
+    }
+    first = create_double_ensemble_model(config, seed=7)
+    second = create_double_ensemble_model(config, seed=7)
+
+    np.random.seed(11)
+    first.fit(None)
+    np.random.seed(9917)
+    np.random.random(1000)
+    second.fit(None)
+
+    assert observed[0] == observed[1]
+
+
+def test_double_ensemble_adapter_preserves_canonical_feature_order(monkeypatch) -> None:
+    from qlib.contrib.model.double_ensemble import DEnsembleModel
+
+    monkeypatch.setattr(
+        DEnsembleModel,
+        "feature_selection",
+        lambda self, df_train, loss_values: pd.Index(["feature_b", "feature_a"]),
+    )
+    model = create_double_ensemble_model(
+        {
+            "num_models": 2,
+            "epochs": 2,
+            "enable_sr": True,
+            "enable_fs": True,
+            "decay": 0.9,
+        },
+        seed=7,
+    )
+    frame = pd.DataFrame(
+        {
+            ("feature", "feature_a"): [1.0],
+            ("feature", "feature_b"): [2.0],
+            ("label", "future_return"): [0.1],
+        }
+    )
+
+    selected = model.feature_selection(frame, pd.Series([0.0]))
+
+    assert list(selected) == ["feature_a", "feature_b"]

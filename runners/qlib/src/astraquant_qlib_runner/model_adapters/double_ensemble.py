@@ -4,9 +4,26 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+
 
 def create_double_ensemble_model(config: dict[str, Any], *, seed: int) -> Any:
     from qlib.contrib.model.double_ensemble import DEnsembleModel
+
+    class DeterministicDEnsembleModel(DEnsembleModel):
+        def fit(self, dataset: Any) -> Any:
+            state = np.random.get_state()
+            try:
+                np.random.seed(seed)
+                return super().fit(dataset)
+            finally:
+                np.random.set_state(state)
+
+        def feature_selection(self, df_train: Any, loss_values: Any) -> Any:
+            selected = super().feature_selection(df_train, loss_values)
+            selected_names = set(selected)
+            columns = df_train["feature"].columns
+            return columns[columns.isin(selected_names)]
 
     expected_keys = {"num_models", "epochs", "enable_sr", "enable_fs", "decay"}
     if set(config) != expected_keys:
@@ -24,7 +41,7 @@ def create_double_ensemble_model(config: dict[str, Any], *, seed: int) -> Any:
         raise ValueError("DoubleEnsemble feature flags must be boolean")
     if isinstance(decay, bool) or not isinstance(decay, (int, float)) or not 0 < decay <= 1:
         raise ValueError("DoubleEnsemble decay must be between zero and one")
-    return DEnsembleModel(
+    return DeterministicDEnsembleModel(
         base_model="gbm",
         loss="mse",
         num_models=num_models,
