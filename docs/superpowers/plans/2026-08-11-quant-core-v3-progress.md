@@ -11,7 +11,7 @@
 ## 当前开发
 
 - 生产训练 Stage A：长期架构、统一 task/score 契约、声明式 Qlib runner 和 DoubleEnsemble 接入已完成；`DEnsembleModel` 与 native Ridge 现在使用同一个 expected-return selection policy，行级研究评分明确标记为 `RESEARCH_RETURN_ONLY`。当前关键节点是 Task 4：用真实多标的 API snapshot 把两者送入现有 A 股 executable backtest，生成可重复 challenger 报告。
-- Kronos K 线基础模型：官方完整仓库已作为 `external/Kronos` submodule 封存到 commit `67b630e67f6a18c9e9be918d9b4337c960db1e9a`，不是 shallow clone；`runners/kronos` 已固定官方模型清单、默认 `Kronos-base` 和只读边界。它是独立 challenger，不替换或阻塞自有模型。下一步是直接加载官方预训练权重完成 zero-shot runner，再进入相同 A 股执行评价。
+- Kronos K 线基础模型：官方完整仓库已作为 `external/Kronos` submodule 封存到 commit `67b630e67f6a18c9e9be918d9b4337c960db1e9a`，不是 shallow clone；`runners/kronos` 已固定官方模型清单、默认 `Kronos-base` 和只读边界。它是独立 challenger，不替换或阻塞自有模型。未来将提供 K 线图“核预测”按钮、概率路径图层、结构化分析，并在验证后作为组合因子；这些均排在当前 DoubleEnsemble Task 4 和统一训练主线之后。
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
 - S2a Qlib 公平对照：3/3 已完成；同一 Eastmoney 行集/folds 可在固定 commit 的独立 Qlib LightGBM runner 训练，再由 AstraQuant 统一按相同费率与阈值评分。
@@ -58,8 +58,8 @@ macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、
 ## 后续任务顺序
 
 1. **Stage A 统一训练协议（进行中）**：完成 task/score 契约和 DoubleEnsemble；概率、预期收益、rank、风险各走声明过的选择规则。
-2. **Kronos 基础模型通道**：直接使用官方 `Kronos-base` 预训练权重完成 zero-shot 批量推理；只有公平验证显示明确 A 股域偏差时才微调，不从零重复预训练。
-3. **扩大全市场真实历史**：探索数据用于覆盖验证，正式结论继续使用已资格认证的真实 API snapshot；训练接口不写死当前十只 ETF。
+2. **扩大全市场真实历史**：探索数据用于覆盖验证，正式结论继续使用已资格认证的真实 API snapshot；训练接口不写死当前十只 ETF。
+3. **Kronos 基础模型通道（主线评价链路完成后）**：直接使用官方 `Kronos-base` 预训练权重完成 zero-shot 批量推理；只有公平验证显示明确 A 股域偏差时才微调，不从零重复预训练。随后才开发 K 线预测图层和组合因子。
 4. **Stage B 全市场共享表征**：接入 StockMixer 和动态 universe panel，不为每只股票单独训练一套模型。
 5. **Stage C 关系与状态**：接入 MASTER/HIST，验证行业、概念、潜在关系和市场 regime 是否带来可重复净改善。
 6. **Stage D 路由与漂移**：接入 TRA/DoubleAdapt，形成任务专家、动态路由、滚动适应与可靠 fallback。
