@@ -1,0 +1,49 @@
+{
+  "contract": "astraquant.kronos-upstream/v1",
+  "repository": "https://github.com/shiyu-coder/Kronos.git",
+  "branch": "master",
+  "commit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+  "source_root": "../../external/Kronos",
+  "default_model": "NeoQuasar/Kronos-base",
+  "default_tokenizer": "NeoQuasar/Kronos-Tokenizer-base",
+  "models": [
+    {
+      "name": "Kronos-mini",
+      "model_id": "NeoQuasar/Kronos-mini",
+      "tokenizer_id": "NeoQuasar/Kronos-Tokenizer-2k",
+      "parameters": 4100000,
+      "context_length": 2048,
+      "open_source": true
+    },
+    {
+      "name": "Kronos-small",
+      "model_id": "NeoQuasar/Kronos-small",
+      "tokenizer_id": "NeoQuasar/Kronos-Tokenizer-base",
+      "parameters": 24700000,
+      "context_length": 512,
+      "open_source": true
+    },
+    {
+      "name": "Kronos-base",
+      "model_id": "NeoQuasar/Kronos-base",
+      "tokenizer_id": "NeoQuasar/Kronos-Tokenizer-base",
+      "parameters": 102300000,
+      "context_length": 512,
+      "open_source": true
+    },
+    {
+      "name": "Kronos-large",
+      "model_id": null,
+      "tokenizer_id": "NeoQuasar/Kronos-Tokenizer-base",
+      "parameters": 499200000,
+      "context_length": 512,
+      "open_source": false
+    }
+  ],
+  "integration_policy": {
+    "upstream_source_read_only": true,
+    "weights_tracked_by_git": false,
+    "main_process_imports_upstream": false,
+    "fallback_to_native_models": true
+  }
+}
