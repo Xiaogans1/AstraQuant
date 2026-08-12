@@ -18,11 +18,11 @@
 - Modify: `packages/domain/src/astraquant_domain/__init__.py`
 - Create: `tests/domain/test_research.py`
 
-- [ ] 先测试六类 `TrainingTaskKind`、四类 `ScoreSemantics`、非空 label/universe/execution policy、正 horizon、稳定 `task_digest`。
-- [ ] 测试 `TrainingTaskSpec.assert_comparable_with()` 拒绝 task kind、label、horizon、score semantics、universe 或 execution policy 任一不一致。
-- [ ] 实现 immutable `TrainingTaskSpec` 和 canonical SHA-256 digest；不加入模型名，使不同模型在同一任务下可比较。
-- [ ] 运行 `uv run pytest tests/domain/test_research.py -q`、Ruff 和 mypy。
-- [ ] 提交：`feat(domain): 冻结统一训练任务语义`
+- [x] 先测试六类 `TrainingTaskKind`、四类 `ScoreSemantics`、非空 label/universe/execution policy、正 horizon、稳定 `task_digest`。
+- [x] 测试 `TrainingTaskSpec.assert_comparable_with()` 拒绝 task kind、label、horizon、score semantics、universe 或 execution policy 任一不一致。
+- [x] 实现 immutable `TrainingTaskSpec` 和 canonical SHA-256 digest；不加入模型名，使不同模型在同一任务下可比较。
+- [x] 运行 `uv run pytest tests/domain/test_research.py -q`、Ruff 和 mypy。
+- [x] 提交：`feat(domain): 冻结统一训练任务语义`
 
 ## Task 2: 扩展 runner contract 支持声明式模型与回归分数
 

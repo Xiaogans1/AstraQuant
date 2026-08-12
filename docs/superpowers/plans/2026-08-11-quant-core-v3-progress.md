@@ -10,7 +10,7 @@
 
 ## 当前开发
 
-- 生产训练 Stage A：已冻结长期架构；当前正在实现 `TrainingTaskSpec`/`ScoreSemantics`，随后接入 DoubleEnsemble。作用是让概率、预期收益、截面排序和风险分数不能再被同一个 `0.5` 阈值错误混用。
+- 生产训练 Stage A：长期架构与 `TrainingTaskSpec`/`ScoreSemantics` 已完成；六类任务拥有稳定 digest 和公平比较门，概率、预期收益、截面排序和风险分数不能再被同一个 `0.5` 阈值错误混用。下一项是扩展 Qlib runner contract 并接入 DoubleEnsemble。
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
 - S2a Qlib 公平对照：3/3 已完成；同一 Eastmoney 行集/folds 可在固定 commit 的独立 Qlib LightGBM runner 训练，再由 AstraQuant 统一按相同费率与阈值评分。
