@@ -12,6 +12,7 @@ from astraquant_domain.run_manifest import validate_digest
 class BarFrequency(StrEnum):
     TICK = "tick"
     MINUTE = "1m"
+    FIVE_MINUTE = "5m"
     DAY = "1d"
 
 

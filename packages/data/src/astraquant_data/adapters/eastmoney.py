@@ -65,6 +65,7 @@ class EastmoneyClient(Protocol):
 
 class EastmoneyProvider:
     provider_id = "eastmoney"
+    requires_token = True
 
     def __init__(self, *, client: EastmoneyClient, clock: Clock) -> None:
         self._client = client

@@ -9,6 +9,7 @@ import pytest
 
 from astraquant_data.adapters.akshare import (
     AkShareDailyBarProvider,
+    AkShareFiveMinuteBarProvider,
     ProviderSchemaError,
 )
 from astraquant_data.calendars import CsvTradingCalendar
@@ -57,6 +58,21 @@ class FakeAkShare:
                     "hold": 310,
                     "settle": 3515,
                 },
+            ]
+        )
+
+    def stock_zh_a_hist_min_em(self, **_: object) -> FakeFrame:
+        return FakeFrame(
+            [
+                {
+                    "时间": "2026-07-24 09:35:00",
+                    "开盘": 10,
+                    "最高": 10.2,
+                    "最低": 9.9,
+                    "收盘": 10.1,
+                    "成交量": 100,
+                    "成交额": 100500,
+                }
             ]
         )
 
@@ -139,6 +155,37 @@ def test_provider_rejects_an_upstream_schema_change() -> None:
             HistoryRequest(
                 instrument_id=InstrumentId.parse("600000.SSE"),
                 frequency=BarFrequency.DAY,
+                start=date(2026, 7, 24),
+                end=date(2026, 7, 24),
+            )
+        )
+
+
+def test_five_minute_data_uses_aware_bar_end_and_share_volume() -> None:
+    provider = AkShareFiveMinuteBarProvider(client=FakeAkShare())
+    request = HistoryRequest(
+        instrument_id=InstrumentId.parse("600000.SSE"),
+        frequency=BarFrequency.FIVE_MINUTE,
+        start=date(2026, 7, 24),
+        end=date(2026, 7, 24),
+    )
+
+    bars = provider.fetch_bars(request)
+
+    assert len(bars) == 1
+    assert bars[0].event_time.isoformat() == "2026-07-24T09:35:00+08:00"
+    assert bars[0].available_time > bars[0].event_time
+    assert bars[0].volume == Decimal("10000")
+    assert provider.provider_metadata(request).interface == "stock_zh_a_hist_min_em"
+
+
+def test_five_minute_provider_rejects_non_equity_venue() -> None:
+    provider = AkShareFiveMinuteBarProvider(client=FakeAkShare())
+    with pytest.raises(ValueError, match="A-share"):
+        provider.fetch_bars(
+            HistoryRequest(
+                instrument_id=InstrumentId.parse("RB2610.SHFE"),
+                frequency=BarFrequency.FIVE_MINUTE,
                 start=date(2026, 7, 24),
                 end=date(2026, 7, 24),
             )

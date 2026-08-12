@@ -14,7 +14,6 @@ from zoneinfo import ZoneInfo
 from astraquant_api.market_config import SettingsStore
 from astraquant_api.market_watchlist import WatchlistEntry, load_watchlist, save_watchlist
 from astraquant_api.secret_store import SecretStore
-from astraquant_data.eastmoney_protocol import from_eastmoney_symbol
 from astraquant_data.live_providers import ConnectionState, LiveMarketProvider, ProviderHealth
 from astraquant_data.market_bars import MarketBar, MarketPeriod
 from astraquant_data.subscriptions import CORE_INDICES, SubscriptionBudget
@@ -73,7 +72,13 @@ class MarketDataService:
         self._selected: str | None = None
         self._trading_calendar_date: date | None = None
         self._trading_calendar_is_open = False
-        self._connection = ProviderHealth(provider_id="eastmoney")
+        self._connection = ProviderHealth(
+            provider_id=(
+                "unconfigured"
+                if provider is None
+                else getattr(provider, "provider_id", "eastmoney")
+            )
+        )
         self._quote_observers: list[QuoteObserver] = []
         self._restore_watchlist()
 
@@ -88,7 +93,7 @@ class MarketDataService:
             )
             return
         token = self._secret_store.get_eastmoney_token()
-        if token is None:
+        if getattr(self._provider, "requires_token", True) and token is None:
             self._connection = replace(
                 self._connection,
                 state=ConnectionState.UNAVAILABLE,
@@ -101,7 +106,7 @@ class MarketDataService:
             error_code=None,
         )
         try:
-            await asyncio.to_thread(self._provider.connect, token)
+            await asyncio.to_thread(self._provider.connect, token or "")
         except Exception:
             self._connection = replace(
                 self._connection,
@@ -132,6 +137,9 @@ class MarketDataService:
     def connection(self) -> ProviderHealth:
         return self._connection
 
+    def is_delayed(self) -> bool:
+        return self._connection.provider_id == "akshare"
+
     def now(self) -> datetime:
         return self._clock.now()
 
@@ -139,7 +147,9 @@ class MarketDataService:
         if self._task is not None and not self._task.done():
             raise RuntimeError("market service must be stopped before reconfiguration")
         self._provider = provider
-        self._connection = ProviderHealth(provider_id="eastmoney")
+        self._connection = ProviderHealth(
+            provider_id=getattr(provider, "provider_id", "eastmoney")
+        )
 
     def add_watchlist(self, instrument_id: str) -> None:
         before = self._budget.persistent_instruments
@@ -333,7 +343,7 @@ class MarketDataService:
         rows = await asyncio.to_thread(self._provider.search, query)
         for row in rows:
             try:
-                instrument_id = str(from_eastmoney_symbol(str(row.get("symbol", ""))))
+                instrument_id = _search_instrument_id(row)
             except ValueError:
                 continue
             name = str(row.get("sec_name", "")).strip()
@@ -395,14 +405,14 @@ class MarketDataService:
                 await asyncio.to_thread(self._provider.disconnect)
                 await asyncio.sleep(self.reconnect_delay_seconds(reconnect_count))
                 token = self._secret_store.get_eastmoney_token()
-                if token is None:
+                if getattr(self._provider, "requires_token", True) and token is None:
                     self._connection = replace(
                         self._connection,
                         state=ConnectionState.UNAVAILABLE,
                         error_code="missing_token",
                     )
                     return
-                await asyncio.to_thread(self._provider.connect, token)
+                await asyncio.to_thread(self._provider.connect, token or "")
                 self._connection = replace(
                     self._connection,
                     state=ConnectionState.CONNECTING,
@@ -452,3 +462,12 @@ def _latest_market_bar_session(rows: list[MarketBar]) -> list[MarketBar]:
         return []
     latest_date = max(item.timestamp.date() for item in rows)
     return [item for item in rows if item.timestamp.date() == latest_date]
+
+
+def _search_instrument_id(row: dict[str, Any]) -> str:
+    canonical = row.get("instrument_id")
+    if canonical is not None:
+        return str(InstrumentId.parse(str(canonical)))
+    from astraquant_data.eastmoney_protocol import from_eastmoney_symbol
+
+    return str(from_eastmoney_symbol(str(row.get("symbol", ""))))

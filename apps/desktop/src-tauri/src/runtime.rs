@@ -16,7 +16,7 @@ use thiserror::Error;
 
 use crate::handshake::{HandshakeError, ReadyMessage};
 
-const READY_TIMEOUT: Duration = Duration::from_secs(10);
+const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(6);
 
 #[derive(Debug, Error)]
@@ -29,7 +29,7 @@ pub enum RuntimeError {
     Spawn(#[source] std::io::Error),
     #[error("local runtime stdout was not available")]
     MissingStdout,
-    #[error("local runtime did not become ready within 10 seconds")]
+    #[error("local runtime did not become ready within 30 seconds")]
     ReadyTimeout,
     #[error("local runtime closed stdout before sending its ready message")]
     ReadyChannelClosed,

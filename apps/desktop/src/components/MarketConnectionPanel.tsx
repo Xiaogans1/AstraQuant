@@ -11,13 +11,13 @@ import {
 } from "../api/queries";
 
 const stateCopy: Record<ConnectionState, string> = {
-  DISCONNECTED: "东财行情已停止",
-  CONNECTING: "正在连接东财行情",
-  LIVE: "东财实时行情已连接",
+  DISCONNECTED: "行情已停止",
+  CONNECTING: "正在连接行情",
+  LIVE: "行情已连接",
   STALE: "行情连接延迟",
   CLOSED: "市场已收盘",
-  UNAVAILABLE: "尚未配置东财行情",
-  ERROR: "东财行情连接异常",
+  UNAVAILABLE: "尚未配置行情",
+  ERROR: "行情连接异常",
 };
 
 export function MarketConnectionPanel({
@@ -39,6 +39,7 @@ export function MarketConnectionPanel({
   const [message, setMessage] = useState<string | null>(null);
   const connection = connectionQuery.data;
   const state = connection?.state ?? "UNAVAILABLE";
+  const providerName = connection?.display_name ?? "行情 Provider";
 
   async function saveConfiguration() {
     setSaving(true);
@@ -58,7 +59,7 @@ export function MarketConnectionPanel({
 
   if (compact) {
     const compactLabel = state === "UNAVAILABLE"
-      ? "尚未连接东财行情"
+      ? "尚未连接行情"
       : state === "STALE"
         ? "行情已延迟"
         : stateCopy[state];
@@ -76,17 +77,18 @@ export function MarketConnectionPanel({
   }
 
   return (
-    <section className="market-connection" data-state={state} aria-label="东财行情连接">
+    <section className="market-connection" data-state={state} aria-label="行情连接">
       <div className="market-connection__summary">
         <span className="market-connection__pulse" aria-hidden="true" />
         <div>
-          <p className="panel__eyebrow">EASTMONEY / LOCAL BRIDGE</p>
-          <h2>{stateCopy[state]}</h2>
+          <p className="panel__eyebrow">{connection?.provider_id?.toUpperCase() ?? "MARKET"} / READ ONLY</p>
+          <h2>{connection?.delayed && state === "LIVE" ? "公开网页延迟行情已连接" : stateCopy[state]}</h2>
           <p>
             {connection?.last_event_at
-              ? `最近行情 ${formatTime(connection.last_event_at)}`
-              : "只读行情，不连接或操作实盘账户"}
+              ? `${providerName} · 最近行情 ${formatTime(connection.last_event_at)}`
+              : `${providerName} · 只读行情，不连接或操作实盘账户`}
           </p>
+          {connection?.delayed ? <small>探索用途：轮询公开网页，非交易级实时行情。</small> : null}
         </div>
         {connection?.sdk_configured && connection.token_configured ? (
           state === "LIVE" || state === "CONNECTING" ? (
@@ -101,7 +103,7 @@ export function MarketConnectionPanel({
         ) : null}
       </div>
 
-      {!connection?.sdk_configured || !connection.token_configured ? (
+      {(connection?.provider_id ?? "eastmoney") === "eastmoney" && (!connection?.sdk_configured || !connection.token_configured) ? (
         <form
           className="market-connection__form"
           onSubmit={(event) => {

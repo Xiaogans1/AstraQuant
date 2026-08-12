@@ -37,6 +37,7 @@ class RuntimeConfig:
     shutdown_grace_seconds: float = 5.0
     allowed_data_instruments: frozenset[str] = frozenset({"600000.SSE", "RB0.SHFE"})
     enable_akshare: bool = False
+    market_provider_id: Literal["auto", "eastmoney", "akshare", "none"] = "auto"
 
     def __post_init__(self) -> None:
         if len(self.session_token) < 43:
@@ -45,6 +46,8 @@ class RuntimeConfig:
             raise ValueError("port must be between 0 and 65535")
         if self.shutdown_grace_seconds <= 0:
             raise ValueError("shutdown grace period must be positive")
+        if self.market_provider_id not in {"auto", "eastmoney", "akshare", "none"}:
+            raise ValueError("unsupported market provider")
 
     @property
     def database_path(self) -> Path:
@@ -116,6 +119,7 @@ class RuntimeConfig:
                 if item.strip()
             ),
             enable_akshare=os.environ.get("ASTRAQUANT_ENABLE_AKSHARE", "0") == "1",
+            market_provider_id=os.environ.get("ASTRAQUANT_MARKET_PROVIDER", "auto").lower(),  # type: ignore[arg-type]
         )
         config.prepare_directories()
         return config

@@ -32,6 +32,9 @@ class MemorySettings:
 
 
 class FakeProvider:
+    provider_id = "eastmoney"
+    requires_token = True
+
     def __init__(self, clock: MutableClock) -> None:
         self.clock = clock
         self.connect_count = 0

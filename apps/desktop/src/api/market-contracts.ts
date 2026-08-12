@@ -9,6 +9,8 @@ export type ConnectionState =
 
 export interface MarketConnection {
   provider_id: string;
+  delayed: boolean;
+  display_name: string;
   sdk_configured: boolean;
   token_configured: boolean;
   state: ConnectionState;

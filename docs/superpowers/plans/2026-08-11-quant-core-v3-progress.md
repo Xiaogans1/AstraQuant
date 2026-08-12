@@ -24,6 +24,11 @@
 - Logistic Regression 的 79 笔中 48 笔来自 `512480.SSE`，扣除佣金 `3,888.60` 元并承受滑点成本 `3,110.89` 元后，300 万元等权测试资本只增加 `820.82` 元；优势过薄且成交集中，不能进入 Shadow/Paper。
 - 两次 S5 报告 SHA-256 均为 `F7D5FF095797B310C6F7BBF27D8AD0722439B02C9ED19D39A958C17D94A99195`。
 - 当前阶段：多标的通路已经证明可用；下一策略节点应验证更长历史和跨市场状态稳定性，并改善模型信号，而不是通过降低 0.5 阈值放大这次微弱收益。
+- macOS 数据源 P0：已完成通用 Provider 注册表、AKShare A 股 5 分钟归一化、
+  有界并发/重试/按标的 checkpoint、失败阻止发布、不可变 Parquet 和
+  `EXPLORATORY_ONLY` Formal 拒绝门。真实样本 `600000.SSE`（2026-08-11）发布 48 行并
+  验证断点重跑；Mac 默认使用 30 秒 AKShare 全市场/核心指数延迟轮询，UI 与信号门均明确
+  其非交易级实时语义。P0 已收口，下一步进入 P1 认证数据源资格验证。
 
 ## 延后而非删除
 
@@ -33,14 +38,22 @@
 
 ## 下一结果
 
-扩大时间跨度并增加不同市场状态，重点验证 Logistic Regression 的微弱优势能否跨时期复现；只有净收益、回撤和成交分散性同时稳定后，才冻结候选并恢复 publication/model registry。
+macOS 数据源 P0 已完成；下一步生成明确标为 `EXPLORATORY` 的多标的日线/5 分钟快照，
+并启动 Tushare/Choice 认证源资格验证。随后扩大时间跨度并增加不同市场状态，重点验证
+Logistic Regression 的微弱优势能否跨时期复现。只有数据快照已 pin，且净收益、回撤和
+成交分散性同时稳定后，才冻结候选并恢复 publication/model registry。
+
+macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、优先级和验收条件见
+[macOS 数据源与批量训练数据计划](2026-08-11-macos-data-source-and-batch-training.md)。
 
 ## 后续任务顺序
 
-1. **S6 更长历史与更多标的**：继续通过真实 API 扩大分钟数据的时间跨度和市场状态，不改变本轮 `0.5` 阈值后重跑统一 panel。
-2. **S7 策略信号改进**：在相同 folds、费用和资金约束下研究跨标的排序、行业/风格中性与 Qlib 候选模型；以可执行净收益、回撤和成交分散性选择候选，不以单一 AUC 选择。
-3. **S8 稳健性压力测试**：固定候选后运行更高费率、滑点、延迟、容量与分市场状态报告；任何主要场景失效都继续 HOLD。
-4. **Shadow 前治理收口**：完成 Phase 1a 真实 endpoint sign-off、publication trusted head、model registry、lockbox 和晋级门。
-5. **Shadow/Paper**：先只读展示目标仓位，再接 Paper；只有账户、订单、费用、T+1 和对账语义全部通过后才讨论 LIVE。
+1. **P0 macOS 数据源前置（已完成）**：AKShare 批量探索快照和延迟看盘均已接通；现有东财 `gm` 保留为 Windows Provider，不再定义通用配置和 UI。
+2. **S6 更长历史与更多标的**：探索数据用于扩大覆盖和候选筛选；正式结论继续通过已资格认证的真实 API 快照，不改变本轮 `0.5` 阈值后重跑统一 panel。
+3. **P1 第二认证源**：实测 Tushare Pro 与 Choice `EMQuantAPI C++ Mac`，完成 endpoint 资格、Apple Silicon/Rosetta bridge、授权与跨源差异报告；至少一个 Mac 可用 Provider 进入 Formal。
+4. **S7 策略信号改进**：在相同 folds、费用和资金约束下研究跨标的排序、行业/风格中性与 Qlib 候选模型；以可执行净收益、回撤和成交分散性选择候选，不以单一 AUC 选择。
+5. **S8 稳健性压力测试**：固定候选后运行更高费率、滑点、延迟、容量与分市场状态报告；任何主要场景失效都继续 HOLD。
+6. **Shadow 前治理收口**：完成 Phase 1a 真实 endpoint sign-off、publication trusted head、model registry、lockbox 和晋级门。
+7. **Shadow/Paper**：先只读展示目标仓位，再接 Paper；只有账户、订单、费用、T+1 和对账语义全部通过后才讨论 P2 Broker Gateway 与 LIVE。
 
 当前 Strategy Fast Lane 的 S1–S5 已完成，但整个 Quant Core v3 尚未完成；未完成项主要是更长历史下的策略有效性、Shadow/Paper 治理和后续实盘适配。

@@ -19,6 +19,8 @@ vi.mock("../components/ProfessionalMarketChart", () => ({
 
 const baseConnection: MarketConnection = {
   provider_id: "eastmoney",
+  delayed: false,
+  display_name: "东方财富掘金",
   sdk_configured: true,
   token_configured: true,
   state: "LIVE",
@@ -129,7 +131,7 @@ it("renders six real core indices from the local API", async () => {
   renderMarketHome(homeFixture());
 
   expect(await screen.findAllByTestId("core-index")).toHaveLength(6);
-  expect(screen.getByText("东财掘金实时行情")).toBeVisible();
+  expect(screen.getByText("东方财富掘金实时行情")).toBeVisible();
   expect(screen.getByText("上证指数")).toBeVisible();
   expect(screen.queryByText(/模拟行情|模拟盘口|全市场扫描/)).not.toBeInTheDocument();
 });
@@ -161,7 +163,7 @@ it("never invents numbers when Eastmoney is unavailable", async () => {
     connection,
   );
 
-  expect(await screen.findByText("尚未连接东财行情")).toBeVisible();
+  expect(await screen.findByText("尚未连接行情")).toBeVisible();
   expect(screen.queryByText("3,421.68")).not.toBeInTheDocument();
   expect(screen.getByText("当前东财免费行情不提供全市场宽度")).toBeVisible();
   expect(screen.getAllByText("暂无真实数据").length).toBeGreaterThan(0);

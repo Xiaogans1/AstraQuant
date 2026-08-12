@@ -78,9 +78,17 @@ def build_market_router(
     def connection_response() -> MarketConnectionResponse:
         health = service.connection()
         config = load_eastmoney_runtime_config(repository)
+        is_eastmoney = health.provider_id == "eastmoney"
         return MarketConnectionResponse(
-            sdk_configured=config.sdk_python is not None,
-            token_configured=secret_store.get_eastmoney_token() is not None,
+            provider_id=health.provider_id,
+            sdk_configured=(config.sdk_python is not None if is_eastmoney else True),
+            token_configured=(
+                secret_store.get_eastmoney_token() is not None if is_eastmoney else True
+            ),
+            delayed=health.provider_id == "akshare",
+            display_name=(
+                "AKShare 公开网页行情" if health.provider_id == "akshare" else "东方财富掘金"
+            ),
             state=health.state.value,
             connected_at=health.connected_at,
             last_event_at=health.last_event_at,
@@ -105,7 +113,7 @@ def build_market_router(
                 if snapshot.selected_instrument is None
                 else cards[snapshot.selected_instrument.instrument_id]
             ),
-            breadth=UnavailableFeatureResponse(reason="当前东财免费行情不提供全市场宽度"),
+            breadth=UnavailableFeatureResponse(reason="当前行情 Provider 尚未接入可审计的市场宽度"),
             intelligence=UnavailableFeatureResponse(reason="AI 情报尚未接入真实证据链"),
             candidates=[],
             as_of=snapshot.as_of,
@@ -149,13 +157,17 @@ def build_market_router(
         results: list[InstrumentSearchResponse] = []
         for row in rows:
             try:
-                instrument_id = from_eastmoney_symbol(str(row.get("symbol", "")))
+                instrument_id = (
+                    InstrumentId.parse(str(row["instrument_id"]))
+                    if row.get("instrument_id") is not None
+                    else from_eastmoney_symbol(str(row.get("symbol", "")))
+                )
             except ValueError:
                 continue
             results.append(
                 InstrumentSearchResponse(
                     instrument_id=str(instrument_id),
-                    name=str(row.get("sec_name") or instrument_id.symbol),
+                    name=str(row.get("name") or row.get("sec_name") or instrument_id.symbol),
                     kind=_instrument_kind(instrument_id),
                 )
             )
@@ -197,7 +209,9 @@ def build_market_router(
             canonical,
             rows,
             service.now(),
-            market_live=service.connection().state is ConnectionState.LIVE,
+            market_live=(
+                service.connection().state is ConnectionState.LIVE and not service.is_delayed()
+            ),
         )
         return _quant_response(decision)
 

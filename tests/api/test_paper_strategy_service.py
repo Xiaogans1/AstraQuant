@@ -27,6 +27,9 @@ START = datetime(2026, 8, 6, 1, 30, tzinfo=UTC)
 
 
 class BarProvider:
+    provider_id = "eastmoney"
+    requires_token = True
+
     def __init__(self, bars: list[MarketBar]) -> None:
         self._bars = bars
 

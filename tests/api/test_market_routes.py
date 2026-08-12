@@ -49,6 +49,9 @@ class IdleSupervisor:
 
 
 class EmptyProvider:
+    provider_id = "eastmoney"
+    requires_token = True
+
     def connect(self, token: str) -> None:
         assert token == "eastmoney-test-token"
 
@@ -158,7 +161,7 @@ def test_home_contains_six_core_slots_and_honest_unavailable_features(
     assert all(item["last_price"] is None for item in body["core_indices"])
     assert body["breadth"] == {
         "status": "UNAVAILABLE",
-        "reason": "当前东财免费行情不提供全市场宽度",
+        "reason": "当前行情 Provider 尚未接入可审计的市场宽度",
     }
     assert body["intelligence"]["status"] == "UNAVAILABLE"
     assert body["candidates"] == []
