@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -82,7 +83,7 @@ class PanelFoldReport:
 
 @dataclass(frozen=True, slots=True)
 class PanelExecutableReport:
-    model: BaselineModel
+    model: BaselineModel | str
     instruments: tuple[PanelInstrumentReport, ...]
     folds: tuple[PanelFoldReport, ...]
     positive_folds: int
@@ -251,6 +252,83 @@ def run_panel_executable_model(
 ) -> PanelExecutableReport:
     exact_folds = tuple(folds)
     predictions = predict_fold_probabilities(model, panel.rows, folds=exact_folds, seed=seed)
+    return _run_panel_executable_predictions(
+        panel,
+        folds=exact_folds,
+        predictions=predictions,
+        prediction_threshold=prediction_threshold,
+        holding_bars=holding_bars,
+        policy=policy,
+        model=model,
+    )
+
+
+def run_panel_executable_expected_returns(
+    panel: PanelDataset,
+    *,
+    folds: Sequence[WalkForwardFold],
+    predictions: Sequence[Mapping[str, object]],
+    minimum_score: float,
+    holding_bars: int,
+    policy: ExecutionPolicy,
+    model_id: str,
+) -> PanelExecutableReport:
+    if not math.isfinite(minimum_score):
+        raise ValueError("minimum_score must be finite")
+    if not model_id:
+        raise ValueError("model_id must not be empty")
+    exact_folds = tuple(folds)
+    expected = {(fold.fold_id, row_id) for fold in exact_folds for row_id in fold.test_indices}
+    scores: dict[tuple[str, int], float] = {}
+    for prediction in predictions:
+        fold_id = prediction.get("fold_id")
+        row_id = prediction.get("row_id")
+        score = prediction.get("score")
+        if (
+            not isinstance(fold_id, str)
+            or isinstance(row_id, bool)
+            or not isinstance(row_id, int)
+            or isinstance(score, bool)
+            or not isinstance(score, (int, float))
+            or not math.isfinite(float(score))
+        ):
+            raise ValueError("expected-return prediction schema mismatch")
+        key = (fold_id, row_id)
+        if key in scores:
+            raise ValueError("expected-return prediction coverage contains duplicates")
+        scores[key] = float(score)
+    if set(scores) != expected:
+        raise ValueError("expected-return prediction coverage mismatch")
+    binary_predictions = tuple(
+        {
+            "fold_id": fold_id,
+            "row_id": row_id,
+            "probability": 1.0 if score >= minimum_score else 0.0,
+        }
+        for (fold_id, row_id), score in scores.items()
+    )
+    return _run_panel_executable_predictions(
+        panel,
+        folds=exact_folds,
+        predictions=binary_predictions,
+        prediction_threshold=0.5,
+        holding_bars=holding_bars,
+        policy=policy,
+        model=model_id,
+    )
+
+
+def _run_panel_executable_predictions(
+    panel: PanelDataset,
+    *,
+    folds: tuple[WalkForwardFold, ...],
+    predictions: Sequence[Mapping[str, object]],
+    prediction_threshold: float,
+    holding_bars: int,
+    policy: ExecutionPolicy,
+    model: BaselineModel | str,
+) -> PanelExecutableReport:
+    exact_folds = folds
     instrument_reports = []
     for instrument in panel.instruments:
         local_folds, local_predictions = localize_predictions(

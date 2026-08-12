@@ -13,6 +13,7 @@ from astraquant_quant.panel_research import (
     build_panel,
     localize_predictions,
     panel_walk_forward,
+    run_panel_executable_expected_returns,
     run_panel_executable_model,
 )
 from astraquant_quant.strategy_layer import MODEL_FEATURE_COLUMNS
@@ -198,4 +199,64 @@ def test_panel_execution_exposes_time_fold_stability() -> None:
         assert fold.ending_equity == sum(item.ending_equity for item in instrument_folds)
         assert fold.worst_instrument_max_drawdown == max(
             item.max_drawdown for item in instrument_folds
+        )
+
+
+def test_expected_return_predictions_enter_the_same_executable_path() -> None:
+    panel = build_panel((_executable_instrument("A.SSE"), _executable_instrument("B.SSE")))
+    folds = panel_walk_forward(
+        panel,
+        minimum_train_timestamps=8,
+        test_timestamp_count=2,
+        fold_count=1,
+        purge_timestamp_count=1,
+    )
+    selected = set(folds[0].test_indices[:2])
+    predictions = tuple(
+        {
+            "fold_id": folds[0].fold_id,
+            "row_id": row_id,
+            "score": 0.002 if row_id in selected else 0.0001,
+        }
+        for row_id in folds[0].test_indices
+    )
+
+    report = run_panel_executable_expected_returns(
+        panel,
+        folds=folds,
+        predictions=predictions,
+        minimum_score=0.001,
+        holding_bars=1,
+        policy=ExecutionPolicy(instrument_kind=InstrumentKind.ETF),
+        model_id="DOUBLE_ENSEMBLE",
+    )
+
+    assert report.model == "DOUBLE_ENSEMBLE"
+    assert report.selected_signals == 2
+    assert report.executed_trades == 2
+    assert {item.instrument_id for item in report.instruments} == {"A.SSE", "B.SSE"}
+
+
+def test_expected_return_execution_rejects_incomplete_or_non_finite_scores() -> None:
+    panel = build_panel((_executable_instrument("A.SSE"),))
+    folds = panel_walk_forward(
+        panel,
+        minimum_train_timestamps=8,
+        test_timestamp_count=2,
+        fold_count=1,
+        purge_timestamp_count=1,
+    )
+    incomplete = (
+        {"fold_id": folds[0].fold_id, "row_id": folds[0].test_indices[0], "score": 0.01},
+    )
+
+    with pytest.raises(ValueError, match="coverage"):
+        run_panel_executable_expected_returns(
+            panel,
+            folds=folds,
+            predictions=incomplete,
+            minimum_score=0.001,
+            holding_bars=1,
+            policy=ExecutionPolicy(instrument_kind=InstrumentKind.ETF),
+            model_id="DOUBLE_ENSEMBLE",
         )
