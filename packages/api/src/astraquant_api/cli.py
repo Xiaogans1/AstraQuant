@@ -201,7 +201,7 @@ def _resolve_market_provider_id(
         return configured
     if sdk_configured:
         return "eastmoney"
-    return "akshare" if platform == "darwin" else "none"
+    return "none"
 
 
 if __name__ == "__main__":

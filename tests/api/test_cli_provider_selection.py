@@ -1,8 +1,8 @@
 from astraquant_api.cli import _resolve_market_provider_id
 
 
-def test_auto_provider_uses_akshare_only_on_macos_without_sdk() -> None:
-    assert _resolve_market_provider_id("auto", sdk_configured=False, platform="darwin") == "akshare"
+def test_auto_provider_stays_off_without_sdk() -> None:
+    assert _resolve_market_provider_id("auto", sdk_configured=False, platform="darwin") == "none"
     assert _resolve_market_provider_id("auto", sdk_configured=False, platform="win32") == "none"
     assert _resolve_market_provider_id("auto", sdk_configured=False, platform="linux") == "none"
 
