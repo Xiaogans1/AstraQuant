@@ -13,7 +13,11 @@ from astraquant_quant.baseline_matrix import (
     WalkForwardFold,
     predict_fold_probabilities,
 )
-from astraquant_quant.executable_backtest import ExecutionPolicy, run_executable_backtest
+from astraquant_quant.executable_backtest import (
+    ExecutableFoldMetrics,
+    ExecutionPolicy,
+    run_executable_backtest,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +45,7 @@ class PanelDataset:
 @dataclass(frozen=True, slots=True)
 class PanelInstrumentReport:
     instrument_id: str
+    folds: tuple[ExecutableFoldMetrics, ...]
     initial_equity: Decimal
     ending_equity: Decimal
     net_return: float
@@ -56,9 +61,31 @@ class PanelInstrumentReport:
 
 
 @dataclass(frozen=True, slots=True)
+class PanelFoldReport:
+    fold_id: str
+    test_start: datetime
+    test_end: datetime
+    initial_equity: Decimal
+    ending_equity: Decimal
+    gross_return: float
+    net_return: float
+    executed_trades: int
+    selected_signals: int
+    overlap_skips: int
+    capacity_skips: int
+    invalid_interval_skips: int
+    win_rate: float
+    turnover: float
+    worst_instrument_max_drawdown: float
+    profitable_instruments: int
+
+
+@dataclass(frozen=True, slots=True)
 class PanelExecutableReport:
     model: BaselineModel
     instruments: tuple[PanelInstrumentReport, ...]
+    folds: tuple[PanelFoldReport, ...]
+    positive_folds: int
     initial_equity: Decimal
     ending_equity: Decimal
     net_return: float
@@ -242,6 +269,7 @@ def run_panel_executable_model(
         instrument_reports.append(
             PanelInstrumentReport(
                 instrument_id=instrument.instrument_id,
+                folds=report.folds,
                 initial_equity=report.initial_equity,
                 ending_equity=report.ending_equity,
                 net_return=report.net_return,
@@ -257,6 +285,15 @@ def run_panel_executable_model(
             )
         )
     exact_reports = tuple(instrument_reports)
+    fold_reports = tuple(
+        _aggregate_fold(
+            fold.fold_id,
+            exact_reports,
+            fold_index,
+            tuple(panel.observations[index].timestamp for index in fold.test_indices),
+        )
+        for fold_index, fold in enumerate(exact_folds)
+    )
     initial = sum((item.initial_equity for item in exact_reports), start=Decimal("0"))
     ending = sum((item.ending_equity for item in exact_reports), start=Decimal("0"))
     trades = sum(item.executed_trades for item in exact_reports)
@@ -264,6 +301,8 @@ def run_panel_executable_model(
     return PanelExecutableReport(
         model=model,
         instruments=exact_reports,
+        folds=fold_reports,
+        positive_folds=sum(item.net_return > 0 for item in fold_reports),
         initial_equity=initial,
         ending_equity=ending,
         net_return=float((ending - initial) / initial),
@@ -279,4 +318,44 @@ def run_panel_executable_model(
             (item.total_transfer_fee for item in exact_reports), start=Decimal("0")
         ),
         slippage_cost=sum((item.slippage_cost for item in exact_reports), start=Decimal("0")),
+    )
+
+
+def _aggregate_fold(
+    fold_id: str,
+    reports: tuple[PanelInstrumentReport, ...],
+    fold_index: int,
+    test_times: tuple[datetime, ...],
+) -> PanelFoldReport:
+    folds = tuple(report.folds[fold_index] for report in reports)
+    if any(item.fold_id != fold_id for item in folds):
+        raise ValueError("instrument fold order does not match the shared panel folds")
+    initial = sum((item.initial_equity for item in folds), start=Decimal("0"))
+    ending = sum((item.ending_equity for item in folds), start=Decimal("0"))
+    trades = sum(item.executed_trades for item in folds)
+    gross_pnl = sum(
+        (item.initial_equity * Decimal(str(item.gross_return)) for item in folds),
+        start=Decimal("0"),
+    )
+    return PanelFoldReport(
+        fold_id=fold_id,
+        test_start=min(test_times),
+        test_end=max(test_times),
+        initial_equity=initial,
+        ending_equity=ending,
+        gross_return=float(gross_pnl / initial),
+        net_return=float((ending - initial) / initial),
+        executed_trades=trades,
+        selected_signals=sum(item.selected_signals for item in folds),
+        overlap_skips=sum(item.overlap_skips for item in folds),
+        capacity_skips=sum(item.capacity_skips for item in folds),
+        invalid_interval_skips=sum(item.invalid_interval_skips for item in folds),
+        win_rate=(
+            0.0
+            if trades == 0
+            else sum(item.win_rate * item.executed_trades for item in folds) / trades
+        ),
+        turnover=sum(item.turnover * float(item.initial_equity) for item in folds) / float(initial),
+        worst_instrument_max_drawdown=max(item.max_drawdown for item in folds),
+        profitable_instruments=sum(item.net_return > 0 for item in folds),
     )

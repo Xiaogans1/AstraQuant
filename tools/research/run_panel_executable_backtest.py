@@ -202,6 +202,8 @@ def _market_bar(value: Mapping[str, object]) -> MarketBar:
 
 
 def _json_default(value: object) -> object:
+    if isinstance(value, datetime):
+        return value.isoformat()
     if isinstance(value, Decimal):
         return str(value)
     if isinstance(value, Enum):
