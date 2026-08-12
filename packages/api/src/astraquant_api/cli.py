@@ -26,6 +26,7 @@ from astraquant_api.paper_strategy_service import PaperStrategyService
 from astraquant_api.repository import TaskRepository
 from astraquant_api.secret_store import CredentialSecretStore
 from astraquant_api.supervisor import TaskSupervisor
+from astraquant_data.adapters.akshare_live import AkShareDelayedProvider
 from astraquant_data.adapters.eastmoney import EastmoneyProvider
 from astraquant_data.eastmoney_client import EastmoneyBridgeClient
 from astraquant_data.live_providers import LiveMarketProvider
@@ -88,21 +89,31 @@ def serve() -> None:
         )
         return EastmoneyProvider(client=client, clock=SystemClock())
 
-    market_provider = (
-        None
-        if market_config.sdk_python is None
-        else market_provider_factory(
+    provider_id = _resolve_market_provider_id(
+        config.market_provider_id,
+        sdk_configured=market_config.sdk_python is not None,
+        platform=sys.platform,
+    )
+    if provider_id == "akshare":
+        market_provider: LiveMarketProvider | None = AkShareDelayedProvider(clock=SystemClock())
+    elif provider_id == "eastmoney" and market_config.sdk_python is not None:
+        market_provider = market_provider_factory(
             market_config.sdk_python,
             market_config.request_timeout_seconds,
         )
-    )
+    else:
+        market_provider = None
     market_service = MarketDataService(
         provider=market_provider,
         budget=SubscriptionBudget(),
         secret_store=secret_store,
         watchlist_store=repository,
-        poll_interval_seconds=market_config.poll_interval_seconds,
-        stale_after_seconds=market_config.stale_after_seconds,
+        poll_interval_seconds=(
+            30.0 if provider_id == "akshare" else market_config.poll_interval_seconds
+        ),
+        stale_after_seconds=(
+            90.0 if provider_id == "akshare" else market_config.stale_after_seconds
+        ),
     )
     paper_service = PaperService(
         repository=paper_repository,
@@ -178,6 +189,19 @@ def serve() -> None:
         asyncio.run(market_service.stop())
         supervisor.shutdown(config.shutdown_grace_seconds)
         engine.dispose()
+
+
+def _resolve_market_provider_id(
+    configured: str,
+    *,
+    sdk_configured: bool,
+    platform: str,
+) -> str:
+    if configured != "auto":
+        return configured
+    if sdk_configured:
+        return "eastmoney"
+    return "none"
 
 
 if __name__ == "__main__":

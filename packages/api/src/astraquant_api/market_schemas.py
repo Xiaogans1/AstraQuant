@@ -21,6 +21,8 @@ class EastmoneyConfigStatus(StrictModel):
 
 
 class MarketConnectionResponse(EastmoneyConfigStatus):
+    delayed: bool = False
+    display_name: str = "Eastmoney"
     state: str
     connected_at: datetime | None = None
     last_event_at: datetime | None = None

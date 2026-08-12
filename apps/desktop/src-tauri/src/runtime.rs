@@ -16,7 +16,7 @@ use thiserror::Error;
 
 use crate::handshake::{HandshakeError, ReadyMessage};
 
-const READY_TIMEOUT: Duration = Duration::from_secs(10);
+const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(6);
 
 #[derive(Debug, Error)]
@@ -29,7 +29,7 @@ pub enum RuntimeError {
     Spawn(#[source] std::io::Error),
     #[error("local runtime stdout was not available")]
     MissingStdout,
-    #[error("local runtime did not become ready within 10 seconds")]
+    #[error("local runtime did not become ready within 30 seconds")]
     ReadyTimeout,
     #[error("local runtime closed stdout before sending its ready message")]
     ReadyChannelClosed,
@@ -160,6 +160,7 @@ impl RuntimeManager {
             .current_dir(&self.project_root)
             .env("ASTRAQUANT_SESSION_TOKEN", &session_token)
             .env("ASTRAQUANT_STATE_DIR", &self.state_dir)
+            .env("ASTRAQUANT_MARKET_PROVIDER", macos_market_provider())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -224,6 +225,14 @@ impl RuntimeManager {
             session_token,
         };
         Ok((child, connection))
+    }
+}
+
+fn macos_market_provider() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "akshare"
+    } else {
+        "auto"
     }
 }
 
@@ -348,7 +357,10 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use super::{generate_session_token, runtime_launch_spec, workspace_python_source_paths};
+    use super::{
+        generate_session_token, macos_market_provider, runtime_launch_spec,
+        workspace_python_source_paths,
+    };
 
     fn managed_project_root() -> TempDir {
         let project_root = tempfile::tempdir().expect("temporary project root must be created");
@@ -386,6 +398,18 @@ mod tests {
                 .all(|character| character.is_ascii_alphanumeric()
                     || character == '-'
                     || character == '_')
+        );
+    }
+
+    #[test]
+    fn only_macos_desktop_defaults_to_akshare() {
+        assert_eq!(
+            macos_market_provider(),
+            if cfg!(target_os = "macos") {
+                "akshare"
+            } else {
+                "auto"
+            }
         );
     }
 

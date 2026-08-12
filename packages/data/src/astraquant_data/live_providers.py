@@ -33,6 +33,9 @@ class ProviderHealth:
 
 
 class LiveMarketProvider(Protocol):
+    provider_id: str
+    requires_token: bool
+
     def connect(self, token: str) -> None: ...
 
     def disconnect(self) -> None: ...

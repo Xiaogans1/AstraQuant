@@ -63,7 +63,7 @@ export function OverviewPage({ client }: { client: ApiClient }) {
   if (homeQuery.isLoading) {
     return (
       <section className="market-terminal" aria-label="市场首页">
-        <p className="market-loading">正在读取东财真实行情…</p>
+        <p className="market-loading">正在读取行情…</p>
         <div className="index-strip" aria-label="核心指数">
           {coreIndexSlots.map((index) => <QuoteTile key={index.instrument_id} quote={index} testId="core-index-loading" />)}
         </div>
@@ -76,7 +76,7 @@ export function OverviewPage({ client }: { client: ApiClient }) {
       <section className="market-terminal" aria-labelledby="market-home-title">
         <div className="market-unavailable">
           <h1 id="market-home-title">市场首页</h1>
-          <strong>尚未连接东财行情</strong>
+          <strong>尚未连接行情</strong>
           <p>当前没有可展示的真实行情，程序不会用演示数字代替。</p>
         </div>
         <div className="index-strip" aria-label="核心指数">
@@ -95,7 +95,8 @@ export function OverviewPage({ client }: { client: ApiClient }) {
         </div>
         <div className="market-toolbar__controls">
           <span className="source-badge" data-mode={state.toLowerCase()}>
-            <span aria-hidden="true">●</span>东财掘金实时行情
+            <span aria-hidden="true">●</span>
+            {connection?.delayed ? "公开网页延迟行情" : `${connection?.display_name ?? "行情"}实时行情`}
           </span>
           <span className="readonly-badge">只读观察 · 不连接实盘账户</span>
           <span className="market-clock">

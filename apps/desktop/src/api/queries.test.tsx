@@ -9,6 +9,8 @@ import { useMarketHomeQuery } from "./queries";
 const home: MarketHome = {
   connection: {
     provider_id: "eastmoney",
+    delayed: false,
+    display_name: "东方财富掘金",
     sdk_configured: true,
     token_configured: true,
     state: "LIVE",

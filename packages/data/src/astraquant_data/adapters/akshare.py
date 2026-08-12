@@ -2,10 +2,11 @@
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from importlib.metadata import version
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from astraquant_data.calendars import TradingCalendar
 from astraquant_data.providers import HistoryRequest
@@ -15,6 +16,8 @@ _EQUITY_VENUES = frozenset({Venue.SSE, Venue.SZSE, Venue.BSE})
 _FUTURES_VENUES = frozenset({Venue.CFFEX, Venue.SHFE, Venue.DCE, Venue.CZCE, Venue.INE, Venue.GFEX})
 _EQUITY_COLUMNS = frozenset({"日期", "开盘", "最高", "最低", "收盘", "成交量", "成交额"})
 _FUTURES_COLUMNS = frozenset({"date", "open", "high", "low", "close", "volume", "hold", "settle"})
+_MINUTE_COLUMNS = frozenset({"时间", "开盘", "最高", "最低", "收盘", "成交量", "成交额"})
+_SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 class ProviderSchemaError(ValueError):
@@ -165,6 +168,78 @@ class AkShareDailyBarProvider:
             raise ProviderSchemaError(self.provider_id(), missing)
 
 
+class AkShareFiveMinuteBarProvider:
+    """Normalize Eastmoney-backed AKShare 5-minute A-share bars.
+
+    AKShare exposes volume from this endpoint in lots (手), so canonical volume is
+    converted to shares. Endpoint timestamps are treated as bar end times.
+    """
+
+    def __init__(self, *, client: Any | None = None) -> None:
+        if client is None:
+            import akshare
+
+            client = akshare
+        self._client = client
+
+    def provider_id(self) -> str:
+        return "akshare"
+
+    def provider_metadata(self, request: HistoryRequest) -> ProviderMetadata:
+        if request.instrument_id.venue not in _EQUITY_VENUES:
+            raise ValueError("AKShare 5-minute provider only supports A-share venues")
+        return ProviderMetadata(
+            provider_id=self.provider_id(),
+            interface="stock_zh_a_hist_min_em",
+            version=version("akshare"),
+            volume_unit="share",
+            series_kind="instrument",
+            roll_policy=None,
+            calendar_version="upstream-eastmoney-session-labels-v1",
+            availability_policy="estimated_bar_end_plus_1m",
+        )
+
+    def fetch_bars(self, request: HistoryRequest) -> Sequence[Bar]:
+        self.provider_metadata(request)
+        if request.frequency is not BarFrequency.FIVE_MINUTE:
+            raise ValueError("AKShare 5-minute provider only supports 5m bars")
+        frame = self._client.stock_zh_a_hist_min_em(
+            symbol=request.instrument_id.symbol,
+            start_date=f"{request.start.isoformat()} 00:00:00",
+            end_date=f"{request.end.isoformat()} 23:59:59",
+            period="5",
+            adjust=("" if request.adjustment is Adjustment.NONE else request.adjustment.value),
+        )
+        self._require_columns(set(frame.columns))
+        bars = tuple(self._bar(request, row) for row in frame.to_dict(orient="records"))
+        return tuple(bar for bar in bars if request.start <= bar.trading_date <= request.end)
+
+    def _bar(self, request: HistoryRequest, row: Mapping[str, Any]) -> Bar:
+        event_time = _as_shanghai_datetime(row["时间"])
+        return Bar(
+            instrument_id=request.instrument_id,
+            frequency=BarFrequency.FIVE_MINUTE,
+            trading_date=event_time.date(),
+            event_time=event_time,
+            available_time=event_time + timedelta(minutes=1),
+            open=_decimal(row["开盘"]),
+            high=_decimal(row["最高"]),
+            low=_decimal(row["最低"]),
+            close=_decimal(row["收盘"]),
+            volume=_decimal(row["成交量"]) * 100,
+            turnover=_decimal(row["成交额"]),
+            open_interest=None,
+            settlement=None,
+            adjustment=request.adjustment,
+            availability_estimated=True,
+        )
+
+    def _require_columns(self, actual: set[str]) -> None:
+        missing = set(_MINUTE_COLUMNS - actual)
+        if missing:
+            raise ProviderSchemaError(self.provider_id(), missing)
+
+
 def _as_date(value: object) -> date:
     if isinstance(value, date):
         return value
@@ -173,3 +248,10 @@ def _as_date(value: object) -> date:
 
 def _decimal(value: object) -> Decimal:
     return Decimal(str(value))
+
+
+def _as_shanghai_datetime(value: object) -> datetime:
+    parsed = datetime.fromisoformat(str(value))
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=_SHANGHAI)
+    return parsed.astimezone(_SHANGHAI)
