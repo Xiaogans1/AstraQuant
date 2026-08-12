@@ -16,11 +16,13 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 from .dataset import AstraFoldDataset
+from .models import create_double_ensemble_model
 
 QLIB_UPSTREAM_COMMIT = "79633dd9506ea689e5400dea0197717b5b3d74b7"
 REQUEST_SCHEMA = "astraquant.qlib-request/v1"
 RESPONSE_SCHEMA = "astraquant.qlib-response/v1"
 MODEL_LIGHTGBM_BINARY = "LIGHTGBM_BINARY"
+MODEL_DOUBLE_ENSEMBLE = "DOUBLE_ENSEMBLE"
 
 _TRACKING_ROOT: tempfile.TemporaryDirectory[str] | None = None
 _QLIB_INITIALIZED = False
@@ -41,11 +43,10 @@ def run_request(request_path: Path, output_path: Path) -> dict[str, Any]:
     target_column = _require_str(request, "target_column")
     score_semantics = _require_str(request, "score_semantics")
     training_task_digest = _require_digest(request, "training_task_digest")
-    if (
-        model_kind != MODEL_LIGHTGBM_BINARY
-        or target_column != "label"
-        or score_semantics != "PROBABILITY"
-    ):
+    if (model_kind, target_column, score_semantics) not in {
+        (MODEL_LIGHTGBM_BINARY, "label", "PROBABILITY"),
+        (MODEL_DOUBLE_ENSEMBLE, "future_return", "EXPECTED_RETURN"),
+    }:
         raise ValueError("unsupported Qlib model/target/score contract")
     for fold in _require_list(request, "folds"):
         if not isinstance(fold, dict):
@@ -55,55 +56,83 @@ def run_request(request_path: Path, output_path: Path) -> dict[str, Any]:
         test_indices = _indices(fold, "test_indices", len(frame))
         if set(train_indices) & set(test_indices) or max(train_indices) >= min(test_indices):
             raise ValueError(f"invalid fold: {fold_id}")
+        fit_indices = train_indices
+        valid_indices = None
+        if model_kind == MODEL_DOUBLE_ENSEMBLE:
+            validation_policy = request.get("validation_policy")
+            if validation_policy != {
+                "kind": "TRAIN_TAIL_FRACTION",
+                "fraction": "0.2",
+            }:
+                raise ValueError("DoubleEnsemble validation_policy schema mismatch")
+            fit_indices = _indices(fold, "fit_indices", len(frame))
+            valid_indices = _indices(fold, "validation_indices", len(frame))
+            expected_validation_count = math.ceil(len(train_indices) * 0.2)
+            if (
+                [*fit_indices, *valid_indices] != train_indices
+                or set(fit_indices) & set(valid_indices)
+                or max(fit_indices) >= min(valid_indices)
+                or len(valid_indices) != expected_validation_count
+            ):
+                raise ValueError(f"invalid DoubleEnsemble validation split: {fold_id}")
         dataset = AstraFoldDataset(
             frame,
             feature_columns=_require_string_list(request, "feature_columns"),
             target_column=target_column,
-            train_indices=train_indices,
+            train_indices=fit_indices,
+            valid_indices=valid_indices,
             test_indices=test_indices,
         )
-        model = LGBModel(
-            loss="binary",
-            learning_rate=0.05,
-            num_leaves=15,
-            max_depth=4,
-            min_data_in_leaf=2,
-            min_data_in_bin=1,
-            feature_fraction=1.0,
-            bagging_fraction=1.0,
-            bagging_freq=0,
-            seed=seed,
-            feature_fraction_seed=seed,
-            bagging_seed=seed,
-            data_random_seed=seed,
-            deterministic=True,
-            force_col_wise=True,
-            num_threads=1,
-            num_boost_round=40,
-            early_stopping_rounds=0,
-        )
+        if model_kind == MODEL_LIGHTGBM_BINARY:
+            model = LGBModel(
+                loss="binary",
+                learning_rate=0.05,
+                num_leaves=15,
+                max_depth=4,
+                min_data_in_leaf=2,
+                min_data_in_bin=1,
+                feature_fraction=1.0,
+                bagging_fraction=1.0,
+                bagging_freq=0,
+                seed=seed,
+                feature_fraction_seed=seed,
+                bagging_seed=seed,
+                data_random_seed=seed,
+                deterministic=True,
+                force_col_wise=True,
+                num_threads=1,
+                num_boost_round=40,
+                early_stopping_rounds=0,
+            )
+            model_identity = "qlib.contrib.model.gbdt.LGBModel"
+        else:
+            model_config = request.get("model_config")
+            if not isinstance(model_config, dict):
+                raise ValueError("DoubleEnsemble model_config schema mismatch")
+            model = create_double_ensemble_model(model_config, seed=seed)
+            model_identity = "qlib.contrib.model.double_ensemble.DEnsembleModel"
         with R.start(experiment_name="AstraQuantQlibRunner"), warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore", message="Only training set found, disabling early stopping."
             )
-            model.fit(dataset, verbose_eval=0)
+            if model_kind == MODEL_LIGHTGBM_BINARY:
+                model.fit(dataset, verbose_eval=0)
+            else:
+                model.fit(dataset)
         values = model.predict(dataset, segment="test")
         if list(values.index) != test_indices:
             raise ValueError(f"Qlib prediction row order mismatch: {fold_id}")
+        value_key = "probability" if score_semantics == "PROBABILITY" else "score"
         predictions.extend(
-            {
-                "fold_id": fold_id,
-                "row_id": row_id,
-                "probability": float(probability),
-            }
-            for row_id, probability in values.items()
+            {"fold_id": fold_id, "row_id": row_id, value_key: float(value)}
+            for row_id, value in values.items()
         )
 
     response: dict[str, Any] = {
         "schema_version": RESPONSE_SCHEMA,
         "request_content_digest": _require_str(request, "content_digest"),
         "upstream_commit": QLIB_UPSTREAM_COMMIT,
-        "model": "qlib.contrib.model.gbdt.LGBModel",
+        "model": model_identity,
         "model_kind": model_kind,
         "score_semantics": score_semantics,
         "training_task_digest": training_task_digest,

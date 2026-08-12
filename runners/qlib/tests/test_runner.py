@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -153,11 +154,12 @@ def test_fold_dataset_uses_the_declared_regression_target() -> None:
         feature_columns=("feature",),
         target_column="future_return",
         train_indices=(0,),
+        valid_indices=(1,),
         test_indices=(1,),
     )
 
-    prepared = dataset.prepare("train", col_set="label")
-    assert prepared.iloc[0, 0] == pytest.approx(-0.02)
+    prepared = dataset.prepare("valid", col_set="label")
+    assert prepared.iloc[0, 0] == pytest.approx(0.03)
 
 
 def test_runner_rejects_incompatible_model_target_and_score_contract(tmp_path: Path) -> None:
@@ -178,3 +180,44 @@ def test_runner_rejects_incompatible_model_target_and_score_contract(tmp_path: P
 
     with pytest.raises(ValueError, match="model/target/score"):
         run_request(request_path, tmp_path / "output.json")
+
+
+def test_double_ensemble_returns_deterministic_expected_return_scores(tmp_path: Path) -> None:
+    request_path = _write_request(tmp_path / "input")
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    for fold in request["folds"]:
+        train = fold["train_indices"]
+        split = len(train) - math.ceil(len(train) * 0.2)
+        fold["fit_indices"] = train[:split]
+        fold["validation_indices"] = train[split:]
+    request.update(
+        {
+            "model_kind": "DOUBLE_ENSEMBLE",
+            "target_column": "future_return",
+            "score_semantics": "EXPECTED_RETURN",
+            "model_config": {
+                "num_models": 2,
+                "epochs": 10,
+                "enable_sr": True,
+                "enable_fs": True,
+                "decay": 0.5,
+            },
+            "validation_policy": {
+                "kind": "TRAIN_TAIL_FRACTION",
+                "fraction": "0.2",
+            },
+        }
+    )
+    body = {key: value for key, value in request.items() if key != "content_digest"}
+    request["content_digest"] = _digest_bytes(
+        json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    )
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+
+    first = run_request(request_path, tmp_path / "first-double.json")
+    second = run_request(request_path, tmp_path / "second-double.json")
+
+    assert first == second
+    assert first["model_kind"] == "DOUBLE_ENSEMBLE"
+    assert first["score_semantics"] == "EXPECTED_RETURN"
+    assert all("score" in item and "probability" not in item for item in first["predictions"])

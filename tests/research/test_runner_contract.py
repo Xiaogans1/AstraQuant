@@ -22,6 +22,8 @@ def test_request_schema_requires_model_task_target_and_score_identity() -> None:
         "model_kind",
         "target_column",
         "score_semantics",
+        "model_config",
+        "validation_policy",
     }.issubset(required)
 
 

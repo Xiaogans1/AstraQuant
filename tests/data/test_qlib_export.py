@@ -142,6 +142,33 @@ def test_qlib_export_accepts_generated_rows_with_close_audit_field(tmp_path: Pat
     ]
 
 
+def test_double_ensemble_export_uses_future_return_and_inner_validation_only(
+    tmp_path: Path,
+) -> None:
+    exported = _export(
+        tmp_path / "double-ensemble",
+        model_kind="DOUBLE_ENSEMBLE",
+        target_column="future_return",
+        prediction_threshold=None,
+        training_task=_training_task(score_semantics=ScoreSemantics.EXPECTED_RETURN),
+    )
+
+    request = json.loads(exported.request_path.read_text(encoding="utf-8"))
+    first_fold = request["folds"][0]
+    assert request["prediction_threshold"] is None
+    assert request["model_config"] == {
+        "decay": 0.5,
+        "enable_fs": True,
+        "enable_sr": True,
+        "epochs": 28,
+        "num_models": 3,
+    }
+    assert first_fold["fit_indices"] == list(range(40))
+    assert first_fold["validation_indices"] == list(range(40, 50))
+    assert first_fold["test_indices"] == list(range(50, 60))
+    assert set(first_fold["validation_indices"]).isdisjoint(first_fold["test_indices"])
+
+
 @pytest.mark.parametrize(
     ("changes", "match"),
     [
