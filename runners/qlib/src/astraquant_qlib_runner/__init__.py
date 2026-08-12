@@ -20,6 +20,7 @@ from .dataset import AstraFoldDataset
 QLIB_UPSTREAM_COMMIT = "79633dd9506ea689e5400dea0197717b5b3d74b7"
 REQUEST_SCHEMA = "astraquant.qlib-request/v1"
 RESPONSE_SCHEMA = "astraquant.qlib-response/v1"
+MODEL_LIGHTGBM_BINARY = "LIGHTGBM_BINARY"
 
 _TRACKING_ROOT: tempfile.TemporaryDirectory[str] | None = None
 _QLIB_INITIALIZED = False
@@ -36,6 +37,16 @@ def run_request(request_path: Path, output_path: Path) -> dict[str, Any]:
 
     predictions: list[dict[str, object]] = []
     seed = _require_int(request, "seed")
+    model_kind = _require_str(request, "model_kind")
+    target_column = _require_str(request, "target_column")
+    score_semantics = _require_str(request, "score_semantics")
+    training_task_digest = _require_digest(request, "training_task_digest")
+    if (
+        model_kind != MODEL_LIGHTGBM_BINARY
+        or target_column != "label"
+        or score_semantics != "PROBABILITY"
+    ):
+        raise ValueError("unsupported Qlib model/target/score contract")
     for fold in _require_list(request, "folds"):
         if not isinstance(fold, dict):
             raise ValueError("fold schema mismatch")
@@ -47,6 +58,7 @@ def run_request(request_path: Path, output_path: Path) -> dict[str, Any]:
         dataset = AstraFoldDataset(
             frame,
             feature_columns=_require_string_list(request, "feature_columns"),
+            target_column=target_column,
             train_indices=train_indices,
             test_indices=test_indices,
         )
@@ -92,6 +104,9 @@ def run_request(request_path: Path, output_path: Path) -> dict[str, Any]:
         "request_content_digest": _require_str(request, "content_digest"),
         "upstream_commit": QLIB_UPSTREAM_COMMIT,
         "model": "qlib.contrib.model.gbdt.LGBModel",
+        "model_kind": model_kind,
+        "score_semantics": score_semantics,
+        "training_task_digest": training_task_digest,
         "predictions": predictions,
     }
     encoded = _canonical_bytes(response) + b"\n"
@@ -209,6 +224,18 @@ def _require_str(value: dict[str, Any], key: str) -> str:
 def _require_int(value: dict[str, Any], key: str) -> int:
     item = value.get(key)
     if isinstance(item, bool) or not isinstance(item, int):
+        raise ValueError(f"{key} schema mismatch")
+    return item
+
+
+def _require_digest(value: dict[str, Any], key: str) -> str:
+    item = _require_str(value, key)
+    if (
+        not item.startswith("sha256:")
+        or len(item) != len("sha256:") + 64
+        or any(character not in "0123456789abcdef" for character in item[7:])
+        or set(item[7:]) == {"0"}
+    ):
         raise ValueError(f"{key} schema mismatch")
     return item
 

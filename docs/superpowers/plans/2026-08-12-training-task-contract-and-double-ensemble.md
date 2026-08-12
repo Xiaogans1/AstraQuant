@@ -29,19 +29,19 @@
 **Files:**
 
 - Modify: `packages/data/src/astraquant_data/exports/qlib.py`
-- Modify: `contracts/research-runner/v1/request.schema.json`
-- Modify: `contracts/research-runner/v1/response.schema.json`
+- Create: `contracts/research-runner/v1/request.schema.json`
+- Create: `contracts/research-runner/v1/response.schema.json`
 - Modify: `runners/qlib/src/astraquant_qlib_runner/dataset.py`
 - Modify: `runners/qlib/src/astraquant_qlib_runner/__init__.py`
 - Test: `tests/data/test_qlib_export.py`
 - Test: `tests/research/test_runner_contract.py`
 - Test: `runners/qlib/tests/test_runner.py`
 
-- [ ] 先测试 request 固定 `training_task_digest`、`model_kind`、target column；response 固定 `score_semantics`。
-- [ ] 保持现有 Qlib LightGBM binary 路径兼容，并新增 regression dataset target。
-- [ ] 非法的 model/score/target 组合必须 fail closed。
-- [ ] 运行主 workspace 与 runner 项目目标测试。
-- [ ] 提交：`feat(research): 扩展声明式Qlib训练契约`
+- [x] 先测试 request 固定 `training_task_digest`、`model_kind`、target column；response 固定 `score_semantics`。
+- [x] 保持现有 Qlib LightGBM binary 路径兼容，并新增 regression dataset target。
+- [x] 非法的 model/score/target 组合必须 fail closed。
+- [x] 运行主 workspace 与 runner 项目目标测试。
+- [x] 提交：`feat(research): 扩展声明式Qlib训练契约`
 
 ## Task 3: 接入 DoubleEnsemble challenger
 

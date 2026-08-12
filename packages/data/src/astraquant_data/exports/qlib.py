@@ -15,6 +15,7 @@ from typing import Protocol
 import pyarrow as pa  # type: ignore[import-untyped]
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
+from astraquant_domain import ScoreSemantics, TrainingTaskSpec
 from astraquant_domain.run_manifest import canonical_json_bytes
 
 QLIB_UPSTREAM_COMMIT = "79633dd9506ea689e5400dea0197717b5b3d74b7"
@@ -31,6 +32,8 @@ QLIB_FEATURE_COLUMNS = (
     "ma5_gap",
     "ma20_gap",
 )
+QLIB_MODEL_LIGHTGBM_BINARY = "LIGHTGBM_BINARY"
+QLIB_MODEL_DOUBLE_ENSEMBLE = "DOUBLE_ENSEMBLE"
 _DATASET_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,99}$")
 _DIGEST_PATTERN = re.compile(r"^(?:sha256:)?([0-9a-f]{64})$")
 
@@ -64,6 +67,9 @@ def export_qlib_request(
     fee_rate: Decimal,
     prediction_threshold: float,
     seed: int,
+    training_task: TrainingTaskSpec,
+    model_kind: str,
+    target_column: str,
 ) -> QlibExport:
     if provider_id != "eastmoney":
         raise ValueError("Qlib research input must come from Eastmoney")
@@ -78,6 +84,11 @@ def export_qlib_request(
         raise ValueError("fee_rate must not be negative")
     if not 0 < prediction_threshold < 1:
         raise ValueError("prediction_threshold must be between zero and one")
+    _validate_model_contract(
+        model_kind=model_kind,
+        target_column=target_column,
+        score_semantics=training_task.score_semantics,
+    )
 
     root = output_root.resolve()
     if root.exists():
@@ -99,6 +110,10 @@ def export_qlib_request(
         "fee_rate": str(fee_rate),
         "prediction_threshold": prediction_threshold,
         "seed": seed,
+        "training_task_digest": training_task.task_digest,
+        "model_kind": model_kind,
+        "target_column": target_column,
+        "score_semantics": training_task.score_semantics.value,
     }
     content_digest = _object_digest(body)
     request_path = root / "request.json"
@@ -117,6 +132,30 @@ def export_qlib_request(
         request_path=request_path,
         rows_path=rows_path,
     )
+
+
+def _validate_model_contract(
+    *,
+    model_kind: str,
+    target_column: str,
+    score_semantics: ScoreSemantics,
+) -> None:
+    expected = {
+        QLIB_MODEL_LIGHTGBM_BINARY: ("label", ScoreSemantics.PROBABILITY),
+        QLIB_MODEL_DOUBLE_ENSEMBLE: (
+            "future_return",
+            ScoreSemantics.EXPECTED_RETURN,
+        ),
+    }
+    if model_kind not in expected:
+        raise ValueError(f"unsupported Qlib model_kind: {model_kind}")
+    expected_target, expected_semantics = expected[model_kind]
+    if target_column != expected_target:
+        raise ValueError(f"target_column must be {expected_target} for model_kind {model_kind}")
+    if score_semantics is not expected_semantics:
+        raise ValueError(
+            f"score semantics must be {expected_semantics.value} for model_kind {model_kind}"
+        )
 
 
 def _validate_snapshot(value: str) -> None:

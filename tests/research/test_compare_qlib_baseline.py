@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from astraquant_data.exports.qlib import export_qlib_request
+from astraquant_domain import ScoreSemantics, TrainingTaskKind, TrainingTaskSpec
 from astraquant_quant.baseline_matrix import (
     WalkForwardFold,
     expanding_walk_forward,
@@ -92,6 +93,18 @@ def test_compare_cli_uses_shared_rows_folds_and_costs(tmp_path: Path) -> None:
         fee_rate=Decimal("0.001"),
         prediction_threshold=0.5,
         seed=7,
+        training_task=TrainingTaskSpec(
+            task_id="daily-base-target-v1",
+            kind=TrainingTaskKind.BASE_TARGET,
+            label_name="next_open_up_1d",
+            horizon_bars=1,
+            score_semantics=ScoreSemantics.PROBABILITY,
+            universe_id="s1-fixture",
+            execution_policy_id="a-share-next-open-v1",
+            evaluation_metrics=("auc", "net_return"),
+        ),
+        model_kind="LIGHTGBM_BINARY",
+        target_column="label",
     )
     response_path = tmp_path / "response.json"
     response_path.write_text(

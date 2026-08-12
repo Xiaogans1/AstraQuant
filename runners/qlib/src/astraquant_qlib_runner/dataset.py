@@ -15,12 +15,15 @@ class AstraFoldDataset:
         frame: pd.DataFrame,
         *,
         feature_columns: Sequence[str],
+        target_column: str,
         train_indices: Sequence[int],
         test_indices: Sequence[int],
     ) -> None:
         features = frame.loc[:, list(feature_columns)].copy()
         features.columns = pd.MultiIndex.from_product([["feature"], feature_columns])
-        labels = frame.loc[:, ["label"]].copy()
+        if target_column not in {"label", "future_return"}:
+            raise ValueError(f"unsupported target_column: {target_column}")
+        labels = frame.loc[:, [target_column]].copy()
         labels.columns = pd.MultiIndex.from_tuples([("label", "LABEL0")])
         self._frame = pd.concat([features, labels], axis=1)
         self._indices = {
