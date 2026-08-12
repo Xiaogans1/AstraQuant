@@ -89,9 +89,11 @@ def serve() -> None:
         )
         return EastmoneyProvider(client=client, clock=SystemClock())
 
-    provider_id = config.market_provider_id
-    if provider_id == "auto":
-        provider_id = "eastmoney" if market_config.sdk_python is not None else "akshare"
+    provider_id = _resolve_market_provider_id(
+        config.market_provider_id,
+        sdk_configured=market_config.sdk_python is not None,
+        platform=sys.platform,
+    )
     if provider_id == "akshare":
         market_provider: LiveMarketProvider | None = AkShareDelayedProvider(clock=SystemClock())
     elif provider_id == "eastmoney" and market_config.sdk_python is not None:
@@ -187,6 +189,19 @@ def serve() -> None:
         asyncio.run(market_service.stop())
         supervisor.shutdown(config.shutdown_grace_seconds)
         engine.dispose()
+
+
+def _resolve_market_provider_id(
+    configured: str,
+    *,
+    sdk_configured: bool,
+    platform: str,
+) -> str:
+    if configured != "auto":
+        return configured
+    if sdk_configured:
+        return "eastmoney"
+    return "akshare" if platform == "darwin" else "none"
 
 
 if __name__ == "__main__":
