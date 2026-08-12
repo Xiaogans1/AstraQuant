@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
@@ -185,6 +186,82 @@ def score_fold_predictions(
         values,
         fee_rate=fee_rate,
         prediction_threshold=prediction_threshold,
+    )
+
+
+def score_expected_return_predictions(
+    rows: Sequence[dict[str, float | int]],
+    *,
+    folds: Sequence[WalkForwardFold],
+    predictions: Sequence[Mapping[str, object]],
+    fee_rate: Decimal,
+    minimum_edge: Decimal,
+) -> PredictionSummary:
+    """Score raw return forecasts without treating them as probabilities."""
+
+    if fee_rate < 0 or minimum_edge < 0:
+        raise ValueError("fee_rate and minimum_edge must not be negative")
+    _validate_rows(rows)
+    exact_folds = tuple(folds)
+    if not exact_folds:
+        raise ValueError("folds must not be empty")
+    expected = {(fold.fold_id, row_id) for fold in exact_folds for row_id in fold.test_indices}
+    scores: dict[tuple[str, int], float] = {}
+    for prediction in predictions:
+        fold_id = prediction.get("fold_id")
+        row_id = prediction.get("row_id")
+        score = prediction.get("score")
+        if (
+            not isinstance(fold_id, str)
+            or not fold_id
+            or isinstance(row_id, bool)
+            or not isinstance(row_id, int)
+            or isinstance(score, bool)
+            or not isinstance(score, (int, float))
+            or not math.isfinite(float(score))
+        ):
+            raise ValueError("expected-return prediction schema mismatch")
+        key = (fold_id, row_id)
+        if key in scores:
+            raise ValueError("expected-return prediction coverage contains duplicates")
+        scores[key] = float(score)
+    if set(scores) != expected:
+        raise ValueError("expected-return prediction coverage does not match frozen folds")
+
+    selection_cutoff = Decimal(2) * fee_rate + minimum_edge
+    metrics = []
+    for fold in exact_folds:
+        test = [rows[index] for index in fold.test_indices]
+        fold_scores = [scores[(fold.fold_id, index)] for index in fold.test_indices]
+        labels = [int(row["label"]) for row in test]
+        auc = 0.5 if len(set(labels)) < 2 else float(roc_auc_score(labels, fold_scores))
+        selected_returns = [
+            Decimal(str(row["future_return"]))
+            for row, score in zip(test, fold_scores, strict=True)
+            if Decimal(str(score)) >= selection_cutoff
+        ]
+        trades = len(selected_returns)
+        gross = sum(selected_returns, start=Decimal("0"))
+        net = gross - Decimal(2) * fee_rate * trades
+        metrics.append(
+            FoldMetrics(
+                fold_id=fold.fold_id,
+                test_rows=len(test),
+                auc=auc,
+                gross_return=float(gross),
+                net_return=float(net),
+                trades=trades,
+            )
+        )
+    exact_metrics = tuple(metrics)
+    return PredictionSummary(
+        folds=exact_metrics,
+        auc=sum(value.auc * value.test_rows for value in exact_metrics)
+        / sum(value.test_rows for value in exact_metrics),
+        gross_return=sum(value.gross_return for value in exact_metrics),
+        net_return=sum(value.net_return for value in exact_metrics),
+        trades=sum(value.trades for value in exact_metrics),
+        positive_folds=sum(value.net_return > 0 for value in exact_metrics),
     )
 
 

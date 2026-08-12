@@ -10,7 +10,7 @@
 
 ## 当前开发
 
-- 生产训练 Stage A：长期架构、统一 task/score 契约和声明式 Qlib runner contract 已完成；真正的 Qlib `DEnsembleModel` 已能按 inner validation 训练并稳定输出 `EXPECTED_RETURN`，不会伪装成概率。当前剩余是把 native regression 与 DoubleEnsemble 接入同一 selection/executable scoring 后运行真实多标的 challenger。
+- 生产训练 Stage A：长期架构、统一 task/score 契约、声明式 Qlib runner 和 DoubleEnsemble 接入已完成；`DEnsembleModel` 与 native Ridge 现在使用同一个 expected-return selection policy，行级研究评分明确标记为 `RESEARCH_RETURN_ONLY`。当前关键节点是 Task 4：用真实多标的 API snapshot 把两者送入现有 A 股 executable backtest，生成可重复 challenger 报告。
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
 - S2a Qlib 公平对照：3/3 已完成；同一 Eastmoney 行集/folds 可在固定 commit 的独立 Qlib LightGBM runner 训练，再由 AstraQuant 统一按相同费率与阈值评分。

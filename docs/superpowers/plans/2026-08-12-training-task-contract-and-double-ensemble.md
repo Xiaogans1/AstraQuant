@@ -55,8 +55,8 @@
 
 - [x] 先测试固定 seed/config 下输出 index、raw expected-return score、model/env/input digests 可重复。
 - [x] 使用 Qlib `DEnsembleModel` 的 regression 语义；禁止 sigmoid、`0.5` threshold 或把结果命名为 probability。
-- [ ] 比较工具让 native regression baseline 与 DoubleEnsemble 使用相同 selection policy 和 A 股 executable-net-return scorer。
-- [ ] 提交：`feat(research): 接入DoubleEnsemble挑战模型`
+- [x] 比较工具让 native Ridge regression 与 DoubleEnsemble 使用相同 expected-return selection policy；该步骤明确标记 `RESEARCH_RETURN_ONLY`，真实 A 股 executable-net-return 留给 Task 4，避免把行级收益评分冒充成交回放。
+- [x] 提交：`feat(research): 接入DoubleEnsemble挑战模型`
 
 ## Task 4: 真实多标的验收与进度回写
 
