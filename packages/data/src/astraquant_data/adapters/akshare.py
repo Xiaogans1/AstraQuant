@@ -212,9 +212,7 @@ class AkShareFiveMinuteBarProvider:
         )
         self._require_columns(set(frame.columns))
         bars = tuple(self._bar(request, row) for row in frame.to_dict(orient="records"))
-        return tuple(
-            bar for bar in bars if request.start <= bar.trading_date <= request.end
-        )
+        return tuple(bar for bar in bars if request.start <= bar.trading_date <= request.end)
 
     def _bar(self, request: HistoryRequest, row: Mapping[str, Any]) -> Bar:
         event_time = _as_shanghai_datetime(row["时间"])

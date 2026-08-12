@@ -147,9 +147,7 @@ class MarketDataService:
         if self._task is not None and not self._task.done():
             raise RuntimeError("market service must be stopped before reconfiguration")
         self._provider = provider
-        self._connection = ProviderHealth(
-            provider_id=getattr(provider, "provider_id", "eastmoney")
-        )
+        self._connection = ProviderHealth(provider_id=getattr(provider, "provider_id", "eastmoney"))
 
     def add_watchlist(self, instrument_id: str) -> None:
         before = self._budget.persistent_instruments

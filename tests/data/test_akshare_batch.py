@@ -95,13 +95,9 @@ def test_batch_records_failures_and_resume_recovers_only_missing_item(tmp_path: 
         max_attempts=1,
     )
 
-    first = collector.collect(
-        instruments=(failed, succeeded), trading_date=date(2026, 7, 24)
-    )
+    first = collector.collect(instruments=(failed, succeeded), trading_date=date(2026, 7, 24))
     provider.always_fail.clear()
-    second = collector.collect(
-        instruments=(failed, succeeded), trading_date=date(2026, 7, 24)
-    )
+    second = collector.collect(instruments=(failed, succeeded), trading_date=date(2026, 7, 24))
 
     assert [item.instrument_id for item in first.failures] == [failed]
     assert first.completed == (succeeded,)

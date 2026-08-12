@@ -107,9 +107,7 @@ def test_delayed_provider_polls_searches_and_marks_quotes_delayed() -> None:
     provider = AkShareDelayedProvider(client=FakeAkShare(), clock=FixedClock())
     provider.connect("")
 
-    quotes = provider.poll(
-        (InstrumentId.parse("600000.SSE"), InstrumentId.parse("000001.SSE"))
-    )
+    quotes = provider.poll((InstrumentId.parse("600000.SSE"), InstrumentId.parse("000001.SSE")))
     results = provider.search("浦发")
 
     assert len(quotes) == 2
@@ -129,6 +127,4 @@ def test_delayed_provider_normalizes_minute_daily_and_calendar() -> None:
     assert minute[0].timestamp.isoformat() == "2026-08-12T09:35:00+08:00"
     assert minute[0].volume == 10000
     assert daily[0].timestamp.isoformat() == "2026-08-11T00:00:00+08:00"
-    assert provider.trading_dates(date(2026, 8, 12), date(2026, 8, 12)) == [
-        date(2026, 8, 12)
-    ]
+    assert provider.trading_dates(date(2026, 8, 12), date(2026, 8, 12)) == [date(2026, 8, 12)]

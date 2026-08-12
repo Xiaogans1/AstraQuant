@@ -153,8 +153,7 @@ class AkShareDelayedProvider:
             frame = self._client.stock_zh_a_spot_em()
             _require_columns(set(frame.columns), _SPOT_COLUMNS)
             self._spot_rows = {
-                str(_instrument(str(row["代码"]))): row
-                for row in frame.to_dict(orient="records")
+                str(_instrument(str(row["代码"]))): row for row in frame.to_dict(orient="records")
             }
         results: list[dict[str, Any]] = []
         for instrument_id, row in self._spot_rows.items():
@@ -178,9 +177,7 @@ class AkShareDelayedProvider:
         return sorted(value for value in values if start <= value <= end)
 
 
-def _spot_quote(
-    instrument: InstrumentId, row: Mapping[str, Any], received: datetime
-) -> LiveQuote:
+def _spot_quote(instrument: InstrumentId, row: Mapping[str, Any], received: datetime) -> LiveQuote:
     last = _positive(row["最新价"])
     opened = _positive_or(row["今开"], last)
     high = max(_positive_or(row["最高"], last), opened, last)
