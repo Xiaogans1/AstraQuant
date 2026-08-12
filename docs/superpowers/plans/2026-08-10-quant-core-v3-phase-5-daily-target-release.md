@@ -1,5 +1,7 @@
 # Quant Core v3 Phase 5 Daily Target and Release Stage Roadmap
 
+> **生产训练硬约束：** 本阶段负责[长期训练架构](../specs/2026-08-12-production-training-architecture-design.md)的组合与上线反馈闭环：不同任务和模型输出必须先按声明语义校准、路由和冲突消解，再形成目标仓位；单模型不得直接控制订单或独占 champion。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 在 Phase 4 公平基线与预冻结 ReleasePolicy 之上评估成熟日线 challenger，把批准的 AlphaForecast 转成可审计 BaseTarget/OrderIntent，并通过 Shadow 和 Paper canary 决定是否产生 Paper/Mirror champion。

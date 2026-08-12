@@ -1,5 +1,7 @@
 # Quant Core v3 Phase 7 L2 and Live Readiness Stage Roadmap
 
+> **生产训练硬约束：** L2 是[长期训练架构](../specs/2026-08-12-production-training-architecture-design.md)的可选增强输入，主要服务日内 T、流动性和风险专家；系统必须保持无 L2 降级能力，且 L2 模型仍服从统一组合、执行与发布门。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 证明 L2 数据、queue replay、盘口模型与券商 gateway/reconciliation 是否具备进入下一份 Live 设计的条件，并产出明确 READY_FOR_LIVE_DESIGN 或 NOT_READY 结论；本计划绝不发送真实委托。

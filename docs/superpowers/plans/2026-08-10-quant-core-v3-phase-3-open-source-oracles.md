@@ -1,5 +1,7 @@
 # Quant Core v3 Phase 3 Open-Source Differential Oracles Stage Roadmap
 
+> **生产训练硬约束：** Oracle 用于证明[生产级训练架构](../specs/2026-08-12-production-training-architecture-design.md)的收益最终落在真实 A 股语义上；开源框架是裁判和能力来源，不是数据、账户或发布真相源。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 在 Phase 2 状态转换前冻结 RQAlpha/官方/Broker golden，内核完成后再做主差分与 WonderTrader/Hikyuu/vn.py 有限交叉，确保所有资金、持仓、可卖量和订单差异都可机器复现和解释。

@@ -1,5 +1,7 @@
 # Quant Core v3 Phase 6 Intraday T Overlay Stage Roadmap
 
+> **生产训练硬约束：** `INTRADAY_T` 是[统一多任务训练架构](../specs/2026-08-12-production-training-architecture-design.md)中的正式专家任务，不是独立 demo；其预测必须与 BaseTarget、风险任务和 T+1 可卖约束共同组合后才能执行。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 在已批准 BaseTarget 周围建立分钟级 Intraday T Overlay，用真实分钟 API 数据公平评估基线、序列模型和 TSFM challengers，并证明两种做 T 顺序在 T+1、费用、延迟、容量与故障压力后的净增量价值。

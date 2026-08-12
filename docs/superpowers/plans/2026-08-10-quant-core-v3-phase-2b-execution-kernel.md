@@ -1,5 +1,7 @@
 # Quant Core v3 Phase 2b Unified Execution Kernel Stage Roadmap
 
+> **生产训练硬约束：** 执行内核必须统一承接基础持仓、轮动、趋势、反转、日内 T 和风险任务产生的目标，不允许各模型绕过[统一训练—组合—执行闭环](../specs/2026-08-12-production-training-architecture-design.md)维护私有账本。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 在 Phase 2a 的冻结契约上实现 A 股 lots、交收、可卖、预占、现金、真实费用、公司行动税、OMS、保守 matcher、TPlan、估值和硬风控。

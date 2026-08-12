@@ -1,10 +1,12 @@
 # AstraQuant 量化核心 v3 分阶段开发路线图
 
+> **生产训练硬约束：** 全部阶段受[生产级统一训练架构设计](../specs/2026-08-12-production-training-architecture-design.md)约束。DoubleEnsemble、StockMixer、MASTER、HIST、TRA、DoubleAdapt 均只是 challenger；完成任一单模型不得关闭训练核心总任务。总任务仅在多任务训练、全市场共享表征、关系建模、状态路由、组合决策、A 股执行与 Shadow/Paper 反馈闭环全部完成后结束。
+
 > **Execution gate:** 本文件是阶段路线图，不是可直接执行的 micro implementation plan。开始任何 Task 前，必须先用 `superpowers:writing-plans` 为该 Task 编写并审阅独立微计划，至少给出精确 symbol/signature/DDL、完整红灯测试、命令及预期失败、最小实现和原子提交；随后才可用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans` 执行。本文 checkbox 只表示里程碑，不授权按未展开描述直接编码。
 
 **Goal:** 按已经确认的 v3 设计，把 AstraQuant 从 demo 级自训练模型与简化回放升级为以真实 API 证据、成熟开源模型、统一 A 股执行语义和可审计发布门为核心的正式量化平台。
 
-**Architecture:** 实施分为 Data Truth、Research、Decision、Execution 四个平面；共享契约只进入 `astraquant_domain`，外部框架固定在隔离 Runner，REPLAY/PAPER/MIRROR 共用 `astraquant_execution` 状态转换。十二份阶段路线图按 Phase 0→7 严格推进；每个 Task 开工前另写可直接执行的 micro implementation plan，每个阶段用可机器验证的退出证据解锁下一阶段。
+**Architecture:** 实施分为 Data Truth、Research、Decision、Execution 四个平面；共享契约只进入 `astraquant_domain`，外部框架固定在隔离 Runner，REPLAY/PAPER/MIRROR 共用 `astraquant_execution` 状态转换。训练侧按统一协议与强基线、全市场共享表征、关系与市场状态、专门化与漂移适应、组合与实盘反馈五个 Stage 演进。十二份阶段路线图按 Phase 0→7 严格推进；每个 Task 开工前另写可直接执行的 micro implementation plan，每个阶段用可机器验证的退出证据解锁下一阶段。
 
 **Tech Stack:** Python 3.12、uv workspace、Pydantic/dataclasses、PyArrow/Parquet、DuckDB、SQLite/Alembic、FastAPI、React/TypeScript、pytest、Hypothesis、RQAlpha 6.3.0 oracle、Qlib/vnpy.alpha isolated runners、GitHub Actions。
 
@@ -47,6 +49,18 @@ Phase 0 Legacy quarantine
 Phase 2 与 Phase 4 的非持久化部分可以在 Phase 1 的 sealed contract 完成后并行开发，但执行状态转换开始前必须完成 Phase 3 Tasks 1–3，Phase 4 的 `0014` 合并与正式 sign-off 必须等待 Phase 2c/3；Phase 5 必须同时持有 Phase 3 完整 execution sign-off 与 Phase 4 research sign-off。
 
 ## 3. 子计划与交付门
+
+### 3.1 训练核心长期里程碑
+
+| Stage | 主要交付 | 完成判据 |
+| --- | --- | --- |
+| A | `TrainingTaskSpec`、统一 score 语义、DoubleEnsemble | 基线与 challenger 使用同一 snapshot/folds/costs；只关闭 DoubleEnsemble challenger |
+| B | StockMixer、动态全市场 panel、共享表征 | 任意 universe 可训练，停牌/缺失 mask 正确，跨证券稳定性过门 |
+| C | MASTER/HIST、行业/概念/潜在关系、市场状态 | 关系输入时点正确，关系模型跨 regime 的净收益与风险改善可重复 |
+| D | TRA/DoubleAdapt、专家路由、漂移检测与回退 | 路由无未来信息，漂移时可审计切换且基线 fallback 有效 |
+| E | ForecastCombiner、PortfolioConstructor、Shadow/Paper 反馈 | 多任务冲突形成唯一目标仓位，执行/成交/漂移反馈闭环通过发布门 |
+
+Stage A–E 全部完成前，“训练核心完成”必须保持未勾选；单个模型、单一证券或单一时期的成功结果不能替代该门。
 
 | 顺序 | 阶段路线图 | 核心交付物 | 解锁条件 |
 | --- | --- | --- | --- |
