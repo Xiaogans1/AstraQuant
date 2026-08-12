@@ -10,7 +10,7 @@
 
 ## 当前开发
 
-- 生产训练 Stage A：长期架构、统一 task/score 契约、声明式 Qlib runner 和 DoubleEnsemble 接入已完成；`DEnsembleModel` 与 native Ridge 现在使用同一个 expected-return selection policy，行级研究评分明确标记为 `RESEARCH_RETURN_ONLY`。当前关键节点是 Task 4：用真实多标的 API snapshot 把两者送入现有 A 股 executable backtest，生成可重复 challenger 报告。
+- 生产训练 Stage A：统一 task/score 契约、声明式 Qlib runner、DoubleEnsemble 接入和真实多标的 Task 4 均已完成。9 个 Eastmoney exact snapshots 的两次独立训练得到完全相同的 input/fold/prediction/report digests；DoubleEnsemble 扣费净收益 `-2.5082%`，Ridge 为 `-1.8550%`，两者均为 `NO_NET_EDGE`，因此不进入 Shadow/Paper。Stage A 的公平评价通道保留，训练核心继续推进。
 - Kronos K 线基础模型：官方完整仓库已作为 `external/Kronos` submodule 封存到 commit `67b630e67f6a18c9e9be918d9b4337c960db1e9a`，不是 shallow clone；`runners/kronos` 已固定官方模型清单、默认 `Kronos-base` 和只读边界。它是独立 challenger，不替换或阻塞自有模型。未来将提供 K 线图“核预测”按钮、概率路径图层、结构化分析，并在验证后作为组合因子；这些均排在当前 DoubleEnsemble Task 4 和统一训练主线之后。
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
@@ -38,6 +38,8 @@
 - LightGBM 三段净收益为 `+0.1894% / +0.1563% / 0%`，但仅有 `3 / 6 / 0` 笔交易，仍为 `INSUFFICIENT_EVIDENCE`。
 - 两次 S6 报告 SHA-256 均为 `5C1C7254BF4D798015697F24C365E588CB52C4058DC3496A19D30C835860362D`。
 - 当前阶段：已有结果证明 Logistic Regression 的微弱优势不稳定；下一节点是从真实 API 扩大历史和市场状态，再改善模型信号，而不是降低 `0.5` 阈值放大交易。
+- DoubleEnsemble Task 4：9 个 ETF、91,507 行特征、3 个 walk-forward folds；两次预测 digest 均为 `D4A9A95BD2CB61D83F5EF6B77A02F91B4DFA94AA6D4AA37DB9FB47A5BA874EFF`，两次报告 digest 均为 `8F8393694CF686F9BEE7A99D370A4146AC32A433AA93AA0590E1D0A4CE08D504`。
+- DoubleEnsemble 的 1,450 笔成交、`41.52%` 胜率和 `-2.5082%` 净收益说明增加模型复杂度与交易数没有形成净优势；程序不会为了“完成模型”而发布负收益 challenger。
 
 ## 延后而非删除
 
@@ -67,4 +69,4 @@ macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、
 8. **P1 第二认证源与跨平台一致性**：实测 Tushare Pro/Choice；macOS 与 Windows 只保留 provider/runtime 差异，训练 artifact 语义一致。
 9. **LIVE 设计**：只有账户、订单、费用、T+1、对账及 Stage A–E 全部通过后才讨论 Broker Gateway 与 LIVE。
 
-当前 Strategy Fast Lane 的 S1–S5 与 S6 时间稳定性报告已完成，但它们只是训练协议基线。训练核心 Stage A–E 尚未完成；下一项主链代码是完成 DoubleEnsemble Task 4 的真实多标的可执行验收，随后实现 Kronos zero-shot 独立 runner。
+当前 Strategy Fast Lane 的 S1–S5、S6 时间稳定性和 DoubleEnsemble Task 4 均已完成，但它们只是训练协议和 challenger 基线。训练核心 Stage B–E 尚未完成；下一项主链代码是制定并执行 Kronos zero-shot 独立 runner 微计划，同时继续扩大真实 API 历史，为后续 StockMixer 全市场共享训练准备数据覆盖。

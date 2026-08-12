@@ -64,13 +64,17 @@
 
 **Files:**
 
+- Create: `tools/research/run_double_ensemble_panel.py`
+- Create: `tests/research/test_run_double_ensemble_panel.py`
+- Modify: `runners/qlib/src/astraquant_qlib_runner/model_adapters/double_ensemble.py`
+- Modify: `runners/qlib/tests/test_runner.py`
 - Create: `docs/verification/quant-core-v3/double-ensemble-challenger.md`
 - Modify: `docs/superpowers/plans/2026-08-11-quant-core-v3-progress.md`
 
-- [ ] 使用 exact real-API snapshot、相同 folds/costs/seeds 分别运行两次，比较 input/fold/prediction/report digest。
-- [ ] 报告按 fold、instrument、liquidity/regime 展示收益、回撤、换手、容量和成交集中度。
-- [ ] 结论可以是 `INSUFFICIENT_EVIDENCE`；无论结果如何只更新 challenger 状态，不关闭训练核心。
-- [ ] 提交：`test(research): 验收DoubleEnsemble挑战模型`
+- [x] 使用 exact real-API snapshot、相同 folds/costs/seeds 分别运行两次，比较 input/fold/prediction/report digest。
+- [x] 报告按 fold、instrument、liquidity/regime 展示收益、回撤、换手、容量和成交集中度。
+- [x] 结论可以是 `INSUFFICIENT_EVIDENCE`；实际结果为 `NO_NET_EDGE`，只关闭当前 challenger 验收，不关闭训练核心。
+- [x] 提交：`test(research): 验收DoubleEnsemble挑战模型`
 
 ## Task 5: 交接 Kronos 独立 challenger（未来批次）
 
@@ -80,7 +84,7 @@
 - Reference: `runners/kronos/upstream-manifest.json`
 - Future plan: `docs/superpowers/plans/2026-08-12-kronos-zero-shot-runner.md`
 
-- [ ] Task 4 报告和公平评价入口稳定后，另写 Kronos zero-shot runner 微计划，不在本计划内临时安装依赖或下载权重。
+- [x] Task 4 报告和公平评价入口稳定后，已写 `2026-08-12-kronos-zero-shot-runner.md` 微计划；不在本计划内临时安装依赖或下载权重。
 - [ ] 直接加载官方 `NeoQuasar/Kronos-base` 与 tokenizer，输入 AstraQuant 行情；不使用官方样例数据代替真实评估，不从零训练模型。
 - [ ] 复用 Task 4 的 snapshot、fold、费用、滑点、容量和报告协议，与自有模型公平比较。
 - [ ] 验证通过后再分别制定 K 线预测图层和组合因子计划；两项均不得阻塞自有模型运行或让 Kronos 直接下单。
