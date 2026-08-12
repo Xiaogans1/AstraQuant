@@ -47,7 +47,7 @@ def test_sina_is_used_when_tencent_is_unavailable(monkeypatch: pytest.MonkeyPatc
         assert referer == "https://finance.sina.com.cn/"
         return (
             'var hq_str_sz000001="平安银行,11.260,11.260,11.210,11.290,11.200,'
-            '11.210,11.220,34023384,382133840.530,0,0,0,0,0,0,0,0,0,0,0,0,0,0,'
+            "11.210,11.220,34023384,382133840.530,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"
             '0,0,0,0,0,0,2026-08-12,11:30:00,00,";'
         )
 
