@@ -232,7 +232,7 @@ uv run ruff check packages/quant/src/astraquant_quant/cross_sectional_labels.py 
 
 Expected: all tests pass; existing minute labels are unchanged.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2 (`ac835ff`)**
 
 ```powershell
 git add packages/quant/src/astraquant_quant/cross_sectional_labels.py tests/quant/test_cross_sectional_labels.py
@@ -246,7 +246,7 @@ git commit -m "feat(quant): 构建多周期截面收益标签"
 - Create: `packages/quant/src/astraquant_quant/return_calibration.py`
 - Create: `tests/quant/test_return_calibration.py`
 
-- [ ] **Step 1: Write failing leakage and robustness tests**
+- [x] **Step 1: Write failing leakage and robustness tests**
 
 ```python
 def test_huber_calibration_is_robust_and_deterministic() -> None:
@@ -266,7 +266,7 @@ def test_outer_test_cannot_fit_calibrator() -> None:
 
 Also test constant scores, fewer than three samples, NaN/inf and mutated outer-test rows.
 
-- [ ] **Step 2: Confirm the calibration module red light**
+- [x] **Step 2: Confirm the calibration module red light**
 
 Run:
 
@@ -276,7 +276,7 @@ uv run pytest tests/quant/test_return_calibration.py -q --basetemp .test-tmp/sta
 
 Expected: missing module failure.
 
-- [ ] **Step 3: Implement deterministic IRLS Huber regression**
+- [x] **Step 3: Implement deterministic IRLS Huber regression**
 
 Public API:
 
@@ -345,7 +345,7 @@ def fit_huber_linear(
 
 Use NumPy float64, add an intercept column, initialize with `np.linalg.lstsq`, then run exactly `policy.max_iterations` IRLS iterations with Huber weights `1` inside delta and `delta/abs(residual)` outside. Scale delta by `max(1.4826*MAD(residual), 1e-12)`. Constant score returns slope 0 and median target intercept. Reject fewer than three finite samples.
 
-- [ ] **Step 4: Run calibration tests and lint**
+- [x] **Step 4: Run calibration tests and lint (`14 passed`; Ruff and mypy clean)**
 
 ```powershell
 uv run pytest tests/quant/test_return_calibration.py -q --basetemp .test-tmp/stage-b-v2-calibration-green
