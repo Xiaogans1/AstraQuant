@@ -9,12 +9,14 @@ from datetime import date, datetime
 from decimal import ROUND_CEILING, Decimal
 from statistics import median
 from types import MappingProxyType
+from zoneinfo import ZoneInfo
 
 from astraquant_data.market_bars import MarketBar
 from astraquant_domain import HistoricalUniversePolicy
 from astraquant_domain.run_manifest import canonical_json_bytes, validate_digest
 
 _SNAPSHOT_SCHEMA = "astraquant.historical-universe/v1"
+_CHINA_ZONE = ZoneInfo("Asia/Shanghai")
 
 
 class InsufficientHistoricalUniverseError(ValueError):
@@ -75,8 +77,9 @@ class DailyUniverseInstrument:
         for timestamp, bar in sorted(self.bars.items()):
             if timestamp != bar.timestamp:
                 raise ValueError("universe bar key must equal bar timestamp")
-            if timestamp.date() < self.listed_on or (
-                self.delisted_on is not None and timestamp.date() > self.delisted_on
+            trading_date = timestamp.astimezone(_CHINA_ZONE).date()
+            if trading_date < self.listed_on or (
+                self.delisted_on is not None and trading_date > self.delisted_on
             ):
                 raise ValueError("universe bar falls outside instrument lifecycle")
             frozen_bars[timestamp] = bar
@@ -85,8 +88,9 @@ class DailyUniverseInstrument:
         object.__setattr__(self, "bars", MappingProxyType(frozen_bars))
 
     def active_on(self, session: datetime) -> bool:
-        return self.listed_on <= session.date() and (
-            self.delisted_on is None or session.date() <= self.delisted_on
+        trading_date = session.astimezone(_CHINA_ZONE).date()
+        return self.listed_on <= trading_date and (
+            self.delisted_on is None or trading_date <= self.delisted_on
         )
 
 

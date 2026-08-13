@@ -130,6 +130,22 @@ def test_historical_universe_respects_history_status_and_asset_kind() -> None:
     assert snapshot.snapshot_digest.startswith("sha256:")
 
 
+def test_a_share_lifecycle_uses_shanghai_trading_date_not_utc_storage_date() -> None:
+    utc_storage_time = datetime(2026, 8, 3, 16, tzinfo=UTC)
+
+    instrument = DailyUniverseInstrument(
+        instrument_id="600000.SSE",
+        source_snapshot_id=_digest("a"),
+        lifecycle_evidence_digest=_digest("b"),
+        listed_on=date(2026, 8, 4),
+        delisted_on=None,
+        common_a_share=True,
+        bars={utc_storage_time: _bar(utc_storage_time, turnover=100)},
+    )
+
+    assert instrument.active_on(utc_storage_time) is True
+
+
 def test_future_turnover_cannot_change_past_membership() -> None:
     instruments = _instruments()
     before = build_historical_universe(
