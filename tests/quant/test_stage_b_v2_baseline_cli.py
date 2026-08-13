@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pyarrow as pa  # type: ignore[import-untyped]
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
+import pytest
 
 from astraquant_domain.run_manifest import canonical_json_bytes
 from tools.research.run_stage_b_v2_baselines import main
@@ -89,6 +90,7 @@ def _arguments(source: Path, output: Path) -> list[str]:
         "--seeds",
         "7",
         "11",
+        "--skip-double-ensemble",
     ]
 
 
@@ -120,6 +122,8 @@ def test_cli_runs_identical_ridge_lightgbm_matrix_and_freezes_report(tmp_path: P
     assert ridge["maximum_drawdown"] >= 0
     assert ridge["capacity_breach_trials"] == 0
     completed = next(item for item in report["trials"] if item["status"] == "COMPLETED")
+    assert completed["fold_digest"].startswith("sha256:")
+    assert completed["assignment_digest"].startswith("sha256:")
     assert completed["portfolio"]["net_return"] > 0
     assert completed["portfolio"]["period_count"] == 1
     assert set(completed["portfolio_profiles"]) == {"ADVERSE", "BASE", "SEVERE"}
@@ -148,3 +152,67 @@ def test_cli_fails_closed_when_materialized_matrix_is_tampered(tmp_path: Path) -
 
     assert main(_arguments(source, tmp_path / "output")) == 1
     assert not (tmp_path / "output").exists()
+
+
+def test_cli_runs_pinned_double_ensemble_through_same_folds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _materialization(tmp_path / "source")
+
+    def fake_execute(request_path: Path, response_path: Path, project: Path) -> None:
+        del project
+        request = json.loads(request_path.read_text(encoding="utf-8"))
+        rows = {
+            int(row["row_id"]): float(row["signal"])
+            for row in pq.read_table(request_path.parent / "rows.parquet").to_pylist()
+        }
+        trials = []
+        for trial in request["trials"]:
+            trials.append(
+                {
+                    "trial_id": trial["trial_id"],
+                    "seed": trial["seed"],
+                    "processor_digest": "sha256:" + "3" * 64,
+                    "model_digest": "sha256:" + "4" * 64,
+                    "inner_valid_predictions": [
+                        {"row_id": row_id, "score": rows[row_id]}
+                        for row_id in trial["inner_valid_row_ids"]
+                    ],
+                    "outer_test_predictions": [
+                        {"row_id": row_id, "score": rows[row_id]}
+                        for row_id in trial["outer_test_row_ids"]
+                    ],
+                }
+            )
+        body = {
+            "schema_version": "astraquant.stage-b-v2-double-ensemble-response/v1",
+            "request_content_digest": request["content_digest"],
+            "source_materialization_digest": request["source_materialization_digest"],
+            "upstream_commit": request["upstream_commit"],
+            "trials": trials,
+        }
+        response = {"content_digest": _digest(canonical_json_bytes(body)), **body}
+        response_path.write_bytes(canonical_json_bytes(response) + b"\n")
+
+    monkeypatch.setattr(
+        "tools.research.run_stage_b_v2_baselines._execute_double_ensemble",
+        fake_execute,
+    )
+    arguments = _arguments(source, tmp_path / "output")
+    arguments.remove("--skip-double-ensemble")
+
+    assert main(arguments) == 0
+
+    report = json.loads((tmp_path / "output" / "report.json").read_text(encoding="utf-8"))
+    assert report["models"] == ["DOUBLE_ENSEMBLE", "LIGHTGBM", "RIDGE"]
+    assert report["trial_count"] == 12
+    double = report["horizons"]["5"]["models"]["DOUBLE_ENSEMBLE"]
+    assert double["mean_rank_ic"] > 0.9
+    assert (
+        double["delta_net_vs_ridge"]
+        == double["mean_net_return"] - report["horizons"]["5"]["models"]["RIDGE"]["mean_net_return"]
+    )
+    assert (tmp_path / "output" / "qlib" / "request.json").is_file()
+    assert (tmp_path / "output" / "qlib" / "rows.parquet").is_file()
+    assert (tmp_path / "output" / "qlib" / "response.json").is_file()

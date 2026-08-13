@@ -16,7 +16,7 @@ from lightgbm import LGBMRegressor
 from sklearn.linear_model import Ridge  # type: ignore[import-untyped]
 
 from astraquant_domain import ReturnCalibrationPolicy
-from astraquant_domain.run_manifest import canonical_json_bytes
+from astraquant_domain.run_manifest import canonical_json_bytes, validate_digest
 from astraquant_quant.cross_sectional_splits import CrossSectionalFoldRows
 from astraquant_quant.return_calibration import CalibrationSample, fit_huber_linear
 
@@ -24,6 +24,7 @@ from astraquant_quant.return_calibration import CalibrationSample, fit_huber_lin
 class CrossSectionalModelKind(StrEnum):
     RIDGE = "RIDGE"
     LIGHTGBM = "LIGHTGBM"
+    DOUBLE_ENSEMBLE = "DOUBLE_ENSEMBLE"
 
 
 class _Predictor(Protocol):
@@ -58,6 +59,8 @@ class CrossSectionalPrediction:
 class CrossSectionalBaselineResult:
     model_kind: CrossSectionalModelKind
     fold_id: str
+    fold_digest: str
+    assignment_digest: str
     horizon_sessions: int
     seed: int
     feature_columns: tuple[str, ...]
@@ -65,6 +68,7 @@ class CrossSectionalBaselineResult:
     inner_valid_count: int
     outer_test_count: int
     processor_digest: str
+    model_digest: str
     calibrator_digest: str
     calibration_policy_digest: str
     predictions: tuple[CrossSectionalPrediction, ...]
@@ -101,7 +105,7 @@ def run_cross_sectional_baseline(
     """Train on fit only, calibrate on inner-valid, evaluate untouched outer-test."""
 
     values = tuple(rows)
-    columns, horizon = _validate_rows(values)
+    columns, _ = _validate_rows(values)
     _validate_assignment(assignment, len(values))
     fit_rows = tuple(
         values[index] for index in assignment.fit_indices if values[index].training_eligible
@@ -121,9 +125,73 @@ def run_cross_sectional_baseline(
     model = _fit_model(model_kind, fit_x, fit_y, seed)
     valid_scores = np.asarray(model.predict(valid_x), dtype=np.float64)
     test_scores = np.asarray(model.predict(test_x), dtype=np.float64)
+    return _score_predictions(
+        values,
+        assignment=assignment,
+        model_kind=model_kind,
+        seed=seed,
+        valid_scores=valid_scores,
+        test_scores=test_scores,
+        processor_digest=processor.processor_digest,
+        model_digest=_digest(
+            {
+                "model_kind": model_kind.value,
+                "schema_version": "astraquant.cross-sectional-local-model/v1",
+                "seed": seed,
+            }
+        ),
+    )
+
+
+def score_cross_sectional_predictions(
+    rows: Sequence[CrossSectionalBaselineRow],
+    *,
+    assignment: CrossSectionalFoldRows,
+    model_kind: CrossSectionalModelKind,
+    seed: int,
+    valid_scores: Sequence[float],
+    test_scores: Sequence[float],
+    processor_digest: str,
+    model_digest: str,
+) -> CrossSectionalBaselineResult:
+    """Calibrate externally trained scores without exposing outer-test labels."""
+
+    if model_kind is not CrossSectionalModelKind.DOUBLE_ENSEMBLE:
+        raise ValueError("external score contract only accepts DoubleEnsemble")
+    return _score_predictions(
+        tuple(rows),
+        assignment=assignment,
+        model_kind=model_kind,
+        seed=seed,
+        valid_scores=np.asarray(valid_scores, dtype=np.float64),
+        test_scores=np.asarray(test_scores, dtype=np.float64),
+        processor_digest=validate_digest("processor_digest", processor_digest),
+        model_digest=validate_digest("model_digest", model_digest),
+    )
+
+
+def _score_predictions(
+    values: tuple[CrossSectionalBaselineRow, ...],
+    *,
+    assignment: CrossSectionalFoldRows,
+    model_kind: CrossSectionalModelKind,
+    seed: int,
+    valid_scores: np.ndarray,
+    test_scores: np.ndarray,
+    processor_digest: str,
+    model_digest: str,
+) -> CrossSectionalBaselineResult:
+    columns, horizon = _validate_rows(values)
+    _validate_assignment(assignment, len(values))
+    fit_rows = tuple(
+        values[index] for index in assignment.fit_indices if values[index].training_eligible
+    )
+    valid_rows = tuple(values[index] for index in assignment.inner_valid_indices)
+    test_rows = tuple(values[index] for index in assignment.outer_test_indices)
+    if len(valid_scores) != len(valid_rows) or len(test_scores) != len(test_rows):
+        raise ValueError("baseline score coverage does not match fold assignment")
     if not np.isfinite(valid_scores).all() or not np.isfinite(test_scores).all():
         raise ValueError("baseline model produced non-finite scores")
-
     calibration_policy = ReturnCalibrationPolicy.stage_b_v2()
     calibrator = fit_huber_linear(
         tuple(
@@ -170,13 +238,16 @@ def run_cross_sectional_baseline(
     return CrossSectionalBaselineResult(
         model_kind=model_kind,
         fold_id=assignment.fold_id,
+        fold_digest=assignment.fold_digest,
+        assignment_digest=assignment.assignment_digest,
         horizon_sessions=horizon,
         seed=seed,
         feature_columns=columns,
         fit_count=len(fit_rows),
         inner_valid_count=len(valid_rows),
         outer_test_count=len(test_rows),
-        processor_digest=processor.processor_digest,
+        processor_digest=processor_digest,
+        model_digest=model_digest,
         calibrator_digest=calibrator_digest,
         calibration_policy_digest=calibration_policy.calibration_digest,
         predictions=predictions,

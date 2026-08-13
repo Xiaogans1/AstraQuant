@@ -10,6 +10,7 @@ from astraquant_quant.cross_sectional_baselines import (
     CrossSectionalBaselineRow,
     CrossSectionalModelKind,
     run_cross_sectional_baseline,
+    score_cross_sectional_predictions,
 )
 from astraquant_quant.cross_sectional_splits import (
     assign_cross_sectional_fold_rows,
@@ -184,3 +185,30 @@ def test_baseline_rejects_feature_schema_horizon_and_nonfinite_target() -> None:
             model_kind=CrossSectionalModelKind.RIDGE,
             seed=7,
         )
+
+
+def test_external_double_ensemble_scores_use_inner_valid_for_calibration_only() -> None:
+    rows = _rows()
+    assignment = _assignment(rows)
+    valid_scores = tuple(
+        rows[index].features["ALPHA_SIGNAL"] for index in assignment.inner_valid_indices
+    )
+    test_scores = tuple(
+        rows[index].features["ALPHA_SIGNAL"] for index in assignment.outer_test_indices
+    )
+
+    result = score_cross_sectional_predictions(
+        rows,
+        assignment=assignment,
+        model_kind=CrossSectionalModelKind.DOUBLE_ENSEMBLE,
+        seed=7,
+        valid_scores=valid_scores,
+        test_scores=test_scores,
+        processor_digest="sha256:" + "1" * 64,
+        model_digest="sha256:" + "2" * 64,
+    )
+
+    assert result.model_kind is CrossSectionalModelKind.DOUBLE_ENSEMBLE
+    assert result.model_digest == "sha256:" + "2" * 64
+    assert result.mean_rank_ic > 0.9
+    assert result.predictions[0].row_id == rows[assignment.outer_test_indices[0]].row_id

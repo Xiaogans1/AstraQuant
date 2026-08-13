@@ -65,9 +65,9 @@
 - [x] **Task 4A:** 已实现 Alpha158 之外的相对 OHLCV、流动性、风险、市场宽度/波动 context features，以及 train-only median/MAD `[-3, 3]` processor（23 项相关回归通过；Ruff/mypy clean）。
 - [x] **Task 4B:** 已实现 raw daily bars + context + D1/D5/D10 labels 的不可变 Parquet request，绑定 panel/source/universe/task digests，并声明 pinned Qlib Alpha158 commit/config；独立双导出逐字节一致（18 项相关回归通过；Ruff/mypy clean）。
 - [x] 首批特征固定为 Qlib 官方 Alpha158、相对 OHLCV 序列、市场宽度/波动/成交状态和个股流动性/风险；不得用标签未来区间。
-- [ ] train segment 单独拟合 median/MAD，clip 到 `[-3, 3]`；valid/test 只 transform（processor 已完成，待 Task 5 fold runner 串联）。
+- [x] train segment 单独拟合 median/MAD，clip 到 `[-3, 3]`；valid/test 只 transform（已在 Ridge/LightGBM 与隔离 DoubleEnsemble runner 串联）。
 - [x] 同时物化 Batch 1 的 raw/excess/rank/downside D1/D5/D10 labels 和 train-only extreme mask。
-- [x] artifact 绑定所有 source/universe/task/feature/code digests；相同输入重复生成逐字节一致（fold digest 在 Task 5 加入）。
+- [x] artifact 绑定所有 source/universe/task/feature/code/fold/assignment digests；相同输入重复生成逐字节一致。
 - [x] Alpha158 由 pinned Qlib runner 按证券独立计算，主环境不复制近似公式；runner 全套 `18 passed`。提交 `feat(research): 物化Stage B v2截面特征标签`。
 
 ## Task 5: Freeze six outer folds and run the baseline matrix
@@ -83,10 +83,10 @@
 
 - [x] 6 个按全市场统一时间轴的 expanding folds；fit 至少 3 年、inner-valid 至少 120 sessions、outer-test 至少 60 sessions，fit/valid 与 valid/test 两侧 purge 均为 11 sessions。
 - [x] 同一交易日所有股票只能落在同一 segment；outer test 永不参与特征 fit、校准、阈值或超参选择（`8 passed`；Ruff/mypy clean）。
-- [ ] Ridge、LightGBM、DoubleEnsemble 使用相同 rows/folds/seeds/trial budget，并统一接 Batch 1 Huber 校准与目标组合（Ridge/LightGBM fold core、train-only processor、inner-valid Huber 已完成并通过 5 项泄漏/确定性测试；待矩阵 runner 与 DoubleEnsemble）。
-- [ ] 报告 IC、Rank IC、top-bottom spread、turnover、费用、净收益、最大回撤、容量和每 fold/seed 明细；失败 trial 也计数（基础费率组合 evaluator 与矩阵报告已完成，采用 horizon 间隔避免重叠收益，待 adverse/severe 压力成本与 DoubleEnsemble）。
-- [ ] 固定信号门：至少 4/6 folds 的 Rank IC 为正、平均 Rank IC ≥ 0.02、3 seeds 方向一致；固定交易门：扣费净收益为正、至少 4/6 folds 为正、相对 Ridge 有明确改善、压力成本下不翻为严重负值。
-- [ ] 未过门输出 `NO_LEARNABLE_EDGE` 或 `NO_NET_EDGE`；不得自动启动复杂模型。提交 `feat(research): 运行Stage B v2强基线矩阵`。
+- [x] Ridge、LightGBM、DoubleEnsemble 使用相同 rows/folds/seeds/trial budget，并统一接 Batch 1 Huber 校准与目标组合；DoubleEnsemble 固定 Qlib commit 并在 Python 3.11 隔离环境执行。
+- [x] 报告 IC、Rank IC、top-bottom spread、turnover、真实费税、净收益、最大回撤、容量和每 fold/seed 明细；失败 trial 也计数；采用 horizon 间隔避免重叠收益并提供 BASE/ADVERSE/SEVERE 三档成本。
+- [x] 固定信号门：至少 4/6 folds 的 Rank IC 为正、平均 Rank IC ≥ 0.02、3 seeds 方向一致；固定交易门：扣费净收益为正、至少 4/6 folds 为正、相对 Ridge 有明确改善、压力成本下不翻为严重负值。
+- [x] 未过门输出 `NO_LEARNABLE_EDGE` 或 `NO_NET_EDGE`；不得自动启动复杂模型。提交 `feat(research): 运行Stage B v2强基线矩阵`。
 
 ## Task 6: Execute real-data acceptance and close Batch 2
 

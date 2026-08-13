@@ -11,6 +11,12 @@ from . import run_request
 def run_cli_request(request: Path, output: Path) -> dict[str, Any]:
     value = json.loads(request.read_text(encoding="utf-8"))
     if isinstance(value, dict) and value.get("schema_version") == (
+        "astraquant.stage-b-v2-double-ensemble-request/v1"
+    ):
+        from .stage_b_v2_double_ensemble import run_double_ensemble_request
+
+        return run_double_ensemble_request(request, output)
+    if isinstance(value, dict) and value.get("schema_version") == (
         "astraquant.stage-b-v2-request/v1"
     ):
         from .stage_b_v2 import run_stage_b_v2_request

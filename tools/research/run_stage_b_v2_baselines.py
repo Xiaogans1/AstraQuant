@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import subprocess
 import sys
 import tempfile
 from collections.abc import Sequence
@@ -14,6 +15,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+import pyarrow as pa  # type: ignore[import-untyped]
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
 from astraquant_domain import RankPortfolioPolicy
@@ -23,6 +25,7 @@ from astraquant_quant.cross_sectional_baselines import (
     CrossSectionalBaselineRow,
     CrossSectionalModelKind,
     run_cross_sectional_baseline,
+    score_cross_sectional_predictions,
 )
 from astraquant_quant.cross_sectional_portfolio import (
     CrossSectionalPortfolioMetrics,
@@ -30,6 +33,7 @@ from astraquant_quant.cross_sectional_portfolio import (
     evaluate_cross_sectional_portfolio,
 )
 from astraquant_quant.cross_sectional_splits import (
+    CrossSectionalFoldRows,
     assign_cross_sectional_fold_rows,
     build_cross_sectional_folds,
 )
@@ -37,6 +41,13 @@ from astraquant_quant.executable_backtest import ExecutionPolicy
 
 _SOURCE_SCHEMA = "astraquant.stage-b-v2-materialization/v1"
 _REPORT_SCHEMA = "astraquant.stage-b-v2-baseline-report/v1"
+_DOUBLE_REQUEST_SCHEMA = "astraquant.stage-b-v2-double-ensemble-request/v1"
+_DOUBLE_RESPONSE_SCHEMA = "astraquant.stage-b-v2-double-ensemble-response/v1"
+_QLIB_UPSTREAM_COMMIT = "79633dd9506ea689e5400dea0197717b5b3d74b7"
+_LOCAL_MODELS = (
+    CrossSectionalModelKind.LIGHTGBM,
+    CrossSectionalModelKind.RIDGE,
+)
 _LABEL_COLUMNS = {
     "benchmark_return",
     "cross_sectional_rank",
@@ -71,6 +82,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--fold-count", type=int, default=6)
     parser.add_argument("--purge-sessions", type=int, default=11)
     parser.add_argument("--seeds", type=int, nargs="+", default=[7, 29, 53])
+    parser.add_argument("--qlib-project", type=Path, default=Path("runners/qlib"))
+    parser.add_argument("--skip-double-ensemble", action="store_true")
     return parser
 
 
@@ -81,19 +94,63 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise ValueError("baseline output_root must not already exist")
         manifest, rows, portfolio_inputs = _load_materialization(arguments.materialization_root)
         seeds = _canonical_seeds(arguments.seeds)
-        report = _run_matrix(
-            manifest=manifest,
-            rows=rows,
-            portfolio_inputs=portfolio_inputs,
-            seeds=seeds,
-            minimum_fit_sessions=arguments.minimum_fit_sessions,
-            inner_valid_sessions=arguments.inner_valid_sessions,
-            outer_test_sessions=arguments.outer_test_sessions,
-            fold_count=arguments.fold_count,
-            purge_sessions=arguments.purge_sessions,
-        )
-        _publish(arguments.output_root, report)
-    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
+        arguments.output_root.parent.mkdir(parents=True, exist_ok=True)
+        auxiliary: dict[str, bytes] = {}
+        external_trials: dict[str, dict[str, Any]] | None = None
+        with tempfile.TemporaryDirectory(
+            dir=arguments.output_root.parent,
+            prefix=f".{arguments.output_root.name}-qlib-",
+            ignore_cleanup_errors=True,
+        ) as double_name:
+            if not arguments.skip_double_ensemble:
+                double_root = Path(double_name)
+                request_path = _prepare_double_ensemble_request(
+                    root=double_root,
+                    manifest=manifest,
+                    rows=rows,
+                    seeds=seeds,
+                    minimum_fit_sessions=arguments.minimum_fit_sessions,
+                    inner_valid_sessions=arguments.inner_valid_sessions,
+                    outer_test_sessions=arguments.outer_test_sessions,
+                    fold_count=arguments.fold_count,
+                    purge_sessions=arguments.purge_sessions,
+                )
+                response_path = double_root / "response.json"
+                _execute_double_ensemble(
+                    request_path,
+                    response_path,
+                    arguments.qlib_project,
+                )
+                external_trials = _load_double_ensemble_response(
+                    response_path,
+                    request_path=request_path,
+                    source_materialization_digest=str(manifest["content_digest"]),
+                )
+                auxiliary = {
+                    "qlib/request.json": request_path.read_bytes(),
+                    "qlib/rows.parquet": (double_root / "rows.parquet").read_bytes(),
+                    "qlib/response.json": response_path.read_bytes(),
+                }
+            report = _run_matrix(
+                manifest=manifest,
+                rows=rows,
+                portfolio_inputs=portfolio_inputs,
+                seeds=seeds,
+                minimum_fit_sessions=arguments.minimum_fit_sessions,
+                inner_valid_sessions=arguments.inner_valid_sessions,
+                outer_test_sessions=arguments.outer_test_sessions,
+                fold_count=arguments.fold_count,
+                purge_sessions=arguments.purge_sessions,
+                external_trials=external_trials,
+            )
+            _publish(arguments.output_root, report, auxiliary=auxiliary)
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        json.JSONDecodeError,
+        subprocess.CalledProcessError,
+    ) as error:
         print(f"Stage B v2 baseline matrix failed: {error}", file=sys.stderr)
         return 1
     return 0
@@ -172,6 +229,155 @@ def _load_materialization(
     return manifest, rows, portfolio_inputs
 
 
+def _prepare_double_ensemble_request(
+    *,
+    root: Path,
+    manifest: dict[str, Any],
+    rows: tuple[CrossSectionalBaselineRow, ...],
+    seeds: tuple[int, ...],
+    minimum_fit_sessions: int,
+    inner_valid_sessions: int,
+    outer_test_sessions: int,
+    fold_count: int,
+    purge_sessions: int,
+) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    feature_columns = list(rows[0].features)
+    table_rows = [
+        {
+            "row_id": row.row_id,
+            "decision_time": row.decision_time,
+            "instrument_id": row.instrument_id,
+            **dict(row.features),
+            "cross_sectional_rank": row.cross_sectional_rank,
+            "training_eligible": row.training_eligible,
+        }
+        for row in rows
+    ]
+    rows_path = root / "rows.parquet"
+    pq.write_table(
+        pa.Table.from_pylist(table_rows),
+        rows_path,
+        compression="zstd",
+        version="2.6",
+    )
+    trial_values: list[dict[str, Any]] = []
+    for horizon in sorted({row.horizon_sessions for row in rows}):
+        horizon_rows = tuple(row for row in rows if row.horizon_sessions == horizon)
+        timeline = tuple(sorted({row.decision_time for row in horizon_rows}))
+        folds = build_cross_sectional_folds(
+            timeline,
+            horizons=tuple(sorted({row.horizon_sessions for row in rows})),
+            minimum_fit_sessions=minimum_fit_sessions,
+            inner_valid_sessions=inner_valid_sessions,
+            outer_test_sessions=outer_test_sessions,
+            fold_count=fold_count,
+            purge_sessions=purge_sessions,
+        )
+        assignments = assign_cross_sectional_fold_rows(horizon_rows, folds)
+        for seed in seeds:
+            for assignment in assignments:
+                trial_values.append(
+                    {
+                        "trial_id": (f"h{horizon}-double_ensemble-s{seed}-{assignment.fold_id}"),
+                        "seed": seed,
+                        "fit_row_ids": [
+                            horizon_rows[index].row_id for index in assignment.fit_indices
+                        ],
+                        "inner_valid_row_ids": [
+                            horizon_rows[index].row_id for index in assignment.inner_valid_indices
+                        ],
+                        "outer_test_row_ids": [
+                            horizon_rows[index].row_id for index in assignment.outer_test_indices
+                        ],
+                    }
+                )
+    body: dict[str, Any] = {
+        "schema_version": _DOUBLE_REQUEST_SCHEMA,
+        "upstream_commit": _QLIB_UPSTREAM_COMMIT,
+        "source_materialization_digest": manifest["content_digest"],
+        "feature_columns": feature_columns,
+        "row_count": len(rows),
+        "rows_file": {"path": "rows.parquet", "digest": _digest(rows_path.read_bytes())},
+        "model_config": {
+            "num_models": 3,
+            "epochs": 28,
+            "enable_sr": True,
+            "enable_fs": True,
+            "decay": 0.5,
+        },
+        "trials": trial_values,
+    }
+    request = {"content_digest": _digest(canonical_json_bytes(body)), **body}
+    request_path = root / "request.json"
+    request_path.write_bytes(canonical_json_bytes(request) + b"\n")
+    return request_path
+
+
+def _execute_double_ensemble(
+    request_path: Path,
+    response_path: Path,
+    project: Path,
+) -> None:
+    subprocess.run(
+        [
+            "uv",
+            "run",
+            "--project",
+            str(project.resolve()),
+            "--frozen",
+            "python",
+            "-m",
+            "astraquant_qlib_runner",
+            "--request",
+            str(request_path.resolve()),
+            "--output",
+            str(response_path.resolve()),
+        ],
+        check=True,
+    )
+
+
+def _load_double_ensemble_response(
+    response_path: Path,
+    *,
+    request_path: Path,
+    source_materialization_digest: str,
+) -> dict[str, dict[str, Any]]:
+    request_value = json.loads(request_path.read_text(encoding="utf-8"))
+    response_value = json.loads(response_path.read_text(encoding="utf-8"))
+    if not isinstance(response_value, dict):
+        raise ValueError("DoubleEnsemble response schema mismatch")
+    body = {key: value for key, value in response_value.items() if key != "content_digest"}
+    if (
+        response_value.get("schema_version") != _DOUBLE_RESPONSE_SCHEMA
+        or response_value.get("content_digest") != _digest(canonical_json_bytes(body))
+        or response_value.get("request_content_digest") != request_value.get("content_digest")
+        or response_value.get("source_materialization_digest") != source_materialization_digest
+        or response_value.get("upstream_commit") != _QLIB_UPSTREAM_COMMIT
+    ):
+        raise ValueError("DoubleEnsemble response identity mismatch")
+    trials = response_value.get("trials")
+    if not isinstance(trials, list) or not trials:
+        raise ValueError("DoubleEnsemble response trials are missing")
+    result: dict[str, dict[str, Any]] = {}
+    for trial in trials:
+        if not isinstance(trial, dict) or not isinstance(trial.get("trial_id"), str):
+            raise ValueError("DoubleEnsemble response trial schema mismatch")
+        trial_id = trial["trial_id"]
+        if trial_id in result:
+            raise ValueError("DoubleEnsemble response trial identifiers must be unique")
+        result[trial_id] = trial
+    expected = {
+        str(trial["trial_id"])
+        for trial in request_value.get("trials", [])
+        if isinstance(trial, dict) and isinstance(trial.get("trial_id"), str)
+    }
+    if set(result) != expected:
+        raise ValueError("DoubleEnsemble response trial coverage mismatch")
+    return result
+
+
 def _run_matrix(
     *,
     manifest: dict[str, Any],
@@ -183,6 +389,7 @@ def _run_matrix(
     outer_test_sessions: int,
     fold_count: int,
     purge_sessions: int,
+    external_trials: dict[str, dict[str, Any]] | None,
 ) -> dict[str, Any]:
     horizons = tuple(sorted({row.horizon_sessions for row in rows}))
     trials: list[dict[str, Any]] = []
@@ -201,7 +408,7 @@ def _run_matrix(
         )
         assignments = assign_cross_sectional_fold_rows(horizon_rows, folds)
         model_reports: dict[str, Any] = {}
-        for model_kind in sorted(CrossSectionalModelKind, key=lambda value: value.value):
+        for model_kind in _LOCAL_MODELS:
             completed: list[
                 tuple[
                     CrossSectionalBaselineResult,
@@ -242,12 +449,49 @@ def _run_matrix(
                 seeds=seeds,
                 fold_count=fold_count,
             )
+        if external_trials is not None:
+            double_completed: list[
+                tuple[
+                    CrossSectionalBaselineResult,
+                    dict[str, CrossSectionalPortfolioMetrics],
+                ]
+            ] = []
+            for seed in seeds:
+                for assignment in assignments:
+                    trial_id = f"h{horizon}-double_ensemble-s{seed}-{assignment.fold_id}"
+                    trial = external_trials[trial_id]
+                    result = _score_double_ensemble_trial(
+                        horizon_rows,
+                        assignment=assignment,
+                        seed=seed,
+                        trial=trial,
+                    )
+                    portfolios = _evaluate_trial_portfolios(
+                        result,
+                        portfolio_inputs=portfolio_inputs,
+                    )
+                    double_completed.append((result, portfolios))
+                    trials.append(_trial_value(trial_id, result, portfolios))
+            model_reports[CrossSectionalModelKind.DOUBLE_ENSEMBLE.value] = _model_summary(
+                double_completed,
+                seeds=seeds,
+                fold_count=fold_count,
+            )
         _apply_relative_gate(model_reports)
         horizon_reports[str(horizon)] = {"models": model_reports}
     body: dict[str, Any] = {
         "schema_version": _REPORT_SCHEMA,
         "source_materialization_digest": manifest["content_digest"],
-        "models": sorted(value.value for value in CrossSectionalModelKind),
+        "models": sorted(
+            [
+                *(value.value for value in _LOCAL_MODELS),
+                *(
+                    [CrossSectionalModelKind.DOUBLE_ENSEMBLE.value]
+                    if external_trials is not None
+                    else []
+                ),
+            ]
+        ),
         "seeds": list(seeds),
         "horizon_sessions": list(horizons),
         "fold_count": fold_count,
@@ -265,6 +509,74 @@ def _run_matrix(
     return {"content_digest": _digest(canonical_json_bytes(body)), **body}
 
 
+def _score_double_ensemble_trial(
+    rows: tuple[CrossSectionalBaselineRow, ...],
+    *,
+    assignment: CrossSectionalFoldRows,
+    seed: int,
+    trial: dict[str, Any],
+) -> CrossSectionalBaselineResult:
+    if trial.get("seed") != seed:
+        raise ValueError("DoubleEnsemble response seed mismatch")
+    valid_rows = tuple(rows[index] for index in assignment.inner_valid_indices)
+    test_rows = tuple(rows[index] for index in assignment.outer_test_indices)
+    valid_scores = _external_scores(
+        trial,
+        "inner_valid_predictions",
+        expected_row_ids=tuple(row.row_id for row in valid_rows),
+    )
+    test_scores = _external_scores(
+        trial,
+        "outer_test_predictions",
+        expected_row_ids=tuple(row.row_id for row in test_rows),
+    )
+    processor_digest = trial.get("processor_digest")
+    model_digest = trial.get("model_digest")
+    if not isinstance(processor_digest, str) or not isinstance(model_digest, str):
+        raise ValueError("DoubleEnsemble response digests are missing")
+    return score_cross_sectional_predictions(
+        rows,
+        assignment=assignment,
+        model_kind=CrossSectionalModelKind.DOUBLE_ENSEMBLE,
+        seed=seed,
+        valid_scores=valid_scores,
+        test_scores=test_scores,
+        processor_digest=processor_digest,
+        model_digest=model_digest,
+    )
+
+
+def _external_scores(
+    trial: dict[str, Any],
+    key: str,
+    *,
+    expected_row_ids: tuple[int, ...],
+) -> tuple[float, ...]:
+    values = trial.get(key)
+    if not isinstance(values, list) or len(values) != len(expected_row_ids):
+        raise ValueError(f"DoubleEnsemble {key} coverage mismatch")
+    row_ids: list[int] = []
+    scores: list[float] = []
+    for value in values:
+        if not isinstance(value, dict):
+            raise ValueError(f"DoubleEnsemble {key} schema mismatch")
+        row_id = value.get("row_id")
+        score = value.get("score")
+        if (
+            isinstance(row_id, bool)
+            or not isinstance(row_id, int)
+            or isinstance(score, bool)
+            or not isinstance(score, (int, float))
+            or not math.isfinite(float(score))
+        ):
+            raise ValueError(f"DoubleEnsemble {key} schema mismatch")
+        row_ids.append(row_id)
+        scores.append(float(score))
+    if tuple(row_ids) != expected_row_ids:
+        raise ValueError(f"DoubleEnsemble {key} row order mismatch")
+    return tuple(scores)
+
+
 def _trial_value(
     trial_id: str,
     result: CrossSectionalBaselineResult,
@@ -276,6 +588,8 @@ def _trial_value(
         "model": result.model_kind.value,
         "seed": result.seed,
         "fold_id": result.fold_id,
+        "fold_digest": result.fold_digest,
+        "assignment_digest": result.assignment_digest,
         "status": "COMPLETED",
         "fit_count": result.fit_count,
         "inner_valid_count": result.inner_valid_count,
@@ -488,7 +802,12 @@ def _canonical_seeds(values: Sequence[int]) -> tuple[int, ...]:
     return seeds
 
 
-def _publish(output_root: Path, report: dict[str, Any]) -> None:
+def _publish(
+    output_root: Path,
+    report: dict[str, Any],
+    *,
+    auxiliary: dict[str, bytes],
+) -> None:
     output_root.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
         dir=output_root.parent,
@@ -497,6 +816,10 @@ def _publish(output_root: Path, report: dict[str, Any]) -> None:
     ) as staging_name:
         staging = Path(staging_name)
         (staging / "report.json").write_bytes(canonical_json_bytes(report) + b"\n")
+        for relative_path, content in auxiliary.items():
+            path = staging / relative_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
         staging.replace(output_root)
 
 
