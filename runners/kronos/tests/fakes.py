@@ -41,3 +41,46 @@ class NonFiniteBackend(RecordingBackend):
         paths = [list(item) for item in super().predict_paths(**kwargs)]
         paths[0][-1] = float("nan")
         return paths
+
+
+class RecordingBatchBackend(RecordingBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.batch_calls = 0
+
+    def predict_paths(self, **kwargs):
+        raise AssertionError("batch-capable backend must not use row prediction")
+
+    def predict_batch_paths(
+        self,
+        *,
+        windows: Sequence[Sequence[dict[str, object]]],
+        forecast_times: Sequence[Sequence[datetime]],
+        seeds: Sequence[int],
+        temperature: float,
+        top_k: int,
+        top_p: float,
+        sample_count: int,
+    ) -> Sequence[Sequence[Sequence[float]]]:
+        self.batch_calls += 1
+        self.seeds.extend(seeds)
+        row_results = []
+        terminal_returns = (-0.02, -0.01, 0.0, 0.01, 0.02)
+        assert sample_count == len(terminal_returns)
+        for window, times in zip(windows, forecast_times, strict=True):
+            last_close = float(window[-1]["close"])
+            row_results.append(
+                tuple(
+                    tuple(
+                        last_close * (1 + terminal_return * step / len(times))
+                        for step in range(1, len(times) + 1)
+                    )
+                    for terminal_return in terminal_returns
+                )
+            )
+        return row_results
+
+
+class WrongCoverageBatchBackend(RecordingBatchBackend):
+    def predict_batch_paths(self, **kwargs):
+        return super().predict_batch_paths(**kwargs)[:-1]

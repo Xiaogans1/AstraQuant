@@ -72,6 +72,46 @@ class FakePredictor:
             index=y_timestamp,
         )
 
+    def predict_batch(
+        self,
+        frames: list[pd.DataFrame],
+        x_timestamps: list[pd.Series],
+        y_timestamps: list[pd.Series],
+        pred_len: int,
+        *,
+        T: float,
+        top_k: int,
+        top_p: float,
+        sample_count: int,
+        verbose: bool,
+    ) -> list[pd.DataFrame]:
+        self.calls.append(
+            {
+                "frames": frames,
+                "x_timestamps": x_timestamps,
+                "y_timestamps": y_timestamps,
+                "pred_len": pred_len,
+                "temperature": T,
+                "top_k": top_k,
+                "top_p": top_p,
+                "sample_count": sample_count,
+                "verbose": verbose,
+            }
+        )
+        call = len(self.calls)
+        return [
+            pd.DataFrame(
+                {
+                    "close": [
+                        10.0 + row_index / 10 + call / 100 + index / 1000
+                        for index in range(pred_len)
+                    ]
+                },
+                index=y_timestamp,
+            )
+            for row_index, y_timestamp in enumerate(y_timestamps)
+        ]
+
 
 def _window() -> list[dict[str, object]]:
     start = datetime(2026, 8, 7, 6, 45, tzinfo=UTC)
@@ -177,6 +217,38 @@ def test_rejects_invalid_official_output() -> None:
             top_p=0.9,
             sample_count=1,
         )
+
+
+def test_official_batch_retains_each_row_and_sample_path() -> None:
+    predictor = FakePredictor()
+    torch_module = FakeTorch(cuda_available=True)
+    backend = OfficialKronosBackend(
+        predictor=predictor,
+        torch_module=torch_module,
+        device="cuda:0",
+    )
+    forecasts = [
+        [datetime(2026, 8, 7, 7, index, tzinfo=UTC) for index in (1, 2)],
+        [datetime(2026, 8, 10, 1, index, tzinfo=UTC) for index in (31, 32)],
+    ]
+
+    paths = backend.predict_batch_paths(
+        windows=[_window(), _window()],
+        forecast_times=forecasts,
+        seeds=[7, 8],
+        temperature=1.0,
+        top_k=0,
+        top_p=0.9,
+        sample_count=3,
+    )
+
+    assert len(paths) == 2
+    assert all(len(row_paths) == 3 for row_paths in paths)
+    assert all(len(path) == 2 for row_paths in paths for path in row_paths)
+    assert len(predictor.calls) == 3
+    assert all(call["sample_count"] == 1 for call in predictor.calls)
+    assert all("frames" in call and len(call["frames"]) == 2 for call in predictor.calls)
+    assert len(torch_module.seeds) == 3
 
 
 def test_checked_in_upstream_is_clean_and_at_frozen_commit() -> None:

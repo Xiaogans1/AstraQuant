@@ -37,7 +37,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 ## 当前开发
 
 - 生产训练 Stage A：统一 task/score 契约、声明式 Qlib runner、DoubleEnsemble 接入和真实多标的 Task 4 均已完成。9 个 Eastmoney exact snapshots 的两次独立训练得到完全相同的 input/fold/prediction/report digests；DoubleEnsemble 扣费净收益 `-2.5082%`，Ridge 为 `-1.8550%`，两者均为 `NO_NET_EDGE`，因此不进入 Shadow/Paper。Stage A 的公平评价通道保留，训练核心继续推进。
-- Kronos K 线基础模型：Task 1、Task 2 与 Task 3A 已完成。官方版本/权重身份、无泄漏 OHLCVA 窗口、交易日历 forecast times、逐样本稳定 seed、多路径预测汇总和原子 response 发布都已打通；backend 返回 NaN、路径不全或窗口漂移时不会发布结果。当前关键节点是 Task 3B：接入只读官方 adapter、准备精确 revision 权重并完成真实 `Kronos-base` smoke。
+- Kronos K 线基础模型：Task 1–3 已完成，官方 `Kronos-base`/tokenizer 固定 revision 权重已在 RTX 4060 Ti 上消费真实 Eastmoney K 线并两次逐字节复现；64 行批量推理的单位窗口吞吐比单行进程约提升 40 倍。Task 4 的统一评价代码也已完成，可强制 Kronos、DoubleEnsemble、Ridge 使用同一 eligibility/folds/费率/滑点/容量/next-open 语义。当前关键节点是运行 Task 5 的 9 ETF 全量 zero-shot 验收并据真实净结果判定去留。
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
 - S2a Qlib 公平对照：3/3 已完成；同一 Eastmoney 行集/folds 可在固定 commit 的独立 Qlib LightGBM runner 训练，再由 AstraQuant 统一按相同费率与阈值评分。
@@ -95,4 +95,4 @@ macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、
 8. **P1 第二认证源与跨平台一致性**：实测 Tushare Pro/Choice；macOS 与 Windows 只保留 provider/runtime 差异，训练 artifact 语义一致。
 9. **LIVE 设计**：只有账户、订单、费用、T+1、对账及 Stage A–E 全部通过后才讨论 Broker Gateway 与 LIVE。
 
-当前 Strategy Fast Lane 的 S1–S5、S6 时间稳定性和 DoubleEnsemble Task 4 均已完成，但它们只是训练协议和 challenger 基线。训练核心 Stage B–E 尚未完成；下一项主链代码是制定并执行 Kronos zero-shot 独立 runner 微计划，同时继续扩大真实 API 历史，为后续 StockMixer 全市场共享训练准备数据覆盖。
+当前 Strategy Fast Lane 的 S1–S6、DoubleEnsemble challenger、Kronos 官方推理与统一评价链路均已完成，但仍未产生可晋级模型。训练核心 Stage B 正在最后验收：下一项主链工作是完成 Kronos 9 ETF 全量 zero-shot 运行；无论结论为候选或淘汰，随后都进入 StockMixer 全市场共享训练并继续扩大真实 API 历史覆盖。

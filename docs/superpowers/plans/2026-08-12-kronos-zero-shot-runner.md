@@ -80,11 +80,11 @@
 - Create: `tests/research/test_run_kronos_zero_shot.py`
 - Modify: `packages/quant/src/astraquant_quant/panel_research.py`
 
-- [ ] `prepare` 消费 Task 4 的 exact `dataset_id@snapshot_id` 并生成 Kronos request；`evaluate` 校验 response identity 后调用同一 `run_panel_executable_expected_returns()`。
-- [ ] 同一 eligibility mask 下输出 Kronos/DoubleEnsemble/Ridge 的 fold、instrument、liquidity、regime、费用、滑点、容量、成交集中度和最差回撤。
-- [ ] 报告同时保存路径校准指标：方向命中、terminal return MAE、区间覆盖率和区间宽度；这些指标不能绕过 executable net-return gate。
-- [ ] 训练/推理运行两次，input/fold/prediction/report digests 必须一致；随机采样如无法逐浮点复现，正式模式改用已证明可复现的 deterministic sampling policy，不能降低验收标准。
-- [ ] 提交 `feat(research): 接入Kronos零样本公平评价`。
+- [x] `prepare` 消费 Task 4 的 exact `dataset_id@snapshot_id` 并生成 Kronos request；`evaluate` 校验 response identity 后调用同一 `run_panel_executable_expected_returns()`。
+- [x] 同一 eligibility mask 下输出 Kronos/DoubleEnsemble/Ridge 的 fold、instrument、liquidity、regime、费用、滑点、容量、成交集中度和最差回撤。
+- [x] 报告同时保存路径校准指标：方向命中、terminal return MAE、区间覆盖率和区间宽度；这些指标不能绕过 executable net-return gate。
+- [x] 训练/推理运行两次，input/fold/prediction/report digests 必须一致；批量随机采样已使用固定 request order、row seeds 和 sample index 两次逐字节复现。
+- [x] 提交 `feat(research): 接入Kronos零样本公平评价`。
 
 ## Task 5: 真实 9 ETF zero-shot 验收与决策
 

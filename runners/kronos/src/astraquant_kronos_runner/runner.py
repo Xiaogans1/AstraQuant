@@ -37,6 +37,20 @@ class KronosBackend(Protocol):
     ) -> Sequence[Sequence[float]]: ...
 
 
+class KronosBatchBackend(Protocol):
+    def predict_batch_paths(
+        self,
+        *,
+        windows: Sequence[Sequence[dict[str, object]]],
+        forecast_times: Sequence[Sequence[datetime]],
+        seeds: Sequence[int],
+        temperature: float,
+        top_k: int,
+        top_p: float,
+        sample_count: int,
+    ) -> Sequence[Sequence[Sequence[float]]]: ...
+
+
 def run_request(
     request_path: Path,
     output_path: Path,
@@ -56,7 +70,7 @@ def run_request(
     top_p = _number(sampling["top_p"], "top_p")
     sample_count = _integer(sampling["sample_count"], "sample_count")
     prediction_length = _integer(request["prediction_length"], "prediction_length")
-    forecasts = []
+    prepared = []
     for value in _array(request["rows"], "rows"):
         row = _object(value, "row")
         key = _row_key(row)
@@ -65,15 +79,35 @@ def run_request(
             datetime.fromisoformat(str(item).replace("Z", "+00:00"))
             for item in _array(row["forecast_times"], "forecast_times")
         )
-        paths = backend.predict_paths(
-            window=window,
-            forecast_times=forecast_times,
-            seed=_row_seed(global_seed, key),
+        prepared.append((key, window, forecast_times, _row_seed(global_seed, key)))
+    batch_predict = getattr(backend, "predict_batch_paths", None)
+    if callable(batch_predict):
+        batch_paths = batch_predict(
+            windows=[item[1] for item in prepared],
+            forecast_times=[item[2] for item in prepared],
+            seeds=[item[3] for item in prepared],
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
             sample_count=sample_count,
         )
+        if len(batch_paths) != len(prepared):
+            raise ValueError("Kronos batch row coverage mismatch")
+    else:
+        batch_paths = [
+            backend.predict_paths(
+                window=window,
+                forecast_times=forecast_times,
+                seed=seed,
+                temperature=temperature,
+                top_k=top_k,
+                top_p=top_p,
+                sample_count=sample_count,
+            )
+            for _, window, forecast_times, seed in prepared
+        ]
+    forecasts = []
+    for (key, window, _, _), paths in zip(prepared, batch_paths, strict=True):
         summary = summarize_paths(
             last_close=_number(window[-1]["close"], "last close"),
             paths=paths,

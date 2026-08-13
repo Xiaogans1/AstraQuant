@@ -17,7 +17,12 @@ from astraquant_kronos_runner.contracts import (
 )
 from astraquant_kronos_runner.runner import run_request
 
-from tests.fakes import NonFiniteBackend, RecordingBackend
+from tests.fakes import (
+    NonFiniteBackend,
+    RecordingBackend,
+    RecordingBatchBackend,
+    WrongCoverageBatchBackend,
+)
 
 
 def _digest(value: bytes) -> str:
@@ -159,4 +164,26 @@ def test_backend_or_windows_failure_does_not_publish_response(tmp_path: Path) ->
     windows.write_bytes(windows.read_bytes() + b"drift")
     with pytest.raises(ValueError, match="windows digest"):
         run_request(request, output, root=tmp_path, backend=RecordingBackend())
+    assert not output.exists()
+
+
+def test_batch_backend_receives_all_rows_once_and_preserves_response(tmp_path: Path) -> None:
+    request = _prepare(tmp_path)
+    row_output = tmp_path / "row.json"
+    batch_output = tmp_path / "batch.json"
+    batch = RecordingBatchBackend()
+
+    run_request(request, row_output, root=tmp_path, backend=RecordingBackend())
+    run_request(request, batch_output, root=tmp_path, backend=batch)
+
+    assert row_output.read_bytes() == batch_output.read_bytes()
+    assert batch.batch_calls == 1
+    assert len(batch.seeds) == 2
+
+
+def test_wrong_batch_coverage_does_not_publish_response(tmp_path: Path) -> None:
+    request = _prepare(tmp_path)
+    output = tmp_path / "response.json"
+    with pytest.raises(ValueError, match="batch row coverage"):
+        run_request(request, output, root=tmp_path, backend=WrongCoverageBatchBackend())
     assert not output.exists()

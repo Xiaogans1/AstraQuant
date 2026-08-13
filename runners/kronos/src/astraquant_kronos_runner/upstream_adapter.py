@@ -35,6 +35,20 @@ class Predictor(Protocol):
         verbose: bool,
     ) -> pd.DataFrame: ...
 
+    def predict_batch(
+        self,
+        frames: list[pd.DataFrame],
+        x_timestamps: list[pd.Series],
+        y_timestamps: list[pd.Series],
+        pred_len: int,
+        *,
+        T: float,
+        top_k: int,
+        top_p: float,
+        sample_count: int,
+        verbose: bool,
+    ) -> list[pd.DataFrame]: ...
+
 
 class OfficialKronosBackend:
     """Retain each sampled official path instead of averaging paths upstream."""
@@ -91,6 +105,61 @@ class OfficialKronosBackend:
                 raise ValueError("official Kronos path length or values are invalid")
             paths.append(path)
         return paths
+
+    def predict_batch_paths(
+        self,
+        *,
+        windows: Sequence[Sequence[dict[str, object]]],
+        forecast_times: Sequence[Sequence[datetime]],
+        seeds: Sequence[int],
+        temperature: float,
+        top_k: int,
+        top_p: float,
+        sample_count: int,
+    ) -> Sequence[Sequence[Sequence[float]]]:
+        if not windows or not (
+            len(windows) == len(forecast_times) == len(seeds)
+        ):
+            raise ValueError("official Kronos batch input coverage mismatch")
+        context_lengths = {len(window) for window in windows}
+        horizon_lengths = {len(times) for times in forecast_times}
+        if len(context_lengths) != 1 or len(horizon_lengths) != 1 or 0 in horizon_lengths:
+            raise ValueError("official Kronos batch requires equal non-empty shapes")
+        results: list[list[tuple[float, ...]]] = [[] for _ in windows]
+        batch_size = 64
+        for start in range(0, len(windows), batch_size):
+            stop = min(start + batch_size, len(windows))
+            chunk_windows = windows[start:stop]
+            chunk_times = forecast_times[start:stop]
+            chunk_seeds = seeds[start:stop]
+            frames = [_frame(window) for window in chunk_windows]
+            x_timestamps = [
+                _timestamps([row["event_time"] for row in window], "window")
+                for window in chunk_windows
+            ]
+            y_timestamps = [_timestamps(times, "forecast") for times in chunk_times]
+            prediction_length = len(y_timestamps[0])
+            for sample_index in range(sample_count):
+                _seed_everything(
+                    _batch_seed(chunk_seeds, sample_index), self._torch
+                )
+                predictions = self._predictor.predict_batch(
+                    frames,
+                    x_timestamps,
+                    y_timestamps,
+                    prediction_length,
+                    T=temperature,
+                    top_k=top_k,
+                    top_p=top_p,
+                    sample_count=1,
+                    verbose=False,
+                )
+                if len(predictions) != len(chunk_windows):
+                    raise ValueError("official Kronos batch output coverage mismatch")
+                for offset, prediction in enumerate(predictions):
+                    path = _close_path(prediction, prediction_length)
+                    results[start + offset].append(path)
+        return results
 
 
 def select_device(
@@ -188,8 +257,32 @@ def _timestamps(values: Sequence[object], name: str) -> pd.Series:
     return timestamps
 
 
+def _frame(window: Sequence[dict[str, object]]) -> pd.DataFrame:
+    return pd.DataFrame.from_records(window)[
+        ["open", "high", "low", "close", "volume", "amount"]
+    ].astype("float64")
+
+
+def _close_path(prediction: object, prediction_length: int) -> tuple[float, ...]:
+    if not isinstance(prediction, pd.DataFrame) or "close" not in prediction:
+        raise ValueError("official Kronos output must contain a close path")
+    path = tuple(float(value) for value in prediction["close"].tolist())
+    if len(path) != prediction_length or any(
+        not math.isfinite(value) or value <= 0 for value in path
+    ):
+        raise ValueError("official Kronos path length or values are invalid")
+    return path
+
+
 def _path_seed(seed: int, sample_index: int) -> int:
     encoded = json.dumps([seed, sample_index], separators=(",", ":")).encode()
+    return int.from_bytes(hashlib.sha256(encoded).digest()[:8], "big")
+
+
+def _batch_seed(seeds: Sequence[int], sample_index: int) -> int:
+    if len(seeds) == 1:
+        return _path_seed(seeds[0], sample_index)
+    encoded = json.dumps([list(seeds), sample_index], separators=(",", ":")).encode()
     return int.from_bytes(hashlib.sha256(encoded).digest()[:8], "big")
 
 
