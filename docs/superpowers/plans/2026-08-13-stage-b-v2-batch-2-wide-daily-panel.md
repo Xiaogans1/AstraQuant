@@ -62,6 +62,7 @@
 - Create: `packages/data/src/astraquant_data/exports/stage_b_v2.py`
 - Create: `tests/data/test_stage_b_v2_export.py`
 
+- [x] **Task 4A:** 已实现 Alpha158 之外的相对 OHLCV、流动性、风险、市场宽度/波动 context features，以及 train-only median/MAD `[-3, 3]` processor（23 项相关回归通过；Ruff/mypy clean）。
 - [ ] 首批特征固定为 Qlib 官方 Alpha158、相对 OHLCV 序列、市场宽度/波动/成交状态和个股流动性/风险；不得用标签未来区间。
 - [ ] train segment 单独拟合 median/MAD，clip 到 `[-3, 3]`；valid/test 只 transform。
 - [ ] 同时物化 Batch 1 的 raw/excess/rank/downside D1/D5/D10 labels 和 train-only extreme mask。
