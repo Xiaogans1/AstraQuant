@@ -34,6 +34,8 @@
 
 ## Task 2: 导出无泄漏 K 线窗口
 
+**Executable micro plan:** `docs/superpowers/plans/2026-08-13-kronos-task2-window-export.md`
+
 **Files:**
 
 - Create: `packages/data/src/astraquant_data/exports/kronos.py`
