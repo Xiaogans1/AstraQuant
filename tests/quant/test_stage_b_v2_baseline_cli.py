@@ -10,43 +10,44 @@ import pyarrow.parquet as pq  # type: ignore[import-untyped]
 import pytest
 
 from astraquant_domain.run_manifest import canonical_json_bytes
-from tools.research.run_stage_b_v2_baselines import main
+from tools.research.run_stage_b_v2_baselines import _load_materialization, main
 
 
 def _digest(value: bytes) -> str:
     return f"sha256:{hashlib.sha256(value).hexdigest()}"
 
 
-def _materialization(root: Path) -> Path:
+def _materialization(root: Path, *, horizons: tuple[int, ...] = (5,)) -> Path:
     root.mkdir()
     start = datetime(2020, 1, 2, 7, tzinfo=UTC)
     rows: list[dict[str, object]] = []
     row_id = 0
-    for session_index in range(80):
-        decision_time = start + timedelta(days=session_index)
-        for instrument_index in range(10):
-            rank = instrument_index / 9
-            rows.append(
-                {
-                    "row_id": row_id,
-                    "decision_time": decision_time,
-                    "instrument_id": f"S{instrument_index:03d}.SSE",
-                    "horizon_sessions": 5,
-                    "entry_time": decision_time + timedelta(days=1),
-                    "exit_time": decision_time + timedelta(days=6),
-                    "raw_return": (rank - 0.5) * 0.021,
-                    "benchmark_return": 0.001,
-                    "market_excess_return": (rank - 0.5) * 0.02,
-                    "cross_sectional_rank": rank,
-                    "downside_risk": max(0.0, 0.5 - rank) * 0.01,
-                    "training_eligible": instrument_index not in (0, 9),
-                    "signal": rank + session_index / 10000,
-                    "missing": None if instrument_index % 4 == 0 else rank * 2,
-                    "volatility_20": 0.1 + instrument_index / 100,
-                    "turnover_median_20_log": 18.0,
-                }
-            )
-            row_id += 1
+    for horizon in horizons:
+        for session_index in range(80):
+            decision_time = start + timedelta(days=session_index)
+            for instrument_index in range(10):
+                rank = instrument_index / 9
+                rows.append(
+                    {
+                        "row_id": row_id,
+                        "decision_time": decision_time,
+                        "instrument_id": f"S{instrument_index:03d}.SSE",
+                        "horizon_sessions": horizon,
+                        "entry_time": decision_time + timedelta(days=1),
+                        "exit_time": decision_time + timedelta(days=6),
+                        "raw_return": (rank - 0.5) * 0.021,
+                        "benchmark_return": 0.001,
+                        "market_excess_return": (rank - 0.5) * 0.02,
+                        "cross_sectional_rank": rank,
+                        "downside_risk": max(0.0, 0.5 - rank) * 0.01,
+                        "training_eligible": instrument_index not in (0, 9),
+                        "signal": rank + session_index / 10000,
+                        "missing": None if instrument_index % 4 == 0 else rank * 2,
+                        "volatility_20": 0.1 + instrument_index / 100,
+                        "turnover_median_20_log": 18.0,
+                    }
+                )
+                row_id += 1
     matrix_path = root / "matrix.parquet"
     pq.write_table(pa.Table.from_pylist(rows), matrix_path, compression="zstd", version="2.6")
     body = {
@@ -64,7 +65,7 @@ def _materialization(root: Path) -> Path:
         ],
         "row_count": len(rows),
         "instrument_count": 10,
-        "horizons": [5],
+        "horizons": list(horizons),
         "matrix_file": {"path": "matrix.parquet", "digest": _digest(matrix_path.read_bytes())},
     }
     manifest = {"content_digest": _digest(canonical_json_bytes(body)), **body}
@@ -152,6 +153,28 @@ def test_cli_fails_closed_when_materialized_matrix_is_tampered(tmp_path: Path) -
 
     assert main(_arguments(source, tmp_path / "output")) == 1
     assert not (tmp_path / "output").exists()
+
+
+def test_materialization_loader_reads_one_horizon_at_a_time(tmp_path: Path) -> None:
+    source = _materialization(tmp_path / "source")
+
+    manifest, rows, portfolio_inputs = _load_materialization(source, horizon=5)
+
+    assert manifest["horizons"] == [5]
+    assert rows
+    assert {row.horizon_sessions for row in rows} == {5}
+    assert set(portfolio_inputs) == {row.row_id for row in rows}
+
+
+def test_cli_combines_independently_loaded_horizon_reports(tmp_path: Path) -> None:
+    source = _materialization(tmp_path / "source", horizons=(1, 5))
+
+    assert main(_arguments(source, tmp_path / "output")) == 0
+
+    report = json.loads((tmp_path / "output" / "report.json").read_text(encoding="utf-8"))
+    assert report["horizon_sessions"] == [1, 5]
+    assert set(report["horizons"]) == {"1", "5"}
+    assert report["trial_count"] == 16
 
 
 def test_cli_runs_pinned_double_ensemble_through_same_folds(

@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -92,56 +93,81 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if arguments.output_root.exists():
             raise ValueError("baseline output_root must not already exist")
-        manifest, rows, portfolio_inputs = _load_materialization(arguments.materialization_root)
+        manifest = _load_materialization_manifest(arguments.materialization_root)
+        horizons = _manifest_horizons(manifest)
         seeds = _canonical_seeds(arguments.seeds)
         arguments.output_root.parent.mkdir(parents=True, exist_ok=True)
-        auxiliary: dict[str, bytes] = {}
-        external_trials: dict[str, dict[str, Any]] | None = None
+        auxiliary: dict[str, bytes | Path] = {}
+        partial_reports: list[dict[str, Any]] = []
         with tempfile.TemporaryDirectory(
             dir=arguments.output_root.parent,
             prefix=f".{arguments.output_root.name}-qlib-",
             ignore_cleanup_errors=True,
         ) as double_name:
-            if not arguments.skip_double_ensemble:
-                double_root = Path(double_name)
-                request_path = _prepare_double_ensemble_request(
-                    root=double_root,
+            for horizon in horizons:
+                rows, portfolio_inputs = _load_materialization_horizon(
+                    arguments.materialization_root,
                     manifest=manifest,
-                    rows=rows,
-                    seeds=seeds,
-                    minimum_fit_sessions=arguments.minimum_fit_sessions,
-                    inner_valid_sessions=arguments.inner_valid_sessions,
-                    outer_test_sessions=arguments.outer_test_sessions,
-                    fold_count=arguments.fold_count,
-                    purge_sessions=arguments.purge_sessions,
+                    horizon=horizon,
                 )
-                response_path = double_root / "response.json"
-                _execute_double_ensemble(
-                    request_path,
-                    response_path,
-                    arguments.qlib_project,
+                external_trials: dict[str, dict[str, Any]] | None = None
+                if not arguments.skip_double_ensemble:
+                    double_root = Path(double_name) / f"h{horizon}"
+                    request_path = _prepare_double_ensemble_request(
+                        root=double_root,
+                        manifest=manifest,
+                        rows=rows,
+                        seeds=seeds,
+                        minimum_fit_sessions=arguments.minimum_fit_sessions,
+                        inner_valid_sessions=arguments.inner_valid_sessions,
+                        outer_test_sessions=arguments.outer_test_sessions,
+                        fold_count=arguments.fold_count,
+                        purge_sessions=arguments.purge_sessions,
+                    )
+                    response_path = double_root / "response.json"
+                    _execute_double_ensemble(
+                        request_path,
+                        response_path,
+                        arguments.qlib_project,
+                    )
+                    external_trials = _load_double_ensemble_response(
+                        response_path,
+                        request_path=request_path,
+                        source_materialization_digest=str(manifest["content_digest"]),
+                    )
+                    prefix = "qlib" if len(horizons) == 1 else f"qlib/h{horizon}"
+                    auxiliary.update(
+                        {
+                            f"{prefix}/request.json": request_path,
+                            f"{prefix}/rows.parquet": double_root / "rows.parquet",
+                            f"{prefix}/response.json": response_path,
+                        }
+                    )
+                partial_reports.append(
+                    _run_matrix(
+                        manifest=manifest,
+                        rows=rows,
+                        portfolio_inputs=portfolio_inputs,
+                        seeds=seeds,
+                        minimum_fit_sessions=arguments.minimum_fit_sessions,
+                        inner_valid_sessions=arguments.inner_valid_sessions,
+                        outer_test_sessions=arguments.outer_test_sessions,
+                        fold_count=arguments.fold_count,
+                        purge_sessions=arguments.purge_sessions,
+                        external_trials=external_trials,
+                    )
                 )
-                external_trials = _load_double_ensemble_response(
-                    response_path,
-                    request_path=request_path,
-                    source_materialization_digest=str(manifest["content_digest"]),
-                )
-                auxiliary = {
-                    "qlib/request.json": request_path.read_bytes(),
-                    "qlib/rows.parquet": (double_root / "rows.parquet").read_bytes(),
-                    "qlib/response.json": response_path.read_bytes(),
-                }
-            report = _run_matrix(
+            report = _combine_reports(
+                partial_reports,
                 manifest=manifest,
-                rows=rows,
-                portfolio_inputs=portfolio_inputs,
+                horizons=horizons,
                 seeds=seeds,
                 minimum_fit_sessions=arguments.minimum_fit_sessions,
                 inner_valid_sessions=arguments.inner_valid_sessions,
                 outer_test_sessions=arguments.outer_test_sessions,
                 fold_count=arguments.fold_count,
                 purge_sessions=arguments.purge_sessions,
-                external_trials=external_trials,
+                include_double_ensemble=not arguments.skip_double_ensemble,
             )
             _publish(arguments.output_root, report, auxiliary=auxiliary)
     except (
@@ -158,11 +184,23 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _load_materialization(
     root: Path,
+    *,
+    horizon: int,
 ) -> tuple[
     dict[str, Any],
     tuple[CrossSectionalBaselineRow, ...],
     dict[int, _PortfolioInput],
 ]:
+    manifest = _load_materialization_manifest(root)
+    rows, portfolio_inputs = _load_materialization_horizon(
+        root,
+        manifest=manifest,
+        horizon=horizon,
+    )
+    return manifest, rows, portfolio_inputs
+
+
+def _load_materialization_manifest(root: Path) -> dict[str, Any]:
     manifest_path = root / "manifest.json"
     manifest_value = json.loads(manifest_path.read_text(encoding="utf-8"))
     if (
@@ -182,7 +220,7 @@ def _load_materialization(
     if not isinstance(matrix_file, dict) or matrix_file.get("path") != "matrix.parquet":
         raise ValueError("Stage B v2 materialization matrix file schema mismatch")
     matrix_path = root / "matrix.parquet"
-    if not matrix_path.is_file() or matrix_file.get("digest") != _digest(matrix_path.read_bytes()):
+    if not matrix_path.is_file() or matrix_file.get("digest") != _digest_file(matrix_path):
         raise ValueError("Stage B v2 materialization matrix digest mismatch")
     feature_columns = manifest.get("feature_columns")
     if (
@@ -192,8 +230,25 @@ def _load_materialization(
         or len(set(feature_columns)) != len(feature_columns)
     ):
         raise ValueError("Stage B v2 feature columns schema mismatch")
-    frame = pq.read_table(matrix_path).to_pandas()
-    if len(frame) != manifest.get("row_count") or not _LABEL_COLUMNS.issubset(frame.columns):
+    _manifest_horizons(manifest)
+    return manifest
+
+
+def _load_materialization_horizon(
+    root: Path,
+    *,
+    manifest: dict[str, Any],
+    horizon: int,
+) -> tuple[tuple[CrossSectionalBaselineRow, ...], dict[int, _PortfolioInput]]:
+    if horizon not in _manifest_horizons(manifest):
+        raise ValueError("Stage B v2 materialization horizon is not declared")
+    matrix_path = root / "matrix.parquet"
+    feature_columns = manifest["feature_columns"]
+    frame = pq.read_table(
+        matrix_path,
+        filters=[("horizon_sessions", "=", horizon)],
+    ).to_pandas()
+    if not _LABEL_COLUMNS.issubset(frame.columns):
         raise ValueError("Stage B v2 materialized row schema mismatch")
     if any(column not in frame.columns for column in feature_columns):
         raise ValueError("Stage B v2 materialized feature coverage mismatch")
@@ -226,7 +281,19 @@ def _load_materialization(
         )
         for record in frame.itertuples(index=False)
     }
-    return manifest, rows, portfolio_inputs
+    return rows, portfolio_inputs
+
+
+def _manifest_horizons(manifest: dict[str, Any]) -> tuple[int, ...]:
+    raw = manifest.get("horizons")
+    if (
+        not isinstance(raw, list)
+        or not raw
+        or any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in raw)
+        or raw != sorted(set(raw))
+    ):
+        raise ValueError("Stage B v2 materialization horizons schema mismatch")
+    return tuple(raw)
 
 
 def _prepare_double_ensemble_request(
@@ -298,7 +365,7 @@ def _prepare_double_ensemble_request(
         "source_materialization_digest": manifest["content_digest"],
         "feature_columns": feature_columns,
         "row_count": len(rows),
-        "rows_file": {"path": "rows.parquet", "digest": _digest(rows_path.read_bytes())},
+        "rows_file": {"path": "rows.parquet", "digest": _digest_file(rows_path)},
         "model_config": {
             "num_models": 3,
             "epochs": 28,
@@ -488,6 +555,66 @@ def _run_matrix(
                 *(
                     [CrossSectionalModelKind.DOUBLE_ENSEMBLE.value]
                     if external_trials is not None
+                    else []
+                ),
+            ]
+        ),
+        "seeds": list(seeds),
+        "horizon_sessions": list(horizons),
+        "fold_count": fold_count,
+        "fold_policy": {
+            "minimum_fit_sessions": minimum_fit_sessions,
+            "inner_valid_sessions": inner_valid_sessions,
+            "outer_test_sessions": outer_test_sessions,
+            "purge_sessions": purge_sessions,
+        },
+        "trial_count": len(trials),
+        "failed_trial_count": sum(item["status"] == "FAILED" for item in trials),
+        "trials": trials,
+        "horizons": horizon_reports,
+    }
+    return {"content_digest": _digest(canonical_json_bytes(body)), **body}
+
+
+def _combine_reports(
+    partial_reports: Sequence[dict[str, Any]],
+    *,
+    manifest: dict[str, Any],
+    horizons: tuple[int, ...],
+    seeds: tuple[int, ...],
+    minimum_fit_sessions: int,
+    inner_valid_sessions: int,
+    outer_test_sessions: int,
+    fold_count: int,
+    purge_sessions: int,
+    include_double_ensemble: bool,
+) -> dict[str, Any]:
+    if len(partial_reports) != len(horizons):
+        raise ValueError("baseline horizon report coverage mismatch")
+    trials: list[dict[str, Any]] = []
+    horizon_reports: dict[str, Any] = {}
+    for horizon, report in zip(horizons, partial_reports, strict=True):
+        if report.get("horizon_sessions") != [horizon]:
+            raise ValueError("baseline partial horizon report mismatch")
+        partial_horizons = report.get("horizons")
+        partial_trials = report.get("trials")
+        if (
+            not isinstance(partial_horizons, dict)
+            or set(partial_horizons) != {str(horizon)}
+            or not isinstance(partial_trials, list)
+        ):
+            raise ValueError("baseline partial report schema mismatch")
+        horizon_reports.update(partial_horizons)
+        trials.extend(partial_trials)
+    body: dict[str, Any] = {
+        "schema_version": _REPORT_SCHEMA,
+        "source_materialization_digest": manifest["content_digest"],
+        "models": sorted(
+            [
+                *(value.value for value in _LOCAL_MODELS),
+                *(
+                    [CrossSectionalModelKind.DOUBLE_ENSEMBLE.value]
+                    if include_double_ensemble
                     else []
                 ),
             ]
@@ -806,7 +933,7 @@ def _publish(
     output_root: Path,
     report: dict[str, Any],
     *,
-    auxiliary: dict[str, bytes],
+    auxiliary: dict[str, bytes | Path],
 ) -> None:
     output_root.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
@@ -819,7 +946,10 @@ def _publish(
         for relative_path, content in auxiliary.items():
             path = staging / relative_path
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(content)
+            if isinstance(content, Path):
+                shutil.copyfile(content, path)
+            else:
+                path.write_bytes(content)
         staging.replace(output_root)
 
 
@@ -832,6 +962,14 @@ def _mean(values: Sequence[float] | Any) -> float:
 
 def _digest(value: bytes) -> str:
     return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
+def _digest_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(8 * 1024 * 1024):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
 
 
 if __name__ == "__main__":
