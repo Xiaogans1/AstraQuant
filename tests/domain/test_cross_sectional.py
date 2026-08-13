@@ -54,32 +54,25 @@ def test_calibration_policy_only_accepts_inner_valid() -> None:
         replace(policy, fit_segment="outer_test")
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("entry_lag_sessions", 0),
-        ("extreme_tail_fraction", Decimal("0.5")),
-        ("extreme_tail_fraction", Decimal("NaN")),
-        ("benchmark_instrument_id", ""),
-    ],
-)
-def test_task_matrix_rejects_invalid_values(field: str, value: object) -> None:
+def test_task_matrix_rejects_invalid_values() -> None:
     policy = CrossSectionalTaskMatrix.stage_b_v2_daily("000985.CSI")
     with pytest.raises(ValueError):
-        replace(policy, **{field: value})
+        replace(policy, entry_lag_sessions=0)
+    with pytest.raises(ValueError):
+        replace(policy, extreme_tail_fraction=Decimal("0.5"))
+    with pytest.raises(ValueError):
+        replace(policy, extreme_tail_fraction=Decimal("NaN"))
+    with pytest.raises(ValueError):
+        replace(policy, benchmark_instrument_id="")
 
 
-@pytest.mark.parametrize(
-    ("field", "value"),
-    [
-        ("top_fraction", Decimal("0")),
-        ("max_positions", 0),
-        ("max_instrument_weight", Decimal("1.1")),
-        ("max_one_way_turnover", Decimal("Infinity")),
-    ],
-)
-def test_rank_policy_rejects_invalid_values(field: str, value: object) -> None:
+def test_rank_policy_rejects_invalid_values() -> None:
     policy = RankPortfolioPolicy.stage_b_v2()
     with pytest.raises(ValueError):
-        replace(policy, **{field: value})
-
+        replace(policy, top_fraction=Decimal("0"))
+    with pytest.raises(ValueError):
+        replace(policy, max_positions=0)
+    with pytest.raises(ValueError):
+        replace(policy, max_instrument_weight=Decimal("1.1"))
+    with pytest.raises(ValueError):
+        replace(policy, max_one_way_turnover=Decimal("Infinity"))

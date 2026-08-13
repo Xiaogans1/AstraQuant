@@ -110,6 +110,30 @@ def test_decision_close_cannot_change_next_open_labels() -> None:
     )
 
 
+def test_exit_day_low_cannot_change_risk_after_open_exit() -> None:
+    panel = _panel()
+    before = build_daily_cross_sectional_labels(panel, _matrix())
+    bars = {instrument_id: dict(values) for instrument_id, values in panel.instrument_bars.items()}
+    exit_bar = bars["S000.SSE"][panel.sessions[6]]
+    bars["S000.SSE"][panel.sessions[6]] = replace(
+        exit_bar,
+        low=Decimal("0.01"),
+    )
+
+    after = build_daily_cross_sectional_labels(
+        replace(panel, instrument_bars=bars),
+        _matrix(),
+    )
+
+    assert _row(before, panel, "S000.SSE", decision_index=0, horizon=5).downside_risk == _row(
+        after,
+        panel,
+        "S000.SSE",
+        decision_index=0,
+        horizon=5,
+    ).downside_risk
+
+
 @pytest.mark.parametrize("missing_index", [1, 6])
 def test_missing_entry_or_exit_removes_only_that_instrument_horizon(missing_index: int) -> None:
     panel = _panel()

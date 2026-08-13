@@ -102,15 +102,16 @@ def build_daily_cross_sectional_labels(
             benchmark_return = benchmark_exit / benchmark_entry - 1
 
             cohort: list[CrossSectionalLabelRow] = []
-            holding_sessions = panel.sessions[entry_index : exit_index + 1]
+            required_sessions = panel.sessions[entry_index : exit_index + 1]
+            risk_sessions = panel.sessions[entry_index:exit_index]
             for instrument_id in sorted(panel.eligible_by_session[decision_time]):
                 bars = panel.instrument_bars[instrument_id]
-                if any(session not in bars for session in holding_sessions):
+                if any(session not in bars for session in required_sessions):
                     continue
                 entry_open = bars[entry_time].open
                 exit_open = bars[exit_time].open
                 raw_return = exit_open / entry_open - 1
-                holding_low = min(bars[session].low for session in holding_sessions)
+                holding_low = min(bars[session].low for session in risk_sessions)
                 downside_risk = max(Decimal("0"), 1 - holding_low / entry_open)
                 cohort.append(
                     CrossSectionalLabelRow(

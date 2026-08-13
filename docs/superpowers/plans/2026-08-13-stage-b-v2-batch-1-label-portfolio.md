@@ -448,7 +448,7 @@ uv run ruff check packages/quant/src/astraquant_quant/rank_portfolio.py tests/qu
 
 Expected: all pass; the existing per-instrument T+1 reconciliation remains unchanged.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4 (`06462e0`)**
 
 ```powershell
 git add packages/quant/src/astraquant_quant/rank_portfolio.py tests/quant/test_rank_portfolio.py
@@ -463,7 +463,7 @@ git commit -m "feat(quant): 构建截面排名目标组合"
 - Modify: `docs/superpowers/plans/2026-08-11-quant-core-v3-progress.md`
 - Modify: `docs/superpowers/plans/2026-08-13-stage-b-v2-batch-1-label-portfolio.md`
 
-- [ ] **Step 1: Add an end-to-end canonical test**
+- [x] **Step 1: Add an end-to-end canonical test**
 
 Build 50 securities × 13 sessions, create D1/D5/D10 labels, fit a calibrator only on an explicitly marked inner-valid subset, create ranked forecasts, and build one target. Assert:
 
@@ -477,7 +477,7 @@ assert target.one_way_turnover <= Decimal("0.20")
 
 Then mutate all outer-test realized returns and assert the calibrator and target digests do not change.
 
-- [ ] **Step 2: Run the complete Batch 1 verification**
+- [x] **Step 2: Run the complete Batch 1 verification (`80 passed`; Ruff and mypy clean)**
 
 ```powershell
 New-Item -ItemType Directory -Force .test-tmp | Out-Null
@@ -489,11 +489,11 @@ git diff --check
 
 Expected: every command exits 0.
 
-- [ ] **Step 3: Update user-facing progress**
+- [x] **Step 3: Update user-facing progress**
 
 Record that the program can now answer: “在某个日期，哪些股票在 D1/D5/D10 上相对更强、校准收益是否为正、在 3% 单票和 20% 换手约束下目标持仓是多少”。Do not claim model alpha or profitability; Batch 2 still needs real broad daily history.
 
-- [ ] **Step 4: Close and commit the plan**
+- [x] **Step 4: Close and commit the plan**
 
 ```powershell
 git add tests/quant/test_stage_b_v2_batch1.py docs/superpowers/plans/2026-08-11-quant-core-v3-progress.md docs/superpowers/plans/2026-08-13-stage-b-v2-batch-1-label-portfolio.md
