@@ -10,6 +10,7 @@ from astraquant_quant.cross_sectional_baselines import (
     CrossSectionalBaselineRow,
     CrossSectionalModelKind,
     run_cross_sectional_baseline,
+    run_cross_sectional_baselines,
     score_cross_sectional_predictions,
 )
 from astraquant_quant.cross_sectional_splits import (
@@ -152,6 +153,62 @@ def test_train_ineligible_tails_never_enter_model_fit() -> None:
 
     assert first.prediction_digest == second.prediction_digest
     assert first.processor_digest == second.processor_digest
+
+
+def test_multi_seed_baselines_reuse_one_fold_processor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _rows()
+    assignment = _assignment(rows)
+    from astraquant_quant import cross_sectional_baselines as baselines
+
+    original = baselines._fit_processor
+    calls = 0
+
+    def counted(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(baselines, "_fit_processor", counted)
+
+    results = run_cross_sectional_baselines(
+        rows,
+        assignment=assignment,
+        model_kind=CrossSectionalModelKind.LIGHTGBM,
+        seeds=(7, 11, 13),
+    )
+
+    assert [result.seed for result in results] == [7, 11, 13]
+    assert calls == 1
+
+
+def test_ridge_multi_seed_fits_once_and_keeps_identical_predictions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = _rows()
+    assignment = _assignment(rows)
+    from astraquant_quant import cross_sectional_baselines as baselines
+
+    original = baselines._fit_model
+    fitted_seeds: list[int] = []
+
+    def counted(model_kind, fit_x, fit_y, seed):  # type: ignore[no-untyped-def]
+        fitted_seeds.append(seed)
+        return original(model_kind, fit_x, fit_y, seed)
+
+    monkeypatch.setattr(baselines, "_fit_model", counted)
+
+    results = run_cross_sectional_baselines(
+        rows,
+        assignment=assignment,
+        model_kind=CrossSectionalModelKind.RIDGE,
+        seeds=(7, 11, 13),
+    )
+
+    assert fitted_seeds == [7]
+    assert len({result.prediction_digest for result in results}) == 1
+    assert len({result.model_digest for result in results}) == 1
 
 
 def test_baseline_rejects_feature_schema_horizon_and_nonfinite_target() -> None:

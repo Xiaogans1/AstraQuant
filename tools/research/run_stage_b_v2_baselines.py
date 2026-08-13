@@ -25,7 +25,7 @@ from astraquant_quant.cross_sectional_baselines import (
     CrossSectionalBaselineResult,
     CrossSectionalBaselineRow,
     CrossSectionalModelKind,
-    run_cross_sectional_baseline,
+    run_cross_sectional_baselines,
     score_cross_sectional_predictions,
 )
 from astraquant_quant.cross_sectional_portfolio import (
@@ -84,6 +84,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--purge-sessions", type=int, default=11)
     parser.add_argument("--seeds", type=int, nargs="+", default=[7, 29, 53])
     parser.add_argument("--qlib-project", type=Path, default=Path("runners/qlib"))
+    parser.add_argument("--checkpoint-root", type=Path)
     parser.add_argument("--skip-double-ensemble", action="store_true")
     return parser
 
@@ -97,14 +98,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         horizons = _manifest_horizons(manifest)
         seeds = _canonical_seeds(arguments.seeds)
         arguments.output_root.parent.mkdir(parents=True, exist_ok=True)
+        checkpoint_root = arguments.checkpoint_root or Path(
+            f"{arguments.output_root}.checkpoints"
+        )
+        checkpoint_root.mkdir(parents=True, exist_ok=True)
         auxiliary: dict[str, bytes | Path] = {}
         partial_reports: list[dict[str, Any]] = []
-        with tempfile.TemporaryDirectory(
-            dir=arguments.output_root.parent,
-            prefix=f".{arguments.output_root.name}-qlib-",
-            ignore_cleanup_errors=True,
-        ) as double_name:
-            for horizon in horizons:
+        for horizon in horizons:
+            horizon_root = checkpoint_root / f"h{horizon}"
+            checkpoint_path = horizon_root / "report.json"
+            partial = _load_horizon_checkpoint(
+                checkpoint_path,
+                manifest=manifest,
+                horizon=horizon,
+                seeds=seeds,
+                minimum_fit_sessions=arguments.minimum_fit_sessions,
+                inner_valid_sessions=arguments.inner_valid_sessions,
+                outer_test_sessions=arguments.outer_test_sessions,
+                fold_count=arguments.fold_count,
+                purge_sessions=arguments.purge_sessions,
+                include_double_ensemble=not arguments.skip_double_ensemble,
+            )
+            if partial is None:
                 rows, portfolio_inputs = _load_materialization_horizon(
                     arguments.materialization_root,
                     manifest=manifest,
@@ -112,7 +127,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 external_trials: dict[str, dict[str, Any]] | None = None
                 if not arguments.skip_double_ensemble:
-                    double_root = Path(double_name) / f"h{horizon}"
+                    double_root = horizon_root / "qlib"
                     request_path = _prepare_double_ensemble_request(
                         root=double_root,
                         manifest=manifest,
@@ -125,51 +140,59 @@ def main(argv: Sequence[str] | None = None) -> int:
                         purge_sessions=arguments.purge_sessions,
                     )
                     response_path = double_root / "response.json"
-                    _execute_double_ensemble(
-                        request_path,
-                        response_path,
-                        arguments.qlib_project,
-                    )
+                    if not response_path.is_file():
+                        _execute_double_ensemble(
+                            request_path,
+                            response_path,
+                            arguments.qlib_project,
+                        )
                     external_trials = _load_double_ensemble_response(
                         response_path,
                         request_path=request_path,
                         source_materialization_digest=str(manifest["content_digest"]),
                     )
-                    prefix = "qlib" if len(horizons) == 1 else f"qlib/h{horizon}"
-                    auxiliary.update(
-                        {
-                            f"{prefix}/request.json": request_path,
-                            f"{prefix}/rows.parquet": double_root / "rows.parquet",
-                            f"{prefix}/response.json": response_path,
-                        }
-                    )
-                partial_reports.append(
-                    _run_matrix(
-                        manifest=manifest,
-                        rows=rows,
-                        portfolio_inputs=portfolio_inputs,
-                        seeds=seeds,
-                        minimum_fit_sessions=arguments.minimum_fit_sessions,
-                        inner_valid_sessions=arguments.inner_valid_sessions,
-                        outer_test_sessions=arguments.outer_test_sessions,
-                        fold_count=arguments.fold_count,
-                        purge_sessions=arguments.purge_sessions,
-                        external_trials=external_trials,
-                    )
+                partial = _run_matrix(
+                    manifest=manifest,
+                    rows=rows,
+                    portfolio_inputs=portfolio_inputs,
+                    seeds=seeds,
+                    minimum_fit_sessions=arguments.minimum_fit_sessions,
+                    inner_valid_sessions=arguments.inner_valid_sessions,
+                    outer_test_sessions=arguments.outer_test_sessions,
+                    fold_count=arguments.fold_count,
+                    purge_sessions=arguments.purge_sessions,
+                    external_trials=external_trials,
                 )
-            report = _combine_reports(
-                partial_reports,
-                manifest=manifest,
-                horizons=horizons,
-                seeds=seeds,
-                minimum_fit_sessions=arguments.minimum_fit_sessions,
-                inner_valid_sessions=arguments.inner_valid_sessions,
-                outer_test_sessions=arguments.outer_test_sessions,
-                fold_count=arguments.fold_count,
-                purge_sessions=arguments.purge_sessions,
-                include_double_ensemble=not arguments.skip_double_ensemble,
-            )
-            _publish(arguments.output_root, report, auxiliary=auxiliary)
+                _write_horizon_checkpoint(checkpoint_path, partial)
+            if not arguments.skip_double_ensemble:
+                double_root = horizon_root / "qlib"
+                request_path = double_root / "request.json"
+                response_path = double_root / "response.json"
+                rows_path = double_root / "rows.parquet"
+                if not all(path.is_file() for path in (request_path, response_path, rows_path)):
+                    raise ValueError("DoubleEnsemble checkpoint artifacts are incomplete")
+                prefix = "qlib" if len(horizons) == 1 else f"qlib/h{horizon}"
+                auxiliary.update(
+                    {
+                        f"{prefix}/request.json": request_path,
+                        f"{prefix}/rows.parquet": rows_path,
+                        f"{prefix}/response.json": response_path,
+                    }
+                )
+            partial_reports.append(partial)
+        report = _combine_reports(
+            partial_reports,
+            manifest=manifest,
+            horizons=horizons,
+            seeds=seeds,
+            minimum_fit_sessions=arguments.minimum_fit_sessions,
+            inner_valid_sessions=arguments.inner_valid_sessions,
+            outer_test_sessions=arguments.outer_test_sessions,
+            fold_count=arguments.fold_count,
+            purge_sessions=arguments.purge_sessions,
+            include_double_ensemble=not arguments.skip_double_ensemble,
+        )
+        _publish(arguments.output_root, report, auxiliary=auxiliary)
     except (
         OSError,
         ValueError,
@@ -482,20 +505,22 @@ def _run_matrix(
                     dict[str, CrossSectionalPortfolioMetrics],
                 ]
             ] = []
-            for seed in seeds:
-                for assignment in assignments:
-                    trial_id = f"h{horizon}-{model_kind.value.lower()}-s{seed}-{assignment.fold_id}"
-                    try:
-                        result = run_cross_sectional_baseline(
-                            horizon_rows,
-                            assignment=assignment,
-                            model_kind=model_kind,
-                            seed=seed,
-                        )
-                    except (ValueError, RuntimeError) as error:
+            for assignment in assignments:
+                try:
+                    fold_results = run_cross_sectional_baselines(
+                        horizon_rows,
+                        assignment=assignment,
+                        model_kind=model_kind,
+                        seeds=seeds,
+                    )
+                except (ValueError, RuntimeError) as error:
+                    for seed in seeds:
                         trials.append(
                             {
-                                "trial_id": trial_id,
+                                "trial_id": (
+                                    f"h{horizon}-{model_kind.value.lower()}-"
+                                    f"s{seed}-{assignment.fold_id}"
+                                ),
                                 "horizon_sessions": horizon,
                                 "model": model_kind.value,
                                 "seed": seed,
@@ -504,7 +529,10 @@ def _run_matrix(
                                 "error": str(error),
                             }
                         )
-                        continue
+                    continue
+                for result in fold_results:
+                    seed = result.seed
+                    trial_id = f"h{horizon}-{model_kind.value.lower()}-s{seed}-{assignment.fold_id}"
                     portfolios = _evaluate_trial_portfolios(
                         result,
                         portfolio_inputs=portfolio_inputs,
@@ -634,6 +662,70 @@ def _combine_reports(
         "horizons": horizon_reports,
     }
     return {"content_digest": _digest(canonical_json_bytes(body)), **body}
+
+
+def _load_horizon_checkpoint(
+    path: Path,
+    *,
+    manifest: dict[str, Any],
+    horizon: int,
+    seeds: tuple[int, ...],
+    minimum_fit_sessions: int,
+    inner_valid_sessions: int,
+    outer_test_sessions: int,
+    fold_count: int,
+    purge_sessions: int,
+    include_double_ensemble: bool,
+) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("baseline horizon checkpoint schema mismatch")
+    body = {key: item for key, item in value.items() if key != "content_digest"}
+    expected_models = sorted(
+        [
+            *(model.value for model in _LOCAL_MODELS),
+            *(
+                [CrossSectionalModelKind.DOUBLE_ENSEMBLE.value]
+                if include_double_ensemble
+                else []
+            ),
+        ]
+    )
+    expected_policy = {
+        "minimum_fit_sessions": minimum_fit_sessions,
+        "inner_valid_sessions": inner_valid_sessions,
+        "outer_test_sessions": outer_test_sessions,
+        "purge_sessions": purge_sessions,
+    }
+    if (
+        value.get("content_digest") != _digest(canonical_json_bytes(body))
+        or value.get("schema_version") != _REPORT_SCHEMA
+        or value.get("source_materialization_digest") != manifest["content_digest"]
+        or value.get("models") != expected_models
+        or value.get("seeds") != list(seeds)
+        or value.get("horizon_sessions") != [horizon]
+        or value.get("fold_count") != fold_count
+        or value.get("fold_policy") != expected_policy
+        or not isinstance(value.get("horizons"), dict)
+        or set(value["horizons"]) != {str(horizon)}
+    ):
+        raise ValueError("baseline horizon checkpoint identity mismatch")
+    return value
+
+
+def _write_horizon_checkpoint(path: Path, report: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=path.parent,
+        prefix=f".{path.name}-",
+        suffix=".tmp",
+        delete=False,
+    ) as stream:
+        temporary = Path(stream.name)
+        stream.write(canonical_json_bytes(report) + b"\n")
+    temporary.replace(path)
 
 
 def _score_double_ensemble_trial(

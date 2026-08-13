@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from types import MappingProxyType
@@ -104,7 +104,31 @@ def run_cross_sectional_baseline(
 ) -> CrossSectionalBaselineResult:
     """Train on fit only, calibrate on inner-valid, evaluate untouched outer-test."""
 
+    return run_cross_sectional_baselines(
+        rows,
+        assignment=assignment,
+        model_kind=model_kind,
+        seeds=(seed,),
+    )[0]
+
+
+def run_cross_sectional_baselines(
+    rows: Sequence[CrossSectionalBaselineRow],
+    *,
+    assignment: CrossSectionalFoldRows,
+    model_kind: CrossSectionalModelKind,
+    seeds: Sequence[int],
+) -> tuple[CrossSectionalBaselineResult, ...]:
+    """Train one fold for multiple seeds while reusing deterministic preprocessing."""
+
     values = tuple(rows)
+    exact_seeds = tuple(seeds)
+    if (
+        not exact_seeds
+        or len(set(exact_seeds)) != len(exact_seeds)
+        or any(isinstance(seed, bool) or seed < 0 for seed in exact_seeds)
+    ):
+        raise ValueError("baseline seeds must be unique non-negative integers")
     columns, _ = _validate_rows(values)
     _validate_assignment(assignment, len(values))
     fit_rows = tuple(
@@ -122,25 +146,36 @@ def run_cross_sectional_baseline(
         [row.cross_sectional_rank for row in fit_rows],
         dtype=np.float64,
     )
-    model = _fit_model(model_kind, fit_x, fit_y, seed)
-    valid_scores = np.asarray(model.predict(valid_x), dtype=np.float64)
-    test_scores = np.asarray(model.predict(test_x), dtype=np.float64)
-    return _score_predictions(
-        values,
-        assignment=assignment,
-        model_kind=model_kind,
-        seed=seed,
-        valid_scores=valid_scores,
-        test_scores=test_scores,
-        processor_digest=processor.processor_digest,
-        model_digest=_digest(
-            {
-                "model_kind": model_kind.value,
-                "schema_version": "astraquant.cross-sectional-local-model/v1",
-                "seed": seed,
-            }
-        ),
-    )
+    fitted_seeds = exact_seeds[:1] if model_kind is CrossSectionalModelKind.RIDGE else exact_seeds
+    fitted: dict[int, CrossSectionalBaselineResult] = {}
+    for seed in fitted_seeds:
+        model = _fit_model(model_kind, fit_x, fit_y, seed)
+        valid_scores = np.asarray(model.predict(valid_x), dtype=np.float64)
+        test_scores = np.asarray(model.predict(test_x), dtype=np.float64)
+        fitted[seed] = _score_predictions(
+            values,
+            assignment=assignment,
+            model_kind=model_kind,
+            seed=seed,
+            valid_scores=valid_scores,
+            test_scores=test_scores,
+            processor_digest=processor.processor_digest,
+            model_digest=_local_model_digest(model_kind, seed),
+        )
+    if model_kind is CrossSectionalModelKind.RIDGE:
+        base = fitted[fitted_seeds[0]]
+        return tuple(replace(base, seed=seed) for seed in exact_seeds)
+    return tuple(fitted[seed] for seed in exact_seeds)
+
+
+def _local_model_digest(model_kind: CrossSectionalModelKind, seed: int) -> str:
+    payload: dict[str, object] = {
+        "model_kind": model_kind.value,
+        "schema_version": "astraquant.cross-sectional-local-model/v1",
+    }
+    if model_kind is not CrossSectionalModelKind.RIDGE:
+        payload["seed"] = seed
+    return _digest(payload)
 
 
 def score_cross_sectional_predictions(

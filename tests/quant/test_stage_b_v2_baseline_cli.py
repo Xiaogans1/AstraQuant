@@ -177,6 +177,65 @@ def test_cli_combines_independently_loaded_horizon_reports(tmp_path: Path) -> No
     assert report["trial_count"] == 16
 
 
+def test_cli_resumes_completed_horizons_from_persistent_checkpoints(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _materialization(tmp_path / "source", horizons=(1, 5))
+    checkpoint = tmp_path / "checkpoints"
+    first_arguments = [
+        *_arguments(source, tmp_path / "first"),
+        "--checkpoint-root",
+        str(checkpoint),
+    ]
+
+    assert main(first_arguments) == 0
+    assert (checkpoint / "h1" / "report.json").is_file()
+    assert (checkpoint / "h5" / "report.json").is_file()
+
+    def fail_if_retrained(**kwargs):  # type: ignore[no-untyped-def]
+        del kwargs
+        raise AssertionError("completed horizon was retrained")
+
+    monkeypatch.setattr(
+        "tools.research.run_stage_b_v2_baselines._run_matrix",
+        fail_if_retrained,
+    )
+    second_arguments = [
+        *_arguments(source, tmp_path / "second"),
+        "--checkpoint-root",
+        str(checkpoint),
+    ]
+
+    assert main(second_arguments) == 0
+    assert (tmp_path / "first" / "report.json").read_bytes() == (
+        tmp_path / "second" / "report.json"
+    ).read_bytes()
+
+
+def test_cli_rejects_tampered_horizon_checkpoint(tmp_path: Path) -> None:
+    source = _materialization(tmp_path / "source")
+    checkpoint = tmp_path / "checkpoints"
+    arguments = [
+        *_arguments(source, tmp_path / "first"),
+        "--checkpoint-root",
+        str(checkpoint),
+    ]
+    assert main(arguments) == 0
+    report_path = checkpoint / "h5" / "report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["fold_count"] = 99
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    second = [
+        *_arguments(source, tmp_path / "second"),
+        "--checkpoint-root",
+        str(checkpoint),
+    ]
+    assert main(second) == 1
+    assert not (tmp_path / "second").exists()
+
+
 def test_cli_runs_pinned_double_ensemble_through_same_folds(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

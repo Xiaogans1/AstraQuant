@@ -19,18 +19,20 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 | Stage | 当前状态 | 程序交付 | 进入下一阶段的硬门 |
 | --- | --- | --- | --- |
 | A 统一协议与强基线 | **完成** | exact snapshot、统一 score、walk-forward、真实执行评价、DoubleEnsemble | 不同模型能在相同数据/费用/切分下可重复比较 |
-| B 全市场共享表征 | **v2 Batch 1 完成 / 待宽历史** | D1/D5/D10 截面标签、收益校准、统一目标组合；待真实宽历史与模型矩阵 | 跨证券与跨时期稳定，且扣费后优于简单基线 |
+| B 全市场共享表征 | **v2 Batch 2 真实基线已出 / 待复跑与重模型** | 10 年真实宽历史、D1/D5/D10 截面矩阵、Ridge/LightGBM 108 trials；待检查点、独立复跑与共享模型挑战 | 跨证券与跨时期稳定，且复杂模型扣费后优于 Ridge |
 | C 关系与市场状态 | 未开始 | MASTER/HIST、行业/概念/潜在关系、regime conditioning | 关系输入无未来信息，跨 regime 改善可重复 |
 | D 专家路由与漂移 | 未开始 | TRA/DoubleAdapt、任务专家、漂移检测、可靠 fallback | 路由可解释，失效时自动回退且不放大风险 |
 | E 组合与发布闭环 | 未开始 | ForecastCombiner、唯一目标仓位、Shadow/Paper 反馈 | 成本、容量、回撤、漂移和账户一致性全部过门 |
 
-**当前唯一主节点：** Stage B v2 Batch 1 已关闭；下一步直接扩展东方财富真实 A 股日线宽历史和动态 universe，物化同一套截面任务，然后先验证 Ridge/LightGBM 是否能学到稳定排序信号。标签不可学习时不启动 MASTER/StockMixer v2，以免把算力消耗包装成进展。
+**当前唯一主节点：** Stage B v2 Batch 2 首轮真实矩阵已证明标签可学习，Ridge 在 D1/D5/D10 均形成跨 6 折、3 种子的扣费净优势。下一步先把小时级训练改为 horizon/fold 可恢复检查点并完成独立复跑，再启动 StockMixer v2/MASTER 挑战；复杂模型必须扣费后稳定超过 Ridge，不能只提高 IC。
 
 **Stage B v2 已批准方向：** 采用[全市场截面训练设计](../specs/2026-08-13-stage-b-v2-cross-sectional-design.md)。第一主战场改为真实 A 股日线动态 universe；统一训练 `D1/D5/D10` 的收益、截面 rank 和风险 heads；先通过 Ridge/LightGBM/DoubleEnsemble 标签可学习门，再让 StockMixer v2 与 MASTER 竞争。模型输出进入统一 rank-aware long-only 目标组合，不再把 rank score 当作固定收益阈值。
 
 **刚刚完成：** [Stage B v2 Batch 1](2026-08-13-stage-b-v2-batch-1-label-portfolio.md) 已交付 D1/D5/D10 next-open 标签、inner-valid Huber 收益校准和统一 rank-aware long-only 目标组合。程序现在能回答“某日哪些股票在不同周期相对更强、校准收益是否为正、在 3% 单票和 20% 换手约束下目标仓位是多少”；这只是训练与组合语义闭环，不代表已经获得 alpha 或盈利证据。
 
 **正在实施：** [Stage B v2 Batch 2](2026-08-13-stage-b-v2-batch-2-wide-daily-panel.md) 已冻结最终目标和开发顺序：历史时点流动性股票池 → 东方财富 exact 日线宽面板 → Alpha158/市场状态/风险特征 → Ridge/LightGBM/DoubleEnsemble 统一矩阵。复杂模型只有在简单基线证明标签可学习后才启动。
+
+**首轮真实宽历史结果：** 东方财富真实 API 已完成 800 只候选 + benchmark 的 10 年引导，动态股票池最终产生 718 只入选股票、2,058,999 行 D1/D5/D10 训练矩阵和 173 个特征。Ridge/LightGBM 共 108/108 trials 成功；两者三周期均为 6/6 正 RankIC folds，但 LightGBM 扣费后均未超过 Ridge。Ridge 的 D1/D5/D10 平均净收益分别为 `+3.2949% / +1.9977% / +0.7859%`，最大回撤分别约 `30.11% / 16.40% / 9.92%`。报告摘要 `sha256:35af7df…`。这证明全市场截面标签可学，也证明“更复杂树模型”暂未胜出；当前结果仍是 `EXPLORATORY_REAL_API_CURRENT_STATUS`，历史 ST/status 证据补齐前不能晋级生产。
 
 **效率纪律：** 每个开发批次必须产生一种用户可理解的新增能力或明确淘汰结论；不以重复造基础设施代替策略结果，不降低门槛包装模型，不允许新模型绕过统一执行评价。
 
@@ -83,7 +85,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 
 ## 下一结果
 
-现在进入 Stage B v2 Batch 2：从东方财富真实 API 扩展日线宽历史和历史时点 universe，生成可重复的截面 feature/label snapshot，并让 Ridge、LightGBM/DoubleEnsemble 在相同 folds、费用和目标组合上先跑。Batch 2 的结果只回答“标签是否可学习、简单基线能否形成净优势”；只有门槛通过，Batch 3 才让 StockMixer v2 与 MASTER 竞争。
+先把真实矩阵改为 horizon/fold 可恢复、可观察、单训练作业资源门禁，并对同一不可变矩阵做第二次独立复跑；随后恢复 DoubleEnsemble 挑战并进入 Batch 3 StockMixer v2/MASTER。下一份模型结论必须回答“是否稳定超过 Ridge 的扣费净收益与回撤”，不再回答已经解决的“模型能不能在宽面板上训练”。
 
 macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、优先级和验收条件见
 [macOS 数据源与批量训练数据计划](2026-08-11-macos-data-source-and-batch-training.md)。
@@ -91,7 +93,7 @@ macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、
 ## 后续任务顺序
 
 1. **Stage A 统一训练协议（已完成）**：task/score 契约、DoubleEnsemble 与真实多标的统一评价已经关闭；概率、预期收益、rank、风险各走声明过的选择规则。
-2. **扩大全市场真实历史（下一步）**：用已资格认证的东方财富真实 API 构建历史时点动态 universe 和可重复日线 snapshot；训练接口不写死当前十只 ETF，并先覆盖 300–800 只、至少 5 年，目标 10 年。
+2. **扩大全市场真实历史（首轮完成）**：已完成 800 候选、10 年真实 API 引导和 718 只实际入选训练矩阵；下一步补历史 ST/status 高保真证据并扩到更宽 universe，而不是退回十只 ETF。
 3. **Kronos 基础模型通道（已完成，`NO_NET_EDGE`）**：官方预训练权重、批量推理和公平评价已关闭；保留研究通道但不微调、不开发正式图层、不进入组合，待更长历史与更多 regime 出现新证据后再挑战。
 4. **Stage B 全市场共享表征（首轮完成，`NO_NET_EDGE`）**：StockMixer 官方语义、动态 universe、正式训练和统一执行均已关闭；下一步先重做 Stage B v2 的数据/任务/horizon 实验设计，不为每只股票单独训练，也不在失败结果上事后调参。
 5. **Stage C 关系与状态**：接入 MASTER/HIST，验证行业、概念、潜在关系和市场 regime 是否带来可重复净改善。
@@ -100,4 +102,4 @@ macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、
 8. **P1 第二认证源与跨平台一致性**：实测 Tushare Pro/Choice；macOS 与 Windows 只保留 provider/runtime 差异，训练 artifact 语义一致。
 9. **LIVE 设计**：只有账户、订单、费用、T+1、对账及 Stage A–E 全部通过后才讨论 Broker Gateway 与 LIVE。
 
-当前 Strategy Fast Lane S1–S6、DoubleEnsemble、Kronos、StockMixer 首轮和 Stage B v2 Batch 1 均已完成，但仍无可晋级模型。工程已具备统一生成可执行截面标签、稳健校准模型分数并形成风险受控目标仓位的能力；当前停止继续实现新网络，先用真实宽历史验证任务/horizon 信号质量。Kronos 保留为独立研究能力，不再占用当前主线。
+当前 Strategy Fast Lane S1–S6、DoubleEnsemble、Kronos、StockMixer 首轮、Stage B v2 Batch 1 和 Batch 2 首轮真实基线均已完成。首次得到可进入下一轮挑战的宽市场 Ridge 基线，但尚无复杂模型超过它，也未达到 Shadow/Paper 发布条件。当前先完成可恢复训练与独立复跑，再让 StockMixer v2/MASTER 在同一真实矩阵挑战 Ridge；Kronos 保留为独立研究能力，不占用当前主线。

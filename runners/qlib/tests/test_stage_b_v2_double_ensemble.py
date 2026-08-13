@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pytest
 from astraquant_qlib_runner.stage_b_v2_double_ensemble import run_double_ensemble_request
 
 
@@ -145,3 +146,56 @@ def test_runner_reuses_fold_preprocessing_for_adjacent_seeds(
 
     assert [trial["seed"] for trial in response["trials"]] == [7, 11]
     assert calls == {"fit": 1, "transform": 1}
+
+
+def test_runner_resumes_completed_trials_after_later_trial_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_path = _request(tmp_path)
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    second = {**request["trials"][0], "trial_id": "h5-double_ensemble-s11-fold-01", "seed": 11}
+    body = {
+        key: value
+        for key, value in {**request, "trials": [request["trials"][0], second]}.items()
+        if key != "content_digest"
+    }
+    request_path.write_bytes(
+        _canonical({"content_digest": _digest(_canonical(body)), **body}) + b"\n"
+    )
+    first_seeds: list[int] = []
+
+    def fail_second(config, seed):
+        del config
+        first_seeds.append(seed)
+        if seed == 11:
+            raise RuntimeError("interrupted")
+        return _FakeModel()
+
+    monkeypatch.setattr(
+        "astraquant_qlib_runner.stage_b_v2_double_ensemble.create_double_ensemble_model",
+        fail_second,
+    )
+    output = tmp_path / "response.json"
+    with pytest.raises(RuntimeError, match="interrupted"):
+        run_double_ensemble_request(request_path, output)
+
+    assert first_seeds == [7, 11]
+    assert len(tuple((tmp_path / "trial-checkpoints").glob("*.json"))) == 1
+
+    resumed_seeds: list[int] = []
+
+    def resume(config, seed):
+        del config
+        resumed_seeds.append(seed)
+        return _FakeModel()
+
+    monkeypatch.setattr(
+        "astraquant_qlib_runner.stage_b_v2_double_ensemble.create_double_ensemble_model",
+        resume,
+    )
+    response = run_double_ensemble_request(request_path, output)
+
+    assert resumed_seeds == [11]
+    assert [trial["seed"] for trial in response["trials"]] == [7, 11]
+    assert len(tuple((tmp_path / "trial-checkpoints").glob("*.json"))) == 2

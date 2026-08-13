@@ -20,6 +20,7 @@ from .model_adapters import create_double_ensemble_model
 
 REQUEST_SCHEMA = "astraquant.stage-b-v2-double-ensemble-request/v1"
 RESPONSE_SCHEMA = "astraquant.stage-b-v2-double-ensemble-response/v1"
+TRIAL_CHECKPOINT_SCHEMA = "astraquant.stage-b-v2-double-ensemble-trial/v1"
 
 
 def run_double_ensemble_request(request_path: Path, output_path: Path) -> dict[str, Any]:
@@ -61,6 +62,7 @@ def run_double_ensemble_request(request_path: Path, output_path: Path) -> dict[s
     cached_transformed: pd.DataFrame | None = None
     cached_model_fit_ids: tuple[int, ...] | None = None
     cached_model_valid_ids: tuple[int, ...] | None = None
+    checkpoint_root = output_path.parent / "trial-checkpoints"
     for raw_trial in trials:
         if not isinstance(raw_trial, dict):
             raise ValueError("DoubleEnsemble trial schema mismatch")
@@ -75,6 +77,18 @@ def run_double_ensemble_request(request_path: Path, output_path: Path) -> dict[s
             or set(inner_valid_row_ids) & set(outer_test_row_ids)
         ):
             raise ValueError(f"DoubleEnsemble trial segments overlap: {trial_id}")
+        checkpoint_path = checkpoint_root / f"{hashlib.sha256(trial_id.encode()).hexdigest()}.json"
+        checkpoint = _load_trial_checkpoint(
+            checkpoint_path,
+            request_content_digest=_text(request, "content_digest"),
+            trial_id=trial_id,
+            seed=seed,
+            inner_valid_row_ids=inner_valid_row_ids,
+            outer_test_row_ids=outer_test_row_ids,
+        )
+        if checkpoint is not None:
+            results.append(checkpoint)
+            continue
         eligible_fit_ids = tuple(
             row_id
             for row_id in fit_row_ids
@@ -142,16 +156,20 @@ def run_double_ensemble_request(request_path: Path, output_path: Path) -> dict[s
                 "upstream_commit": QLIB_UPSTREAM_COMMIT,
             }
         )
-        results.append(
-            {
-                "trial_id": trial_id,
-                "seed": seed,
-                "processor_digest": processor_digest,
-                "model_digest": model_digest,
-                "inner_valid_predictions": _predictions(inner_valid_row_ids, inner_scores),
-                "outer_test_predictions": _predictions(outer_test_row_ids, outer_scores),
-            }
+        trial_result = {
+            "trial_id": trial_id,
+            "seed": seed,
+            "processor_digest": processor_digest,
+            "model_digest": model_digest,
+            "inner_valid_predictions": _predictions(inner_valid_row_ids, inner_scores),
+            "outer_test_predictions": _predictions(outer_test_row_ids, outer_scores),
+        }
+        _write_trial_checkpoint(
+            checkpoint_path,
+            request_content_digest=_text(request, "content_digest"),
+            trial=trial_result,
         )
+        results.append(trial_result)
     body: dict[str, Any] = {
         "schema_version": RESPONSE_SCHEMA,
         "request_content_digest": request["content_digest"],
@@ -183,6 +201,83 @@ def _read_request(path: Path) -> dict[str, Any]:
     if value.get("content_digest") != _object_digest(body):
         raise ValueError("DoubleEnsemble request digest mismatch")
     return value
+
+
+def _load_trial_checkpoint(
+    path: Path,
+    *,
+    request_content_digest: str,
+    trial_id: str,
+    seed: int,
+    inner_valid_row_ids: tuple[int, ...],
+    outer_test_row_ids: tuple[int, ...],
+) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError("DoubleEnsemble trial checkpoint schema mismatch")
+    body = {key: item for key, item in value.items() if key != "content_digest"}
+    trial = value.get("trial")
+    if (
+        value.get("content_digest") != _object_digest(body)
+        or value.get("schema_version") != TRIAL_CHECKPOINT_SCHEMA
+        or value.get("request_content_digest") != request_content_digest
+        or not isinstance(trial, dict)
+        or trial.get("trial_id") != trial_id
+        or trial.get("seed") != seed
+        or _prediction_row_ids(trial.get("inner_valid_predictions"))
+        != inner_valid_row_ids
+        or _prediction_row_ids(trial.get("outer_test_predictions"))
+        != outer_test_row_ids
+    ):
+        raise ValueError("DoubleEnsemble trial checkpoint identity mismatch")
+    return trial
+
+
+def _write_trial_checkpoint(
+    path: Path,
+    *,
+    request_content_digest: str,
+    trial: dict[str, Any],
+) -> None:
+    body = {
+        "schema_version": TRIAL_CHECKPOINT_SCHEMA,
+        "request_content_digest": request_content_digest,
+        "trial": trial,
+    }
+    value = {"content_digest": _object_digest(body), **body}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=path.parent,
+        prefix=f".{path.name}-",
+        suffix=".tmp",
+        delete=False,
+    ) as stream:
+        temporary = Path(stream.name)
+        stream.write(_canonical_bytes(value) + b"\n")
+    temporary.replace(path)
+
+
+def _prediction_row_ids(value: object) -> tuple[int, ...]:
+    if not isinstance(value, list):
+        raise ValueError("DoubleEnsemble trial checkpoint predictions are missing")
+    result: list[int] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ValueError("DoubleEnsemble trial checkpoint prediction schema mismatch")
+        row_id = item.get("row_id")
+        score = item.get("score")
+        if (
+            isinstance(row_id, bool)
+            or not isinstance(row_id, int)
+            or isinstance(score, bool)
+            or not isinstance(score, (int, float))
+            or not math.isfinite(float(score))
+        ):
+            raise ValueError("DoubleEnsemble trial checkpoint prediction schema mismatch")
+        result.append(row_id)
+    return tuple(result)
 
 
 def _read_rows(root: Path, request: dict[str, Any]) -> pd.DataFrame:
