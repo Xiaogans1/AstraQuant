@@ -30,9 +30,7 @@ class DailyInstrumentStatus:
     evidence_digest: str
 
     def __post_init__(self) -> None:
-        if not isinstance(self.tradable, bool) or not isinstance(
-            self.special_treatment, bool
-        ):
+        if not isinstance(self.tradable, bool) or not isinstance(self.special_treatment, bool):
             raise ValueError("daily instrument status flags must be boolean")
         object.__setattr__(
             self,
@@ -134,8 +132,7 @@ def build_historical_universe(
 
     minimum_window_observations = int(
         (
-            Decimal(policy.liquidity_lookback_sessions)
-            * policy.minimum_observation_ratio
+            Decimal(policy.liquidity_lookback_sessions) * policy.minimum_observation_ratio
         ).to_integral_value(rounding=ROUND_CEILING)
     )
     members_by_time: dict[datetime, frozenset[str]] = {}
@@ -148,9 +145,9 @@ def build_historical_universe(
             session_index + 1 - policy.liquidity_lookback_sessions : session_index + 1
         ]
         for instrument in exact_instruments:
-            status = statuses[session][instrument.instrument_id]
             if not instrument.active_on(session):
                 continue
+            status = statuses[session][instrument.instrument_id]
             if policy.common_a_share_only and not instrument.common_a_share:
                 continue
             if not status.tradable or (
@@ -205,9 +202,7 @@ def build_historical_universe(
                 {
                     "evidence_digest": statuses[session][instrument_id].evidence_digest,
                     "instrument_id": instrument_id,
-                    "special_treatment": statuses[session][
-                        instrument_id
-                    ].special_treatment,
+                    "special_treatment": statuses[session][instrument_id].special_treatment,
                     "tradable": statuses[session][instrument_id].tradable,
                 }
                 for instrument_id in sorted(statuses[session])
@@ -245,9 +240,7 @@ def build_historical_universe(
 def _validate_sessions(sessions: tuple[datetime, ...]) -> None:
     if not sessions:
         raise ValueError("sessions must not be empty")
-    if any(
-        session.tzinfo is None or session.utcoffset() is None for session in sessions
-    ):
+    if any(session.tzinfo is None or session.utcoffset() is None for session in sessions):
         raise ValueError("sessions must be timezone-aware")
     if sessions != tuple(sorted(set(sessions))):
         raise ValueError("sessions must be unique and chronological")

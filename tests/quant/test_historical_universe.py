@@ -105,9 +105,7 @@ def _statuses(
                 continue
             current[instrument.instrument_id] = DailyInstrumentStatus(
                 tradable=not (instrument.instrument_id == "B.SSE" and session_index == 3),
-                special_treatment=(
-                    instrument.instrument_id == "B.SSE" and session_index == 4
-                ),
+                special_treatment=(instrument.instrument_id == "B.SSE" and session_index == 4),
                 evidence_digest=evidence_by_instrument[instrument.instrument_id],
             )
         values[session] = current
@@ -144,6 +142,33 @@ def test_a_share_lifecycle_uses_shanghai_trading_date_not_utc_storage_date() -> 
     )
 
     assert instrument.active_on(utc_storage_time) is True
+
+
+def test_future_listing_does_not_require_status_before_instrument_is_active() -> None:
+    instruments = (
+        *_instruments(),
+        _instrument("E.SSE", turnover=900, listed_index=4, source_character="9"),
+    )
+    statuses = _statuses(_instruments())
+    statuses[_sessions()[4]]["E.SSE"] = DailyInstrumentStatus(
+        tradable=True,
+        special_treatment=False,
+        evidence_digest=_digest("f"),
+    )
+    statuses[_sessions()[5]]["E.SSE"] = DailyInstrumentStatus(
+        tradable=True,
+        special_treatment=False,
+        evidence_digest=_digest("f"),
+    )
+
+    snapshot = build_historical_universe(
+        sessions=_sessions(),
+        instruments=instruments,
+        status_by_session=statuses,
+        policy=_policy(),
+    )
+
+    assert "E.SSE" not in snapshot.members_by_time[_sessions()[2]]
 
 
 def test_future_turnover_cannot_change_past_membership() -> None:
