@@ -18,11 +18,11 @@
 - Create: `runners/kronos/tests/fakes.py`
 - Modify: `runners/kronos/pyproject.toml`
 
-- [ ] 用真实 Task 1 request 和固定 Arrow windows fixture 测试每个 eligible row 恰好产生一个 forecast，顺序与 request 一致。
-- [ ] fake backend 返回 5 条未来 close paths；测试 terminal-return p10/p50/p90、expected return、上涨路径占比、波动和区间宽度。
-- [ ] 测试相同 request/backend 两次 response bytes 相同，派生 seed 对 fold/instrument/row 稳定且不同 row 不复用。
-- [ ] 测试 windows digest/schema/context/identity 错误、backend exception、NaN、路径数量/长度错误都不创建 output。
-- [ ] 首次运行目标测试，预期因 `run_request` 不存在而失败。
+- [x] 用真实 Task 1 request 和固定 Arrow windows fixture 测试每个 eligible row 恰好产生一个 forecast，顺序与 request 一致。
+- [x] fake backend 返回 5 条未来 close paths；测试 terminal-return p10/p50/p90、expected return、上涨路径占比、波动和区间宽度。
+- [x] 测试相同 request/backend 两次 response bytes 相同，派生 seed 对 fold/instrument/row 稳定且不同 row 不复用。
+- [x] 测试 windows digest/schema/context/identity 错误、backend exception、NaN、路径数量/长度错误都不创建 output。
+- [x] 首次运行目标测试，按预期因 `run_request` 不存在而失败。
 
 ## Task 3A.2: 实现隔离编排与 forecast 聚合
 
@@ -32,12 +32,12 @@
 - Create: `runners/kronos/src/astraquant_kronos_runner/runner.py`
 - Modify: `runners/kronos/src/astraquant_kronos_runner/__init__.py`
 
-- [ ] 定义 `KronosBackend.predict_paths(...)` 与 `environment_identity()` Protocol。
-- [ ] `run_request(request_path, output_path, root, backend)` 先调用 Task 1 validator，再验证 `windows.parquet` digest、固定 schema、row coverage、sequence 和时间边界。
-- [ ] 使用 `sha256(global_seed,fold_id,instrument_id,row_id)` 派生 64 位 row seed，不依赖 Python hash randomization。
-- [ ] 将 paths 汇总为 Task 1 response 字段；所有 close 必须正数有限，路径数等于 sample count，长度等于 prediction length。
-- [ ] response 先写同目录临时文件，验证完整 response 后 rename；异常时删除临时文件且不触碰既有正式文件。
-- [ ] 运行 runner tests、Ruff、mypy；提交 `feat(kronos): 打通隔离零样本运行链路`。
+- [x] 定义 `KronosBackend.predict_paths(...)` 与 `environment_identity()` Protocol。
+- [x] `run_request(request_path, output_path, root, backend)` 先调用 Task 1 validator，再验证 `windows.parquet` digest、固定 schema、row coverage、sequence 和时间边界。
+- [x] 使用 `sha256(global_seed,fold_id,instrument_id,row_id)` 派生 64 位 row seed，不依赖 Python hash randomization。
+- [x] 将 paths 汇总为 Task 1 response 字段；所有 close 必须正数有限，路径数等于 sample count，长度等于 prediction length。
+- [x] response 先写同目录临时文件，验证完整 response 后 rename；异常时删除临时文件且不触碰既有正式文件。
+- [x] 运行 runner tests、Ruff、mypy；提交 `feat(kronos): 打通隔离零样本运行链路`。
 
 ## Task 3B 交接
 

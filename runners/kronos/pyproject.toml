@@ -3,7 +3,10 @@ name = "astraquant-kronos-runner"
 version = "0.1.0"
 description = "Pinned Kronos zero-shot runner for AstraQuant"
 requires-python = ">=3.11,<3.12"
-dependencies = []
+dependencies = [
+  "pyarrow>=18,<20",
+  "tzdata>=2025.2",
+]
 
 [dependency-groups]
 dev = [
