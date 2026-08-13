@@ -79,6 +79,7 @@ Thumbs.db
 Desktop.ini
 
 # Temporary files
+.test-tmp/
 *.tmp
 *.temp
 *.bak
