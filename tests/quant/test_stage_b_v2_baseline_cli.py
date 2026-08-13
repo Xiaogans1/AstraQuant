@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
+import pyarrow as pa  # type: ignore[import-untyped]
+import pyarrow.parquet as pq  # type: ignore[import-untyped]
+
+from astraquant_domain.run_manifest import canonical_json_bytes
+from tools.research.run_stage_b_v2_baselines import main
+
+
+def _digest(value: bytes) -> str:
+    return f"sha256:{hashlib.sha256(value).hexdigest()}"
+
+
+def _materialization(root: Path) -> Path:
+    root.mkdir()
+    start = datetime(2020, 1, 2, 7, tzinfo=UTC)
+    rows: list[dict[str, object]] = []
+    row_id = 0
+    for session_index in range(80):
+        decision_time = start + timedelta(days=session_index)
+        for instrument_index in range(10):
+            rank = instrument_index / 9
+            rows.append(
+                {
+                    "row_id": row_id,
+                    "decision_time": decision_time,
+                    "instrument_id": f"S{instrument_index:03d}.SSE",
+                    "horizon_sessions": 5,
+                    "entry_time": decision_time + timedelta(days=1),
+                    "exit_time": decision_time + timedelta(days=6),
+                    "raw_return": (rank - 0.5) * 0.021,
+                    "benchmark_return": 0.001,
+                    "market_excess_return": (rank - 0.5) * 0.02,
+                    "cross_sectional_rank": rank,
+                    "downside_risk": max(0.0, 0.5 - rank) * 0.01,
+                    "training_eligible": instrument_index not in (0, 9),
+                    "signal": rank + session_index / 10000,
+                    "missing": None if instrument_index % 4 == 0 else rank * 2,
+                    "trailing_volatility": 0.1 + instrument_index / 100,
+                    "tradable": True,
+                }
+            )
+            row_id += 1
+    matrix_path = root / "matrix.parquet"
+    pq.write_table(pa.Table.from_pylist(rows), matrix_path, compression="zstd", version="2.6")
+    body = {
+        "schema_version": "astraquant.stage-b-v2-materialization/v1",
+        "request_content_digest": "sha256:" + "1" * 64,
+        "upstream_commit": "79633dd9506ea689e5400dea0197717b5b3d74b7",
+        "alpha158_config_digest": "sha256:" + "2" * 64,
+        "alpha158_feature_count": 158,
+        "alpha158_missing_values": 200,
+        "feature_columns": ["signal", "missing", "trailing_volatility"],
+        "row_count": len(rows),
+        "instrument_count": 10,
+        "horizons": [5],
+        "matrix_file": {"path": "matrix.parquet", "digest": _digest(matrix_path.read_bytes())},
+    }
+    manifest = {"content_digest": _digest(canonical_json_bytes(body)), **body}
+    (root / "manifest.json").write_bytes(canonical_json_bytes(manifest) + b"\n")
+    return root
+
+
+def _arguments(source: Path, output: Path) -> list[str]:
+    return [
+        str(source),
+        "--output-root",
+        str(output),
+        "--minimum-fit-sessions",
+        "20",
+        "--inner-valid-sessions",
+        "5",
+        "--outer-test-sessions",
+        "5",
+        "--fold-count",
+        "2",
+        "--purge-sessions",
+        "11",
+        "--seeds",
+        "7",
+        "11",
+    ]
+
+
+def test_cli_runs_identical_ridge_lightgbm_matrix_and_freezes_report(tmp_path: Path) -> None:
+    source = _materialization(tmp_path / "source")
+
+    assert main(_arguments(source, tmp_path / "first")) == 0
+    assert main(_arguments(source, tmp_path / "second")) == 0
+
+    first = (tmp_path / "first" / "report.json").read_bytes()
+    second = (tmp_path / "second" / "report.json").read_bytes()
+    assert first == second
+    report = json.loads(first)
+    assert report["schema_version"] == "astraquant.stage-b-v2-baseline-report/v1"
+    assert report["source_materialization_digest"].startswith("sha256:")
+    assert report["models"] == ["LIGHTGBM", "RIDGE"]
+    assert report["seeds"] == [7, 11]
+    assert report["fold_count"] == 2
+    assert report["trial_count"] == 8
+    assert report["failed_trial_count"] == 0
+    assert report["horizons"]["5"]["models"]["RIDGE"]["mean_rank_ic"] > 0.9
+    assert report["horizons"]["5"]["models"]["LIGHTGBM"]["mean_rank_ic"] > 0.9
+    assert report["content_digest"] == _digest(
+        canonical_json_bytes(
+            {key: value for key, value in report.items() if key != "content_digest"}
+        )
+    )
+
+
+def test_cli_fails_closed_when_materialized_matrix_is_tampered(tmp_path: Path) -> None:
+    source = _materialization(tmp_path / "source")
+    with (source / "matrix.parquet").open("ab") as stream:
+        stream.write(b"tampered")
+
+    assert main(_arguments(source, tmp_path / "output")) == 1
+    assert not (tmp_path / "output").exists()
