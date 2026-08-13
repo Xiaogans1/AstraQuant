@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .artifacts import write_training_artifact
 from .contracts import load_request
+from .stage_b_v2_shared_mlp import run_shared_mlp_request
 from .training import TrainingConfig, train_fold
 
 
@@ -33,12 +34,19 @@ def _parser() -> argparse.ArgumentParser:
     train.add_argument("--hidden-dim", type=int, default=64)
     train.add_argument("--market-dim", type=int, default=32)
     train.add_argument("--scales", default="1,2,4")
+    shared = commands.add_parser("shared-mlp")
+    shared.add_argument("request", type=Path)
+    shared.add_argument("--output", required=True, type=Path)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     try:
+        if arguments.command == "shared-mlp":
+            run_shared_mlp_request(arguments.request, arguments.output)
+            print(arguments.output)
+            return 0
         folds = tuple(arguments.fold_id)
         if len(folds) != len(set(folds)):
             raise ValueError("fold-id values must be unique")
@@ -90,4 +98,3 @@ def _scales(value: str) -> tuple[int, ...]:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

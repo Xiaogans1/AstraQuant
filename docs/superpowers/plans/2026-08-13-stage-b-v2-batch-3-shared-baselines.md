@@ -35,11 +35,11 @@
 - Create: `runners/stockmixer/tests/test_shared_mlp.py`
 - Create: `runners/stockmixer/tests/test_stage_b_v2_shared_mlp.py`
 
-- [ ] 共享 encoder 对证券排列等变；增加一个 masked 股票不改变其他输出；任意日期股票数可变。
-- [ ] 每 fold 只用 training-eligible fit rows 拟合 median/MAD；outer label 修改不能改变 normalization、模型选择、预测摘要。
-- [ ] fit 尾部 20% sessions 作为内部早停段并保持 purge；inner-valid 只供主进程校准，outer-test 只在模型冻结后预测一次。
-- [ ] 每个 trial 原子写稳定检查点；中断后只重跑未完成 trial；CUDA 不可用时可在 CPU 正确运行但不得伪报 device。
-- [ ] 相同 request/seed/device 双跑逐字节一致；runner 全套 pytest、Ruff 通过。
+- [x] 共享 encoder 对证券排列等变；增加一个 masked 股票不改变其他输出；任意日期股票数可变。
+- [x] 每 fold 只用 training-eligible fit rows 拟合 median/MAD；outer label 修改不能改变 normalization、模型选择、预测摘要。
+- [x] fit 尾部 20% sessions 作为内部早停段并保持 purge；inner-valid 只供主进程校准，outer-test 只在模型冻结后预测一次。
+- [x] 每个 trial 原子写稳定检查点；中断后只重跑未完成 trial；CUDA 不可用时可在 CPU 正确运行但不得伪报 device。
+- [x] 相同 request/seed/device 双跑逐字节一致；runner 全套 pytest、Ruff 通过。
 
 ## Task 3: Add Shared MLP to the common baseline matrix
 

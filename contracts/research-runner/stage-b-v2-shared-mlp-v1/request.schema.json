@@ -54,9 +54,13 @@
         "market_dim",
         "encoder_layers",
         "dropout",
+        "learning_rate",
+        "weight_decay",
         "epochs",
         "patience",
         "validation_fraction",
+        "internal_purge_sessions",
+        "session_batch_size",
         "batch_semantics"
       ],
       "properties": {
@@ -64,9 +68,13 @@
         "market_dim": { "const": 32 },
         "encoder_layers": { "const": 2 },
         "dropout": { "const": 0 },
+        "learning_rate": { "const": "0.001" },
+        "weight_decay": { "const": "0.0001" },
         "epochs": { "const": 80 },
         "patience": { "const": 8 },
         "validation_fraction": { "const": "0.20" },
+        "internal_purge_sessions": { "const": 11 },
+        "session_batch_size": { "const": 16 },
         "batch_semantics": { "const": "DECISION_DATE_CROSS_SECTION" }
       }
     },

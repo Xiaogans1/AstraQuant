@@ -40,6 +40,10 @@ def test_request_freezes_rows_trials_runner_and_model_policy() -> None:
     assert isinstance(model_properties, dict)
     assert model_properties["hidden_dim"] == {"const": 64}
     assert model_properties["market_dim"] == {"const": 32}
+    assert model_properties["learning_rate"] == {"const": "0.001"}
+    assert model_properties["weight_decay"] == {"const": "0.0001"}
+    assert model_properties["internal_purge_sessions"] == {"const": 11}
+    assert model_properties["session_batch_size"] == {"const": 16}
     assert model_properties["batch_semantics"] == {
         "const": "DECISION_DATE_CROSS_SECTION"
     }
