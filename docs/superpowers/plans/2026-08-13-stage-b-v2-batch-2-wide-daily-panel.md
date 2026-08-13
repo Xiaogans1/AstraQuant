@@ -47,11 +47,11 @@
 - Create: `tools/research/build_stage_b_v2_daily_panel.py`
 - Create: `tests/data/test_stage_b_v2_daily_panel_cli.py`
 
-- [ ] 增加频率感知的 exact snapshot loader，正式路径禁止 `latest`，只接受非 sentinel SHA-256。
-- [ ] request manifest 明确列出 benchmark、所有证券 dataset/snapshot、universe snapshot、日期区间和 provider；所有 source provider 必须为 `eastmoney`。
-- [ ] 校验日线唯一/递增、session 对齐、adjustment policy、benchmark 全覆盖、membership 中每只股票有 exact source。
-- [ ] 生成 `DailyCrossSectionalPanel`，缺失证券 bar 保留为不可用，不前向填充价格。
-- [ ] 两次独立构建得到相同 manifest/panel digest；提交 `feat(data): 组装真实日线截面面板`。
+- [x] 增加频率感知的 exact snapshot loader，正式路径禁止 `latest`，只接受非 sentinel SHA-256，并重验 manifest/Parquet hash/row count。
+- [x] request manifest 明确列出 benchmark、所有证券 dataset/snapshot、universe snapshot、日期区间和 provider；所有 source provider 必须为 `eastmoney`。
+- [x] 校验日线唯一/递增、session 对齐、adjustment policy、benchmark 全覆盖、membership 中每只股票有 exact source。
+- [x] 生成与 `DailyCrossSectionalPanel` 同构的 `ExactDailyPanel`；缺失证券 bar 保留为不可用，不前向填充价格。
+- [x] 两次独立构建得到相同 manifest/panel digest（33 项相关回归通过；Ruff/mypy clean）；提交 `feat(data): 组装真实日线截面面板`。
 
 ## Task 4: Materialize Stage B v2 features and labels
 

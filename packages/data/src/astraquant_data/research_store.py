@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -12,6 +14,7 @@ from typing import Any
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
 from astraquant_data.arrow_schema import table_to_bars
+from astraquant_data.manifests import SnapshotManifest
 from astraquant_data.market_bars import MarketBar
 from astraquant_data.parquet_store import ParquetSnapshotStore
 from astraquant_domain import Adjustment, Bar, BarFrequency, InstrumentId
@@ -24,6 +27,20 @@ class DatasetInfo:
     bar_count: int
     start: datetime
     end: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ExactDatasetSnapshot:
+    dataset_id: str
+    snapshot_id: str
+    provider_id: str
+    instrument_id: str
+    frequency: str
+    adjustment: str
+    bars: tuple[MarketBar, ...]
+
+
+_DATASET_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{0,99}$")
 
 
 def dataset_id_for(instrument_id: InstrumentId) -> str:
@@ -138,6 +155,76 @@ def load_dataset_provenance(
     return snapshot_id, provider["id"]
 
 
+def load_exact_dataset_snapshot(
+    data_root: Path,
+    dataset_id: str,
+    *,
+    snapshot_id: str,
+) -> ExactDatasetSnapshot:
+    """Load and hash-verify one exact immutable legacy dataset snapshot."""
+
+    if not _DATASET_ID_PATTERN.fullmatch(dataset_id):
+        raise ValueError("dataset_id must be canonical")
+    exact_snapshot_id = snapshot_id.removeprefix("sha256:")
+    if (
+        len(exact_snapshot_id) != 64
+        or any(character not in "0123456789abcdef" for character in exact_snapshot_id)
+        or set(exact_snapshot_id) == {"0"}
+    ):
+        raise ValueError("snapshot_id must be an exact non-sentinel SHA-256 identity")
+    snapshot_root = (
+        data_root.resolve()
+        / "datasets"
+        / dataset_id
+        / "snapshots"
+        / exact_snapshot_id
+    )
+    manifest_path = snapshot_root / "manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(f"snapshot {exact_snapshot_id} not found for dataset {dataset_id}")
+    manifest = SnapshotManifest.from_path(manifest_path)
+    if manifest.dataset_id != dataset_id or manifest.snapshot_id != exact_snapshot_id:
+        raise ValueError("exact snapshot manifest identity mismatch")
+
+    bars: list[Bar] = []
+    observed_rows = 0
+    for file in manifest.files:
+        path = (snapshot_root / file.path).resolve()
+        if not path.is_relative_to(snapshot_root.resolve()) or not path.is_file():
+            raise ValueError("snapshot file path is invalid")
+        if _sha256(path) != file.sha256:
+            raise ValueError(f"snapshot file digest mismatch: {file.path}")
+        with pq.ParquetFile(path) as handle:
+            if handle.metadata.num_rows != file.rows:
+                raise ValueError(f"snapshot file row count mismatch: {file.path}")
+            table = handle.read()
+        exact_bars = table_to_bars(table)
+        observed_rows += len(exact_bars)
+        bars.extend(exact_bars)
+    if observed_rows != manifest.row_count or not bars:
+        raise ValueError("snapshot row count does not match manifest")
+    instrument_ids = {str(bar.instrument_id) for bar in bars}
+    frequencies = {bar.frequency.value for bar in bars}
+    adjustments = {bar.adjustment.value for bar in bars}
+    if len(instrument_ids) != 1 or len(frequencies) != 1 or len(adjustments) != 1:
+        raise ValueError("exact research snapshot must contain one instrument series")
+    ordered = tuple(sorted((_to_market_bar(bar) for bar in bars), key=lambda bar: bar.timestamp))
+    if len({bar.timestamp for bar in ordered}) != len(ordered):
+        raise ValueError("exact research snapshot contains duplicate timestamps")
+    provider_id = manifest.provider.get("id", "")
+    if not provider_id:
+        raise ValueError("exact research snapshot has no provider identity")
+    return ExactDatasetSnapshot(
+        dataset_id=dataset_id,
+        snapshot_id=exact_snapshot_id,
+        provider_id=provider_id,
+        instrument_id=next(iter(instrument_ids)),
+        frequency=next(iter(frequencies)),
+        adjustment=next(iter(adjustments)),
+        bars=ordered,
+    )
+
+
 def _selected_dataset_manifest(
     data_root: Path,
     dataset_id: str,
@@ -205,3 +292,11 @@ def _instrument_from_manifest(snapshot_dir: Path) -> str:
                     if "instrument_id" in table.column_names:
                         return str(table.column("instrument_id")[0].as_py())
     return ""
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
