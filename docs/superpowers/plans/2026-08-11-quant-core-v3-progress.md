@@ -30,6 +30,8 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 
 **刚刚完成：** [Stage B v2 Batch 1](2026-08-13-stage-b-v2-batch-1-label-portfolio.md) 已交付 D1/D5/D10 next-open 标签、inner-valid Huber 收益校准和统一 rank-aware long-only 目标组合。程序现在能回答“某日哪些股票在不同周期相对更强、校准收益是否为正、在 3% 单票和 20% 换手约束下目标仓位是多少”；这只是训练与组合语义闭环，不代表已经获得 alpha 或盈利证据。
 
+**正在实施：** [Stage B v2 Batch 2](2026-08-13-stage-b-v2-batch-2-wide-daily-panel.md) 已冻结最终目标和开发顺序：历史时点流动性股票池 → 东方财富 exact 日线宽面板 → Alpha158/市场状态/风险特征 → Ridge/LightGBM/DoubleEnsemble 统一矩阵。复杂模型只有在简单基线证明标签可学习后才启动。
+
 **效率纪律：** 每个开发批次必须产生一种用户可理解的新增能力或明确淘汰结论；不以重复造基础设施代替策略结果，不降低门槛包装模型，不允许新模型绕过统一执行评价。
 
 ## 已完成
