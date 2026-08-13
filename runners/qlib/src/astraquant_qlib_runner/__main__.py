@@ -11,6 +11,12 @@ from . import run_request
 def run_cli_request(request: Path, output: Path) -> dict[str, Any]:
     value = json.loads(request.read_text(encoding="utf-8"))
     if isinstance(value, dict) and value.get("schema_version") == (
+        "astraquant.stage-b-v2-request/v1"
+    ):
+        from .stage_b_v2 import run_stage_b_v2_request
+
+        return run_stage_b_v2_request(request, output)
+    if isinstance(value, dict) and value.get("schema_version") == (
         "astraquant.qlib-alpha158-request/v1"
     ):
         from .alpha158 import run_alpha158_request

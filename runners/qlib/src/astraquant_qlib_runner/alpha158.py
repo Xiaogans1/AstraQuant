@@ -104,6 +104,7 @@ def run_alpha158_request(request_path: Path, output_path: Path) -> dict[str, Any
         dataset = AstraFoldDataset(
             alpha,
             feature_columns=feature_columns,
+            target_column="label",
             train_indices=train_indices,
             test_indices=test_indices,
         )
