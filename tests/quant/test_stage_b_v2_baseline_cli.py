@@ -122,6 +122,18 @@ def test_cli_runs_identical_ridge_lightgbm_matrix_and_freezes_report(tmp_path: P
     completed = next(item for item in report["trials"] if item["status"] == "COMPLETED")
     assert completed["portfolio"]["net_return"] > 0
     assert completed["portfolio"]["period_count"] == 1
+    assert set(completed["portfolio_profiles"]) == {"ADVERSE", "BASE", "SEVERE"}
+    assert (
+        completed["portfolio_profiles"]["BASE"]["net_return"]
+        > completed["portfolio_profiles"]["ADVERSE"]["net_return"]
+        > completed["portfolio_profiles"]["SEVERE"]["net_return"]
+    )
+    assert ridge["mean_severe_net_return"] < ridge["mean_net_return"]
+    assert ridge["gate_status"] in {"NET_EDGE", "NO_NET_EDGE"}
+    challenger = report["horizons"]["5"]["models"]["LIGHTGBM"]
+    assert challenger["delta_net_vs_ridge"] == (
+        challenger["mean_net_return"] - ridge["mean_net_return"]
+    )
     assert report["content_digest"] == _digest(
         canonical_json_bytes(
             {key: value for key, value in report.items() if key != "content_digest"}

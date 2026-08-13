@@ -203,7 +203,10 @@ def _run_matrix(
         model_reports: dict[str, Any] = {}
         for model_kind in sorted(CrossSectionalModelKind, key=lambda value: value.value):
             completed: list[
-                tuple[CrossSectionalBaselineResult, CrossSectionalPortfolioMetrics]
+                tuple[
+                    CrossSectionalBaselineResult,
+                    dict[str, CrossSectionalPortfolioMetrics],
+                ]
             ] = []
             for seed in seeds:
                 for assignment in assignments:
@@ -228,17 +231,18 @@ def _run_matrix(
                             }
                         )
                         continue
-                    portfolio = _evaluate_trial_portfolio(
+                    portfolios = _evaluate_trial_portfolios(
                         result,
                         portfolio_inputs=portfolio_inputs,
                     )
-                    completed.append((result, portfolio))
-                    trials.append(_trial_value(trial_id, result, portfolio))
+                    completed.append((result, portfolios))
+                    trials.append(_trial_value(trial_id, result, portfolios))
             model_reports[model_kind.value] = _model_summary(
                 completed,
                 seeds=seeds,
                 fold_count=fold_count,
             )
+        _apply_relative_gate(model_reports)
         horizon_reports[str(horizon)] = {"models": model_reports}
     body: dict[str, Any] = {
         "schema_version": _REPORT_SCHEMA,
@@ -264,7 +268,7 @@ def _run_matrix(
 def _trial_value(
     trial_id: str,
     result: CrossSectionalBaselineResult,
-    portfolio: CrossSectionalPortfolioMetrics,
+    portfolios: dict[str, CrossSectionalPortfolioMetrics],
 ) -> dict[str, Any]:
     return {
         "trial_id": trial_id,
@@ -284,12 +288,15 @@ def _trial_value(
         "mean_ic": result.mean_ic,
         "mean_rank_ic": result.mean_rank_ic,
         "mean_top_bottom_spread": result.mean_top_bottom_spread,
-        "portfolio": _portfolio_value(portfolio),
+        "portfolio": _portfolio_value(portfolios["BASE"]),
+        "portfolio_profiles": {
+            name: _portfolio_value(metrics) for name, metrics in portfolios.items()
+        },
     }
 
 
 def _model_summary(
-    results: list[tuple[CrossSectionalBaselineResult, CrossSectionalPortfolioMetrics]],
+    results: list[tuple[CrossSectionalBaselineResult, dict[str, CrossSectionalPortfolioMetrics]]],
     *,
     seeds: tuple[int, ...],
     fold_count: int,
@@ -316,8 +323,31 @@ def _model_summary(
         and sum(value > 0 for value in fold_means.values()) >= positive_required
         and all(value > 0 for value in seed_means.values())
     )
+    base_results = tuple((result, profiles["BASE"]) for result, profiles in results)
+    adverse_results = tuple(profiles["ADVERSE"] for _, profiles in results)
+    severe_results = tuple(profiles["SEVERE"] for _, profiles in results)
+    fold_net = {
+        fold_id: _mean(
+            portfolio.net_return for result, portfolio in base_results if result.fold_id == fold_id
+        )
+        for fold_id in sorted({result.fold_id for result, _ in base_results})
+    }
+    seed_net = {
+        str(seed): _mean(
+            portfolio.net_return for result, portfolio in base_results if result.seed == seed
+        )
+        for seed in seeds
+    }
+    mean_net_return = _mean(portfolio.net_return for _, portfolio in base_results)
+    trading_pass = (
+        mean_net_return > 0
+        and sum(value > 0 for value in fold_net.values()) >= positive_required
+        and all(value > 0 for value in seed_net.values())
+        and _mean(portfolio.net_return for portfolio in severe_results) > -0.02
+    )
     return {
         "status": "LEARNABLE_EDGE" if signal_pass else "NO_LEARNABLE_EDGE",
+        "gate_status": "NET_EDGE" if signal_pass and trading_pass else "NO_NET_EDGE",
         "completed_trials": len(results),
         "expected_trials": expected,
         "mean_ic": _mean(result.mean_ic for result, _ in results),
@@ -327,50 +357,107 @@ def _model_summary(
         "positive_fold_required": positive_required,
         "fold_mean_rank_ic": fold_means,
         "seed_mean_rank_ic": seed_means,
-        "mean_gross_return": _mean(portfolio.gross_return for _, portfolio in results),
-        "mean_net_return": _mean(portfolio.net_return for _, portfolio in results),
-        "mean_one_way_turnover": _mean(portfolio.one_way_turnover for _, portfolio in results),
+        "mean_gross_return": _mean(portfolio.gross_return for _, portfolio in base_results),
+        "mean_net_return": mean_net_return,
+        "mean_adverse_net_return": _mean(portfolio.net_return for portfolio in adverse_results),
+        "mean_severe_net_return": _mean(portfolio.net_return for portfolio in severe_results),
+        "mean_one_way_turnover": _mean(portfolio.one_way_turnover for _, portfolio in base_results),
+        "fold_mean_net_return": fold_net,
+        "seed_mean_net_return": seed_net,
         "total_commission": float(
-            sum((portfolio.commission for _, portfolio in results), start=Decimal("0"))
+            sum(
+                (portfolio.commission for _, portfolio in base_results),
+                start=Decimal("0"),
+            )
         ),
         "total_stamp_duty": float(
-            sum((portfolio.stamp_duty for _, portfolio in results), start=Decimal("0"))
+            sum(
+                (portfolio.stamp_duty for _, portfolio in base_results),
+                start=Decimal("0"),
+            )
         ),
         "total_transfer_fee": float(
-            sum((portfolio.transfer_fee for _, portfolio in results), start=Decimal("0"))
+            sum(
+                (portfolio.transfer_fee for _, portfolio in base_results),
+                start=Decimal("0"),
+            )
         ),
         "total_slippage_cost": float(
-            sum((portfolio.slippage_cost for _, portfolio in results), start=Decimal("0"))
+            sum(
+                (portfolio.slippage_cost for _, portfolio in base_results),
+                start=Decimal("0"),
+            )
         ),
-        "maximum_drawdown": max(portfolio.max_drawdown for _, portfolio in results),
-        "capacity_breach_trials": sum(portfolio.capacity_breaches > 0 for _, portfolio in results),
+        "maximum_drawdown": max(portfolio.max_drawdown for _, portfolio in base_results),
+        "capacity_breach_trials": sum(
+            portfolio.capacity_breaches > 0 for _, portfolio in base_results
+        ),
     }
 
 
-def _evaluate_trial_portfolio(
+def _evaluate_trial_portfolios(
     result: CrossSectionalBaselineResult,
     *,
     portfolio_inputs: dict[int, _PortfolioInput],
-) -> CrossSectionalPortfolioMetrics:
-    return evaluate_cross_sectional_portfolio(
-        tuple(
-            CrossSectionalPortfolioRow(
-                row_id=prediction.row_id,
-                decision_time=prediction.decision_time,
-                instrument_id=prediction.instrument_id,
-                horizon_sessions=result.horizon_sessions,
-                rank_score=prediction.rank_score,
-                calibrated_expected_return=prediction.calibrated_expected_return,
-                raw_return=portfolio_inputs[prediction.row_id].raw_return,
-                trailing_volatility=portfolio_inputs[prediction.row_id].trailing_volatility,
-                median_daily_turnover=portfolio_inputs[prediction.row_id].median_daily_turnover,
-                tradable=portfolio_inputs[prediction.row_id].tradable,
-            )
-            for prediction in result.predictions
-        ),
-        portfolio_policy=RankPortfolioPolicy.stage_b_v2(),
-        execution_policy=ExecutionPolicy(),
+) -> dict[str, CrossSectionalPortfolioMetrics]:
+    rows = tuple(
+        CrossSectionalPortfolioRow(
+            row_id=prediction.row_id,
+            decision_time=prediction.decision_time,
+            instrument_id=prediction.instrument_id,
+            horizon_sessions=result.horizon_sessions,
+            rank_score=prediction.rank_score,
+            calibrated_expected_return=prediction.calibrated_expected_return,
+            raw_return=portfolio_inputs[prediction.row_id].raw_return,
+            trailing_volatility=portfolio_inputs[prediction.row_id].trailing_volatility,
+            median_daily_turnover=portfolio_inputs[prediction.row_id].median_daily_turnover,
+            tradable=portfolio_inputs[prediction.row_id].tradable,
+        )
+        for prediction in result.predictions
     )
+    return {
+        name: evaluate_cross_sectional_portfolio(
+            rows,
+            portfolio_policy=RankPortfolioPolicy.stage_b_v2(),
+            execution_policy=policy,
+        )
+        for name, policy in _execution_profiles().items()
+    }
+
+
+def _execution_profiles() -> dict[str, ExecutionPolicy]:
+    return {
+        "ADVERSE": ExecutionPolicy(
+            slippage_bps=Decimal("5"),
+            participation_rate=Decimal("0.05"),
+        ),
+        "BASE": ExecutionPolicy(),
+        "SEVERE": ExecutionPolicy(
+            commission_rate=Decimal("0.0004"),
+            stamp_duty_rate=Decimal("0.001"),
+            transfer_fee_rate=Decimal("0.00002"),
+            slippage_bps=Decimal("10"),
+            participation_rate=Decimal("0.02"),
+        ),
+    }
+
+
+def _apply_relative_gate(model_reports: dict[str, Any]) -> None:
+    ridge = model_reports.get("RIDGE")
+    if not isinstance(ridge, dict) or not isinstance(ridge.get("mean_net_return"), float):
+        return
+    ridge_net = ridge["mean_net_return"]
+    ridge["delta_net_vs_ridge"] = 0.0
+    for model_name, summary in model_reports.items():
+        if model_name == "RIDGE" or not isinstance(summary, dict):
+            continue
+        net_return = summary.get("mean_net_return")
+        if not isinstance(net_return, float):
+            continue
+        delta = net_return - ridge_net
+        summary["delta_net_vs_ridge"] = delta
+        if delta < 0.002:
+            summary["gate_status"] = "NO_NET_EDGE"
 
 
 def _portfolio_value(metrics: CrossSectionalPortfolioMetrics) -> dict[str, Any]:
