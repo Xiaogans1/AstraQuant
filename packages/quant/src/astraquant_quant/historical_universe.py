@@ -136,11 +136,13 @@ def build_historical_universe(
         ).to_integral_value(rounding=ROUND_CEILING)
     )
     members_by_time: dict[datetime, frozenset[str]] = {}
+    history_counts = {instrument.instrument_id: 0 for instrument in exact_instruments}
     for session_index, session in enumerate(timeline):
+        for instrument in exact_instruments:
+            history_counts[instrument.instrument_id] += session in instrument.bars
         if session not in statuses:
             continue
         candidates: list[tuple[Decimal, str]] = []
-        history_sessions = timeline[: session_index + 1]
         window_sessions = timeline[
             session_index + 1 - policy.liquidity_lookback_sessions : session_index + 1
         ]
@@ -157,10 +159,7 @@ def build_historical_universe(
             current = instrument.bars.get(session)
             if current is None or current.volume <= 0 or current.close < policy.minimum_price:
                 continue
-            history_count = sum(
-                history_session in instrument.bars for history_session in history_sessions
-            )
-            if history_count < policy.minimum_history_sessions:
+            if history_counts[instrument.instrument_id] < policy.minimum_history_sessions:
                 continue
             window_bars = [
                 instrument.bars[window_session]
