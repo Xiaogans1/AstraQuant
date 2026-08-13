@@ -354,7 +354,7 @@ uv run ruff check packages/quant/src/astraquant_quant/return_calibration.py test
 
 Expected: green and deterministic.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3 (`f9642dd`)**
 
 ```powershell
 git add packages/quant/src/astraquant_quant/return_calibration.py tests/quant/test_return_calibration.py
@@ -368,7 +368,7 @@ git commit -m "feat(quant): 增加inner-valid收益校准"
 - Create: `packages/quant/src/astraquant_quant/rank_portfolio.py`
 - Create: `tests/quant/test_rank_portfolio.py`
 
-- [ ] **Step 1: Write failing selection, risk and turnover tests**
+- [x] **Step 1: Write failing selection, risk and turnover tests**
 
 Use these assertions:
 
@@ -394,7 +394,7 @@ Add tests for:
 - empty/negative-edge input returns 100% cash;
 - duplicate instruments, non-finite scores, zero volatility and current weights above one fail closed.
 
-- [ ] **Step 2: Confirm the rank portfolio module red light**
+- [x] **Step 2: Confirm the rank portfolio module red light**
 
 ```powershell
 uv run pytest tests/quant/test_rank_portfolio.py -q --basetemp .test-tmp/stage-b-v2-portfolio-red
@@ -402,7 +402,7 @@ uv run pytest tests/quant/test_rank_portfolio.py -q --basetemp .test-tmp/stage-b
 
 Expected: missing module failure.
 
-- [ ] **Step 3: Implement target construction**
+- [x] **Step 3: Implement target construction**
 
 Public types:
 
@@ -439,7 +439,7 @@ Algorithm:
 8. if turnover exceeds 20%, interpolate every asset and cash weight by `limit/turnover`;
 9. quantize Decimal weights to `1e-12`, remove exact zeros, and hash canonical sorted output.
 
-- [ ] **Step 4: Run portfolio and existing target regressions**
+- [x] **Step 4: Run portfolio and existing target regressions (`35 passed`; Ruff and mypy clean)**
 
 ```powershell
 uv run pytest tests/quant/test_rank_portfolio.py tests/quant/test_targets.py tests/quant/test_strategy_layer.py -q --basetemp .test-tmp/stage-b-v2-portfolio-green
