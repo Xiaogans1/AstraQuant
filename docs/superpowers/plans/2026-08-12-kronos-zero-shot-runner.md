@@ -53,6 +53,7 @@
 
 - `docs/superpowers/plans/2026-08-13-kronos-task3a-isolated-runner.md`
 - `docs/superpowers/plans/2026-08-13-kronos-task3b-official-adapter.md`
+- `docs/superpowers/plans/2026-08-13-kronos-task3c-batched-inference.md`
 
 **Files:**
 
