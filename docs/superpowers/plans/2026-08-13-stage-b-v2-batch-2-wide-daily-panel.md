@@ -30,12 +30,12 @@
 - Create: `packages/quant/src/astraquant_quant/historical_universe.py`
 - Create: `tests/quant/test_historical_universe.py`
 
-- [ ] 定义 `DailyUniverseInstrument`、`DailyInstrumentStatus`、`HistoricalUniverseSnapshot`。
-- [ ] 每个 decision session 只使用该时点已发生的 listing/status/bar；不得用当前 universe 回填过去。
-- [ ] 候选必须为普通 A 股、已满足最短历史、非 ST、当日可交易、价格达标、过去 60 日覆盖率达标。
-- [ ] 按 trailing median turnover 降序、instrument id 次序确定性选前 500；任何正式 session 少于 300 只 fail closed。
-- [ ] snapshot digest 必须绑定 policy、sessions、逐日 membership、每个 exact source snapshot 和 status/lifecycle evidence。
-- [ ] 测试新上市、退市、ST、停牌、缺失、未来 turnover 变化、输入排列与 digest；提交 `feat(quant): 构建历史时点动态股票池`。
+- [x] 定义 `DailyUniverseInstrument`、`DailyInstrumentStatus`、`HistoricalUniverseSnapshot`。
+- [x] 每个 decision session 只使用该时点已发生的 listing/status/bar；不得用当前 universe 回填过去。
+- [x] 候选必须为普通 A 股、已满足最短历史、非 ST、当日可交易、价格达标、过去 60 日覆盖率达标。
+- [x] 按 trailing median turnover 降序、instrument id 次序确定性选前 500；任何正式 session 少于 300 只 fail closed。
+- [x] snapshot digest 必须绑定 policy、sessions、逐日 membership、每个 exact source snapshot 和 status/lifecycle evidence。
+- [x] 测试新上市、退市、ST、停牌、缺失、未来 turnover 变化、输入排列与 digest（`7 passed`；Ruff/mypy clean）；提交 `feat(quant): 构建历史时点动态股票池`。
 
 ## Task 3: Assemble exact Eastmoney daily panels
 
