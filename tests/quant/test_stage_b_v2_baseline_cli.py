@@ -400,3 +400,87 @@ def test_shared_mlp_relative_gate_requires_severe_profit_and_seed_stability() ->
 
     assert reports["SHARED_MLP"]["delta_net_vs_ridge"] == pytest.approx(0.003)
     assert reports["SHARED_MLP"]["gate_status"] == "NO_NET_EDGE"
+
+
+def test_cli_reuses_verified_local_trials_when_adding_shared_mlp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _materialization(tmp_path / "source")
+    local_checkpoints = tmp_path / "local-checkpoints"
+    assert (
+        main(
+            [
+                *_arguments(source, tmp_path / "local-output"),
+                "--checkpoint-root",
+                str(local_checkpoints),
+            ]
+        )
+        == 0
+    )
+    identity = {
+        "package": "astraquant-stockmixer-runner",
+        "version": "0.1.0",
+        "torch_version": "2.7.1+test",
+        "device": "cpu",
+    }
+    monkeypatch.setattr(
+        "tools.research.run_stage_b_v2_baselines._query_shared_mlp_identity",
+        lambda project, device: identity,
+    )
+
+    def fake_execute(request_path: Path, response_path: Path, project: Path) -> None:
+        del project
+        request = json.loads(request_path.read_text(encoding="utf-8"))
+        rows = {
+            int(row["row_id"]): float(row["signal"])
+            for row in pq.read_table(request_path.parent / "rows.parquet").to_pylist()
+        }
+        body = {
+            "schema_version": "astraquant.stage-b-v2-shared-mlp-response/v1",
+            "request_content_digest": request["content_digest"],
+            "source_materialization_digest": request["source_materialization_digest"],
+            "runner_identity": identity,
+            "trials": [
+                {
+                    "trial_id": trial["trial_id"],
+                    "seed": trial["seed"],
+                    "processor_digest": "sha256:" + "7" * 64,
+                    "model_digest": "sha256:" + "8" * 64,
+                    "inner_valid_predictions": [
+                        {"row_id": row_id, "score": rows[row_id]}
+                        for row_id in trial["inner_valid_row_ids"]
+                    ],
+                    "outer_test_predictions": [
+                        {"row_id": row_id, "score": rows[row_id]}
+                        for row_id in trial["outer_test_row_ids"]
+                    ],
+                }
+                for trial in request["trials"]
+            ],
+        }
+        response_path.write_bytes(
+            canonical_json_bytes({"content_digest": _digest(canonical_json_bytes(body)), **body})
+            + b"\n"
+        )
+
+    monkeypatch.setattr("tools.research.run_stage_b_v2_baselines._execute_shared_mlp", fake_execute)
+    monkeypatch.setattr(
+        "tools.research.run_stage_b_v2_baselines.run_cross_sectional_baselines",
+        lambda *args, **kwargs: pytest.fail("verified local trials must not be retrained"),
+    )
+    arguments = _arguments(source, tmp_path / "combined")
+    arguments.remove("--skip-shared-mlp")
+    arguments.extend(
+        [
+            "--checkpoint-root",
+            str(tmp_path / "combined-checkpoints"),
+            "--reuse-local-checkpoint-root",
+            str(local_checkpoints),
+        ]
+    )
+
+    assert main(arguments) == 0
+    report = json.loads((tmp_path / "combined" / "report.json").read_text(encoding="utf-8"))
+    assert report["models"] == ["LIGHTGBM", "RIDGE", "SHARED_MLP"]
+    assert report["trial_count"] == 12

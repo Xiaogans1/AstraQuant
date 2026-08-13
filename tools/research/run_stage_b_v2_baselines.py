@@ -103,6 +103,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--shared-mlp-project", type=Path, default=Path("runners/stockmixer"))
     parser.add_argument("--shared-mlp-device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--checkpoint-root", type=Path)
+    parser.add_argument("--reuse-local-checkpoint-root", type=Path)
     parser.add_argument("--skip-double-ensemble", action="store_true")
     parser.add_argument("--skip-shared-mlp", action="store_true")
     return parser
@@ -145,6 +146,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 include_shared_mlp=not arguments.skip_shared_mlp,
             )
             if partial is None:
+                reused_local = None
+                if arguments.reuse_local_checkpoint_root is not None:
+                    reused_local = _load_horizon_checkpoint(
+                        arguments.reuse_local_checkpoint_root / f"h{horizon}" / "report.json",
+                        manifest=manifest,
+                        horizon=horizon,
+                        seeds=seeds,
+                        minimum_fit_sessions=arguments.minimum_fit_sessions,
+                        inner_valid_sessions=arguments.inner_valid_sessions,
+                        outer_test_sessions=arguments.outer_test_sessions,
+                        fold_count=arguments.fold_count,
+                        purge_sessions=arguments.purge_sessions,
+                        include_double_ensemble=False,
+                        include_shared_mlp=False,
+                    )
+                    if reused_local is None:
+                        raise ValueError("reusable local horizon checkpoint is missing")
                 rows, portfolio_inputs = _load_materialization_horizon(
                     arguments.materialization_root,
                     manifest=manifest,
@@ -216,6 +234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     purge_sessions=arguments.purge_sessions,
                     external_trials=external_trials,
                     shared_trials=shared_trials,
+                    reused_local_report=reused_local,
                 )
                 _write_horizon_checkpoint(checkpoint_path, partial)
             if not arguments.skip_double_ensemble:
@@ -723,9 +742,30 @@ def _run_matrix(
     purge_sessions: int,
     external_trials: dict[str, dict[str, Any]] | None,
     shared_trials: dict[str, dict[str, Any]] | None,
+    reused_local_report: dict[str, Any] | None,
 ) -> dict[str, Any]:
     horizons = tuple(sorted({row.horizon_sessions for row in rows}))
     trials: list[dict[str, Any]] = []
+    reused_models: dict[str, Any] | None = None
+    if reused_local_report is not None:
+        reused_trials = reused_local_report.get("trials")
+        reused_horizons = reused_local_report.get("horizons")
+        if (
+            not isinstance(reused_trials, list)
+            or not isinstance(reused_horizons, dict)
+            or set(reused_horizons) != {str(horizons[0])}
+            or not isinstance(reused_horizons[str(horizons[0])], dict)
+            or not isinstance(reused_horizons[str(horizons[0])].get("models"), dict)
+        ):
+            raise ValueError("reusable local report schema mismatch")
+        trials.extend(dict(item) for item in reused_trials if isinstance(item, dict))
+        reused_models = {
+            key: dict(value)
+            for key, value in reused_horizons[str(horizons[0])]["models"].items()
+            if isinstance(key, str) and isinstance(value, dict)
+        }
+        if set(reused_models) != {model.value for model in _LOCAL_MODELS}:
+            raise ValueError("reusable local model coverage mismatch")
     horizon_reports: dict[str, Any] = {}
     for horizon in horizons:
         horizon_rows = tuple(row for row in rows if row.horizon_sessions == horizon)
@@ -740,8 +780,8 @@ def _run_matrix(
             purge_sessions=purge_sessions,
         )
         assignments = assign_cross_sectional_fold_rows(horizon_rows, folds)
-        model_reports: dict[str, Any] = {}
-        for model_kind in _LOCAL_MODELS:
+        model_reports: dict[str, Any] = dict(reused_models or {})
+        for model_kind in () if reused_models is not None else _LOCAL_MODELS:
             completed: list[
                 tuple[
                     CrossSectionalBaselineResult,
