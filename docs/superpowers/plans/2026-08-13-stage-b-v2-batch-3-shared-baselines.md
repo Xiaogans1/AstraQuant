@@ -61,7 +61,7 @@
 - Modify: `docs/superpowers/plans/2026-08-11-quant-core-v3-progress.md`
 - Artifacts: ignored `.astraquant/research/stage-b-v2-*`
 
-- [ ] 在冻结的 `sha256:d56feb…` materialization 上运行 Shared MLP D1/D5/D10、6 folds、3 seeds，失败 trial 计入结果。
+- [x] 在冻结的 `sha256:d56feb…` materialization 上运行 Shared MLP D1/D5/D10、6 folds、3 seeds，54/54 trials 成功；D1 通过 `NET_EDGE`，D5/D10 未过相对门。
 - [ ] 使用逐 trial checkpoints 恢复并完成 DoubleEnsemble，不允许再因后续组合错误丢失已训练预测。
 - [ ] 两个新 output roots 重复运行；trial/prediction/report digests 可复现，恢复路径必须实际命中且不重新训练已完成 trial。
 - [ ] 报告训练时间、峰值内存/device、RankIC、净收益、压力、回撤、换手与容量；允许两个 challenger 都失败。

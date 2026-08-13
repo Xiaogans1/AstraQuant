@@ -19,12 +19,12 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 | Stage | 当前状态 | 程序交付 | 进入下一阶段的硬门 |
 | --- | --- | --- | --- |
 | A 统一协议与强基线 | **完成** | exact snapshot、统一 score、walk-forward、真实执行评价、DoubleEnsemble | 不同模型能在相同数据/费用/切分下可重复比较 |
-| B 全市场共享表征 | **v2 Batch 2 真实基线已出 / 待复跑与重模型** | 10 年真实宽历史、D1/D5/D10 截面矩阵、Ridge/LightGBM 108 trials；待检查点、独立复跑与共享模型挑战 | 跨证券与跨时期稳定，且复杂模型扣费后优于 Ridge |
+| B 全市场共享表征 | **v2 Batch 3 Shared MLP 已完成 / DoubleEnsemble 运行中** | 10 年真实宽历史、D1/D5/D10 截面矩阵、Ridge/LightGBM/Shared MLP 162 trials；D1 Shared MLP 已过相对门 | 完成 DoubleEnsemble 后冻结 Batch 4 incumbent |
 | C 关系与市场状态 | 未开始 | MASTER/HIST、行业/概念/潜在关系、regime conditioning | 关系输入无未来信息，跨 regime 改善可重复 |
 | D 专家路由与漂移 | 未开始 | TRA/DoubleAdapt、任务专家、漂移检测、可靠 fallback | 路由可解释，失效时自动回退且不放大风险 |
 | E 组合与发布闭环 | 未开始 | ForecastCombiner、唯一目标仓位、Shadow/Paper 反馈 | 成本、容量、回撤、漂移和账户一致性全部过门 |
 
-**当前唯一主节点：** Stage B v2 Batch 2 首轮真实矩阵已证明标签可学习，Ridge 在 D1/D5/D10 均形成跨 6 折、3 种子的扣费净优势。下一步先把小时级训练改为 horizon/fold 可恢复检查点并完成独立复跑，再启动 StockMixer v2/MASTER 挑战；复杂模型必须扣费后稳定超过 Ridge，不能只提高 IC。
+**当前唯一主节点：** Stage B v2 Batch 3 已完成 Shared MLP 真实挑战：D1 同时改善 RankIC、净收益和回撤并通过相对门，D5/D10 只有不足门槛的小幅净改善。当前继续完成可恢复 DoubleEnsemble；随后冻结 Batch 4 incumbent 并启动 StockMixer v2/MASTER，不能因 D1 首胜提前结束长期目标。
 
 **Stage B v2 已批准方向：** 采用[全市场截面训练设计](../specs/2026-08-13-stage-b-v2-cross-sectional-design.md)。第一主战场改为真实 A 股日线动态 universe；统一训练 `D1/D5/D10` 的收益、截面 rank 和风险 heads；先通过 Ridge/LightGBM/DoubleEnsemble 标签可学习门，再让 StockMixer v2 与 MASTER 竞争。模型输出进入统一 rank-aware long-only 目标组合，不再把 rank score 当作固定收益阈值。
 
@@ -33,6 +33,8 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 **正在实施：** [Stage B v2 Batch 2](2026-08-13-stage-b-v2-batch-2-wide-daily-panel.md) 已冻结最终目标和开发顺序：历史时点流动性股票池 → 东方财富 exact 日线宽面板 → Alpha158/市场状态/风险特征 → Ridge/LightGBM/DoubleEnsemble 统一矩阵。复杂模型只有在简单基线证明标签可学习后才启动。
 
 **首轮真实宽历史结果：** 东方财富真实 API 已完成 800 只候选 + benchmark 的 10 年引导，动态股票池最终产生 718 只入选股票、2,058,999 行 D1/D5/D10 训练矩阵和 173 个特征。Ridge/LightGBM 共 108/108 trials 成功；两者三周期均为 6/6 正 RankIC folds，但 LightGBM 扣费后均未超过 Ridge。Ridge 的 D1/D5/D10 平均净收益分别为 `+3.2949% / +1.9977% / +0.7859%`，最大回撤分别约 `30.11% / 16.40% / 9.92%`。报告摘要 `sha256:35af7df…`。这证明全市场截面标签可学，也证明“更复杂树模型”暂未胜出；当前结果仍是 `EXPLORATORY_REAL_API_CURRENT_STATUS`，历史 ST/status 证据补齐前不能晋级生产。
+
+**Shared MLP 真实结果：** 54/54 CUDA trials 成功，失败 0。D1 RankIC/净收益/重压净收益/最大回撤为 `0.05094 / +3.8179% / +1.1226% / 28.28%`，相对 Ridge 净提高 `0.5231%` 并通过 `NET_EDGE`；D5/D10 净收益为 `+2.1452% / +0.9690%`，但 RankIC 下降且相对净改善不足冻结的 `0.2%`，均保持 `NO_NET_EDGE`。报告摘要 `sha256:536907f…`，全量恢复仅 7.61 秒且报告文件 SHA-256 一致。程序已证明共享全市场表示在 D1 有实际价值，但尚未证明所有周期都应改用神经网络。
 
 **效率纪律：** 每个开发批次必须产生一种用户可理解的新增能力或明确淘汰结论；不以重复造基础设施代替策略结果，不降低门槛包装模型，不允许新模型绕过统一执行评价。
 
@@ -85,7 +87,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 
 ## 下一结果
 
-真实矩阵已支持 horizon 检查点，DoubleEnsemble 已支持逐 trial 检查点；第二次独立 108-trial 复跑的 prediction digests 和指标完全一致，耗时从约 86 分钟降到约 47.5 分钟，恢复输出仅需 4.87 秒。下一步进入 Batch 3 Shared MLP + DoubleEnsemble 强基线，再进入 Batch 4 StockMixer v2/MASTER。下一份模型结论必须回答“是否稳定超过 Ridge 的扣费净收益与回撤”，不再回答已经解决的“模型能不能在宽面板上训练”。
+Shared MLP 已完成并在 D1 形成首个共享模型净优势；当前 DoubleEnsemble 正按 54 个逐 trial 检查点继续运行。完成后立即冻结 Batch 4 incumbent，再进入 StockMixer v2/MASTER。下一份模型结论继续回答“时间混合或关系建模是否在同一成本下进一步超过 Shared MLP/Ridge”，不回退到 demo 规模。
 
 macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、优先级和验收条件见
 [macOS 数据源与批量训练数据计划](2026-08-11-macos-data-source-and-batch-training.md)。
