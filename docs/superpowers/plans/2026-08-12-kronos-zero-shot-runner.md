@@ -49,6 +49,11 @@
 
 ## Task 3: 实现隔离 zero-shot runner
 
+**Executable micro plans:**
+
+- `docs/superpowers/plans/2026-08-13-kronos-task3a-isolated-runner.md`
+- Task 3B official adapter/weight smoke plan 在 3A 通过后生成。
+
 **Files:**
 
 - Create: `runners/kronos/src/astraquant_kronos_runner/__init__.py`
