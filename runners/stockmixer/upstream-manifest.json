@@ -1,0 +1,18 @@
+{
+  "contract": "astraquant.stockmixer-upstream/v1",
+  "repository": "https://github.com/SJTU-DMTai/StockMixer.git",
+  "branch": "master",
+  "commit": "cce13598afd3ff33ae317700a85ae08db0554652",
+  "source_root": "../../external/StockMixer",
+  "evidence": {
+    "model_sha256": "da731ce33b837df5e0542f411d24ed7f4da499ea2b806b1d19fc69034e6f3144",
+    "train_sha256": "4d632a5ce3ece068edf382ef60aa1d5a37f7b5b68ee918ebae225554b46c2870",
+    "paper_sha256": "0d23e239a825468601b1315f92b5887a013f7213482ac8d96021c9d737bc2c9c"
+  },
+  "integration_policy": {
+    "upstream_source_read_only": true,
+    "sample_datasets_allowed": false,
+    "main_process_imports_torch": false,
+    "dynamic_universe_required": true
+  }
+}

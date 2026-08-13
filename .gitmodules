@@ -1,3 +1,6 @@
 [submodule "external/Kronos"]
 	path = external/Kronos
 	url = https://github.com/shiyu-coder/Kronos.git
+[submodule "external/StockMixer"]
+	path = external/StockMixer
+	url = https://github.com/SJTU-DMTai/StockMixer.git
