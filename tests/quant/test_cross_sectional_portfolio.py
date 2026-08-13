@@ -93,3 +93,34 @@ def test_portfolio_reports_capacity_breach_and_rejects_overlapping_identity() ->
         assert "unique" in str(error)
     else:
         raise AssertionError("duplicate portfolio identity was accepted")
+
+
+def test_portfolio_liquidates_holding_that_leaves_next_dynamic_cohort() -> None:
+    start = datetime(2024, 1, 2, 7, tzinfo=UTC)
+    rows = tuple(
+        CrossSectionalPortfolioRow(
+            row_id=session * 100 + instrument,
+            decision_time=start + timedelta(days=session),
+            instrument_id=f"S{instrument:03d}.SSE",
+            horizon_sessions=1,
+            rank_score=(instrument / 99 if session == 0 else (99 - instrument) / 99),
+            calibrated_expected_return=0.01,
+            raw_return=0.001,
+            trailing_volatility=0.2,
+            median_daily_turnover=Decimal("100000000"),
+            tradable=True,
+        )
+        for session in range(2)
+        for instrument in range(100)
+        if not (session == 1 and instrument >= 90)
+    )
+
+    result = evaluate_cross_sectional_portfolio(
+        rows,
+        portfolio_policy=RankPortfolioPolicy.stage_b_v2(),
+        execution_policy=ExecutionPolicy(initial_cash=Decimal("1000000")),
+    )
+
+    assert result.period_count == 2
+    assert result.stamp_duty > 0
+    assert result.one_way_turnover > 0

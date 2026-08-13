@@ -102,6 +102,29 @@ def evaluate_cross_sectional_portfolio(
 
     for decision_time in decision_times:
         cohort = grouped[decision_time]
+        cohort_instruments = {row.instrument_id for row in cohort}
+        stale_weights = {
+            instrument_id: weight
+            for instrument_id, weight in current_weights.items()
+            if instrument_id not in cohort_instruments
+        }
+        if stale_weights:
+            forced_exit_costs = _rebalance_costs(
+                current_weights=stale_weights,
+                target_weights={},
+                equity=net_equity,
+                policy=execution_policy,
+            )
+            total_costs = total_costs.add(forced_exit_costs)
+            net_equity -= forced_exit_costs.total
+            if net_equity <= 0:
+                raise ValueError("portfolio forced-exit costs exhausted equity")
+            total_turnover += sum(stale_weights.values(), start=_ZERO)
+            current_weights = {
+                instrument_id: weight
+                for instrument_id, weight in current_weights.items()
+                if instrument_id in cohort_instruments
+            }
         target = build_rank_portfolio_target(
             forecasts=tuple(
                 RankedForecast(
