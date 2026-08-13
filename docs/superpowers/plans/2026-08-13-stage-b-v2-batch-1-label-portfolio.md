@@ -31,7 +31,7 @@
 - Modify: `packages/domain/src/astraquant_domain/__init__.py`
 - Create: `tests/domain/test_cross_sectional.py`
 
-- [ ] **Step 1: Write the failing contract tests**
+- [x] **Step 1: Write the failing contract tests**
 
 ```python
 from decimal import Decimal
@@ -86,7 +86,7 @@ def test_calibration_policy_only_accepts_inner_valid() -> None:
         )
 ```
 
-- [ ] **Step 2: Run the contract tests and confirm the import red light**
+- [x] **Step 2: Run the contract tests and confirm the import red light**
 
 Run:
 
@@ -96,7 +96,7 @@ uv run pytest tests/domain/test_cross_sectional.py -q --basetemp .test-tmp/stage
 
 Expected: collection fails because the three contracts are absent.
 
-- [ ] **Step 3: Implement immutable contracts and canonical digests**
+- [x] **Step 3: Implement immutable contracts and canonical digests**
 
 Create three frozen dataclasses with these exact factory values:
 
@@ -126,7 +126,7 @@ RankPortfolioPolicy(
 
 Validation must require sorted unique positive horizons, `entry_lag_sessions == 1`, tail fraction in `[0, 0.5)`, `fit_segment == "inner_valid"`, positive Huber values, top fraction/weight/turnover in `(0, 1]`, and positive max positions. Each class exposes a `*_digest` computed from sorted canonical JSON with Decimal serialized as strings.
 
-- [ ] **Step 4: Export the contracts and run green tests**
+- [x] **Step 4: Export the contracts and run green tests (`29 passed`; Ruff clean)**
 
 Run:
 

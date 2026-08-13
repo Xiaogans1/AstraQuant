@@ -1,6 +1,11 @@
 """Stable domain contracts shared by AstraQuant runtimes."""
 
 from astraquant_domain.clocks import Clock, FixedClock, SystemClock
+from astraquant_domain.cross_sectional import (
+    CrossSectionalTaskMatrix,
+    RankPortfolioPolicy,
+    ReturnCalibrationPolicy,
+)
 from astraquant_domain.events import EventEnvelope
 from astraquant_domain.features import FeatureFrame, FeatureRow
 from astraquant_domain.identifiers import InstrumentId, Venue
@@ -56,6 +61,7 @@ __all__ = [
     "Bar",
     "BarFrequency",
     "Clock",
+    "CrossSectionalTaskMatrix",
     "DecisionRecord",
     "Environment",
     "EventEnvelope",
@@ -76,6 +82,8 @@ __all__ = [
     "PortfolioSnapshot",
     "Position",
     "QuoteLevel",
+    "RankPortfolioPolicy",
+    "ReturnCalibrationPolicy",
     "RunClass",
     "RunManifest",
     "RunManifestState",
