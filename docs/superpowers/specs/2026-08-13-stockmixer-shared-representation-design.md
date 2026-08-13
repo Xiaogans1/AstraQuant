@@ -69,9 +69,9 @@ labels        [stock]
 Indicator/Time Mixer 保留官方因果顺序和多尺度思想。固定 `N→m→N` 的 stock mixer 替换为共享参数的 masked market bottleneck：
 
 1. 对每只有效证券表示应用相同的 `stock_to_market` 投影。
-2. 只对 `presence_mask=true` 的证券做 masked mean，形成市场表示。
+2. 只对 `presence_mask=true` 且至少有一个 `feature_mask=true` 时间槽的证券做 masked mean，形成市场表示。
 3. 将市场表示广播回每只证券，与其自身表示拼接后经共享 `market_to_stock` 投影。
-4. 无效证券输出强制为零，不参与归一化、loss 或梯度聚合。
+4. 不属于 universe 或整个窗口没有有效特征的证券输出强制为零，不参与归一化、loss 或梯度聚合。
 
 该结构保持论文的 stock→market→stock 信息流，但参数量不依赖股票数量，并满足：
 

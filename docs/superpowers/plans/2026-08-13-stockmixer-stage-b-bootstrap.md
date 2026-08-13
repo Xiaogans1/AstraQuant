@@ -309,8 +309,8 @@ Indicator mixing is per time step. Time mixing uses a learned upper-triangular c
 
 ```python
 class MaskedMarketMixer(nn.Module):
-    def forward(self, stock_hidden: Tensor, presence_mask: Tensor) -> Tensor:
-        weights = presence_mask.to(stock_hidden.dtype).unsqueeze(-1)
+    def forward(self, stock_hidden: Tensor, representation_mask: Tensor) -> Tensor:
+        weights = representation_mask.to(stock_hidden.dtype).unsqueeze(-1)
         market = (self.stock_to_market(stock_hidden) * weights).sum(dim=1)
         market = market / weights.sum(dim=1).clamp_min(1.0)
         broadcast = market.unsqueeze(1).expand(-1, stock_hidden.shape[1], -1)
@@ -318,7 +318,7 @@ class MaskedMarketMixer(nn.Module):
         return mixed * weights
 ```
 
-`DynamicStockMixer.forward(features, presence_mask, feature_mask)` returns `[batch, stock]`; it validates finite inputs and shapes, excludes `feature_mask=false` slots from temporal normalization/mixing, rejects a batch row with no present security, and zeros masked outputs after every cross-stock operation.
+`DynamicStockMixer.forward(features, presence_mask, feature_mask)` returns `[batch, stock]`; it validates finite inputs and shapes, excludes `feature_mask=false` slots from temporal normalization/mixing, derives `representation_mask = presence_mask & feature_mask.any(dim=-1)`, rejects a batch row with no representable security, and zeros masked outputs after every cross-stock operation.
 
 - [ ] **Step 8: Run runner tests and lock dependencies**
 
