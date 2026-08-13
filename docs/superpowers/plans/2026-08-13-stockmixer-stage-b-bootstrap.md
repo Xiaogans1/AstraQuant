@@ -1,12 +1,14 @@
 # StockMixer Stage B Bootstrap Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 固定官方 StockMixer，并建立可接收任意数量证券、正确处理停牌与缺失的不可变 panel 请求和动态共享模型核心。
 
 **Architecture:** 官方仓库作为只读 gitlink 和差分语义标尺；AstraQuant 主环境只负责从 exact Eastmoney panel 导出 JSON + Parquet；独立 PyTorch runner 实现官方指标/因果时间混合与动态 masked stock-to-market bottleneck。首批不训练真实 challenger，完成后依据显存、耗时和真实覆盖另写训练微计划。
 
 **Tech Stack:** Python 3.12、PyArrow/Parquet、Python 3.11 isolated runner、PyTorch 2.7 CUDA 12.8、pytest、git submodule。
+
+**Execution status (2026-08-13):** Tasks 1–3 已全部完成。实现过程中按真实 9 ETF 规模将 panel 优化为 `panel.parquet`（共享 `time × instrument` 行）+ `samples.parquet`（窗口区间索引）+ 小型 `request.json`，替代本计划 Task 2 初稿中按每个 sample 重复 lookback 行的布局。最终验收与规模测量见 `docs/verification/quant-core-v3/stockmixer-stage-b-bootstrap.md`；后续训练由独立微计划继续。
 
 ---
 
@@ -30,7 +32,7 @@
 - Create: `runners/stockmixer/upstream-manifest.json`
 - Create: `runners/stockmixer/tests/test_upstream_manifest.py`
 
-- [ ] **Step 1: Write the manifest test**
+- [x] **Step 1: Write the manifest test**
 
 ```python
 def test_upstream_manifest_matches_pinned_checkout() -> None:
@@ -43,13 +45,13 @@ def test_upstream_manifest_matches_pinned_checkout() -> None:
     assert manifest["integration_policy"]["sample_datasets_allowed"] is False
 ```
 
-- [ ] **Step 2: Run the test and confirm the missing manifest red light**
+- [x] **Step 2: Run the test and confirm the missing manifest red light**
 
 Run: `uv run pytest runners/stockmixer/tests/test_upstream_manifest.py -q`
 
 Expected: FAIL because `runners/stockmixer` and the manifest do not exist.
 
-- [ ] **Step 3: Add and pin the official submodule**
+- [x] **Step 3: Add and pin the official submodule**
 
 Run:
 
@@ -60,7 +62,7 @@ git -C external/StockMixer checkout cce13598afd3ff33ae317700a85ae08db0554652
 
 Expected: `git -C external/StockMixer rev-parse HEAD` prints exactly `cce13598afd3ff33ae317700a85ae08db0554652`.
 
-- [ ] **Step 4: Add the sealed manifest**
+- [x] **Step 4: Add the sealed manifest**
 
 The manifest must contain these exact evidence values:
 
@@ -85,13 +87,13 @@ The manifest must contain these exact evidence values:
 }
 ```
 
-- [ ] **Step 5: Run the manifest test**
+- [x] **Step 5: Run the manifest test**
 
 Run: `uv run pytest runners/stockmixer/tests/test_upstream_manifest.py -q`
 
 Expected: `1 passed`.
 
-- [ ] **Step 6: Commit the official-source lock**
+- [x] **Step 6: Commit the official-source lock**
 
 ```powershell
 git add .gitmodules external/StockMixer runners/stockmixer/upstream-manifest.json runners/stockmixer/tests/test_upstream_manifest.py
@@ -105,7 +107,7 @@ git commit -m "build(stockmixer): 固定官方实现与论文证据"
 - Create: `packages/data/src/astraquant_data/exports/stockmixer.py`
 - Create: `tests/data/test_stockmixer_export.py`
 
-- [ ] **Step 1: Write the repeatability and mask red-light test**
+- [x] **Step 1: Write the repeatability and mask red-light test**
 
 Build a two-instrument fixture where `BBB` is a member but has no bar at the second decision time. Assert:
 
@@ -131,13 +133,13 @@ assert all(missing[name] == 0.0 for name in ("open", "high", "low", "close", "vo
 
 Also assert canonical order is `(fold_id, decision_time, instrument_id, sequence_index)` and every nonzero feature has `event_time <= decision_time`.
 
-- [ ] **Step 2: Run the export test and confirm import failure**
+- [x] **Step 2: Run the export test and confirm import failure**
 
 Run: `uv run pytest tests/data/test_stockmixer_export.py -q --basetemp=.astraquant/test-tmp/stockmixer-export-red`
 
 Expected: FAIL with `ModuleNotFoundError: astraquant_data.exports.stockmixer`.
 
-- [ ] **Step 3: Define the request types**
+- [x] **Step 3: Define the request types**
 
 Implement these public types:
 
@@ -166,7 +168,7 @@ class StockMixerExport:
     sample_count: int
 ```
 
-- [ ] **Step 4: Implement canonical materialization**
+- [x] **Step 4: Implement canonical materialization**
 
 `export_stockmixer_request` must:
 
@@ -204,7 +206,7 @@ pa.schema([
 ])
 ```
 
-- [ ] **Step 5: Add fail-closed tests**
+- [x] **Step 5: Add fail-closed tests**
 
 Test exact rejection messages for:
 
@@ -215,13 +217,13 @@ Test exact rejection messages for:
 - duplicate instrument IDs;
 - output root already exists.
 
-- [ ] **Step 6: Run exporter verification**
+- [x] **Step 6: Run exporter verification**
 
 Run: `uv run pytest tests/data/test_stockmixer_export.py tests/data/test_kronos_export.py tests/quant/test_panel_research.py -q --basetemp=.astraquant/test-tmp/stockmixer-export-green`
 
 Expected: all selected tests pass.
 
-- [ ] **Step 7: Commit the dynamic panel**
+- [x] **Step 7: Commit the dynamic panel**
 
 ```powershell
 git add packages/data/src/astraquant_data/exports/stockmixer.py tests/data/test_stockmixer_export.py
@@ -241,7 +243,7 @@ git commit -m "feat(data): 导出StockMixer动态股票池面板"
 - Create: `runners/stockmixer/tests/test_model.py`
 - Create: `runners/stockmixer/uv.lock`
 
-- [ ] **Step 1: Write dynamic-universe model red lights**
+- [x] **Step 1: Write dynamic-universe model red lights**
 
 ```python
 def test_masked_instrument_cannot_change_valid_predictions() -> None:
@@ -275,25 +277,25 @@ def test_permuting_instruments_only_permutes_predictions() -> None:
 
 Add tests that `CausalTriangularMixer` never depends on a later timestep and that all-false masks raise `ValueError` instead of producing NaN.
 
-- [ ] **Step 2: Write request contract red lights**
+- [x] **Step 2: Write request contract red lights**
 
 The contract tests must reject wrong schema, wrong upstream commit, non-Eastmoney provider, changed file digest, noncanonical rows, duplicate `(fold, sample, instrument, sequence)` identities, future event times and inconsistent mask/zero rows.
 
-- [ ] **Step 3: Run runner tests and confirm missing modules**
+- [x] **Step 3: Run runner tests and confirm missing modules**
 
 Run: `uv run --project runners/stockmixer pytest -q`
 
 Expected: FAIL because `astraquant_stockmixer_runner` is not implemented.
 
-- [ ] **Step 4: Create the isolated environment**
+- [x] **Step 4: Create the isolated environment**
 
 Use Python `>=3.11,<3.12`, `torch>=2.7,<2.8`, `pyarrow>=18,<20`, `numpy>=2,<3`; use the explicit PyTorch CUDA 12.8 index on Windows/Linux, matching the working Kronos CUDA environment. Root workspace must not gain a Torch dependency.
 
-- [ ] **Step 5: Implement strict request loading**
+- [x] **Step 5: Implement strict request loading**
 
 `load_request(request_path: Path) -> StockMixerRequest` must recompute the canonical request digest and Parquet SHA-256 before returning a typed request. It must validate the exact schema and canonical identity order before any tensor allocation.
 
-- [ ] **Step 6: Implement causal indicator/time mixing**
+- [x] **Step 6: Implement causal indicator/time mixing**
 
 Implement `IndicatorTimeMixer` with these shapes:
 
@@ -305,7 +307,7 @@ def forward(self, features: Tensor) -> Tensor:
 
 Indicator mixing is per time step. Time mixing uses a learned upper-triangular causal mask equivalent to the official `TriU`: output position `t` can read only `0..t`. Multi-scale branches use causal pooling and concatenate before the final projection.
 
-- [ ] **Step 7: Implement the dynamic market bottleneck**
+- [x] **Step 7: Implement the dynamic market bottleneck**
 
 ```python
 class MaskedMarketMixer(nn.Module):
@@ -320,7 +322,7 @@ class MaskedMarketMixer(nn.Module):
 
 `DynamicStockMixer.forward(features, presence_mask, feature_mask)` returns `[batch, stock]`; it validates finite inputs and shapes, excludes `feature_mask=false` slots from temporal normalization/mixing, derives `representation_mask = presence_mask & feature_mask.any(dim=-1)`, rejects a batch row with no representable security, and zeros masked outputs after every cross-stock operation.
 
-- [ ] **Step 8: Run runner tests and lock dependencies**
+- [x] **Step 8: Run runner tests and lock dependencies**
 
 Run:
 
@@ -332,7 +334,7 @@ uv run --project runners/stockmixer pytest -q
 
 Expected: all runner tests pass on CPU; if CUDA is available, add an optional parity assertion that CPU/CUDA output shapes and finite-value contracts match.
 
-- [ ] **Step 9: Run cross-boundary verification**
+- [x] **Step 9: Run cross-boundary verification**
 
 Run:
 
@@ -344,7 +346,7 @@ uv run ruff check packages/data/src/astraquant_data/exports/stockmixer.py tests/
 
 Expected: all commands exit 0. The root environment still reports `import torch` unavailable unless another optional tool installed it independently.
 
-- [ ] **Step 10: Commit the dynamic model core**
+- [x] **Step 10: Commit the dynamic model core**
 
 ```powershell
 git add runners/stockmixer
