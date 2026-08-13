@@ -28,10 +28,11 @@ _REQUEST_KEYS = {
     "universe",
     "folds_digest",
     "panel_file",
+    "samples_file",
+    "sample_count",
     "input_columns",
     "lookback",
     "label_name",
-    "samples",
 }
 _FEATURES = ("open", "high", "low", "close", "volume")
 
@@ -44,6 +45,7 @@ class StockMixerRequest:
     instrument_ids: tuple[str, ...]
     sample_count: int
     table: pa.Table
+    samples: pa.Table
 
 
 def canonical_digest(value: object) -> str:
@@ -99,58 +101,6 @@ def load_request(request_path: Path) -> StockMixerRequest:
     _digest(universe["snapshot_id"], "universe snapshot")
     _digest(universe["timeline_digest"], "universe timeline")
 
-    sample_values = _array(request["samples"], "samples")
-    if not sample_values:
-        raise ValueError("samples must not be empty")
-    samples: list[
-        tuple[str, str, int, datetime, tuple[str, ...], tuple[datetime, ...]]
-    ] = []
-    for index, value in enumerate(sample_values):
-        sample = _object(value, f"sample {index}")
-        if set(sample) != {
-            "fold_id",
-            "segment",
-            "sample_id",
-            "decision_time",
-            "members",
-            "window_times",
-        }:
-            raise ValueError("sample fields mismatch")
-        segment = _text(sample["segment"], "sample segment")
-        if segment not in {"train", "test"}:
-            raise ValueError("sample segment mismatch")
-        members = tuple(
-            _text(item, "sample member")
-            for item in _array(sample["members"], "members")
-        )
-        if members != tuple(sorted(set(members))) or not set(members).issubset(instrument_ids):
-            raise ValueError("sample members must be canonical source instruments")
-        window_times = tuple(
-            _timestamp(item, "sample window time")
-            for item in _array(sample["window_times"], "window_times")
-        )
-        decision_time = _timestamp(sample["decision_time"], "sample decision_time")
-        if (
-            len(window_times) != lookback
-            or window_times != tuple(sorted(set(window_times)))
-            or window_times[-1] != decision_time
-        ):
-            raise ValueError("sample window_times must be unique, ordered and end at decision_time")
-        samples.append(
-            (
-                _text(sample["fold_id"], "sample fold_id"),
-                segment,
-                _integer(sample["sample_id"], "sample_id", minimum=0),
-                decision_time,
-                members,
-                window_times,
-            )
-        )
-    if samples != sorted(samples, key=lambda item: (item[0], item[3], item[1])):
-        raise ValueError("samples must use canonical order")
-    if [item[2] for item in samples] != list(range(len(samples))):
-        raise ValueError("sample_id must be contiguous and canonical")
-
     panel_file = _object(request["panel_file"], "panel_file")
     if set(panel_file) != {"path", "digest"} or panel_file["path"] != "panel.parquet":
         raise ValueError("panel_file fields or path mismatch")
@@ -161,10 +111,26 @@ def load_request(request_path: Path) -> StockMixerRequest:
     table = pq.read_table(panel_path)
     if table.schema != _panel_schema():
         raise ValueError("StockMixer panel schema mismatch")
-    _validate_rows(
+    slot_times = _validate_rows(
         cast(list[dict[str, object]], table.to_pylist()),
-        samples=samples,
         instruments=tuple(instrument_ids),
+    )
+
+    sample_count = _integer(request["sample_count"], "sample_count", minimum=1)
+    samples_file = _object(request["samples_file"], "samples_file")
+    if set(samples_file) != {"path", "digest"} or samples_file["path"] != "samples.parquet":
+        raise ValueError("samples_file fields or path mismatch")
+    expected_samples_digest = _digest(samples_file["digest"], "samples digest")
+    samples_path = request_path.parent / "samples.parquet"
+    if not samples_path.is_file() or _file_digest(samples_path) != expected_samples_digest:
+        raise ValueError("StockMixer samples digest mismatch")
+    samples_table = pq.read_table(samples_path)
+    if samples_table.schema != _samples_schema():
+        raise ValueError("StockMixer samples schema mismatch")
+    _validate_samples(
+        cast(list[dict[str, object]], samples_table.to_pylist()),
+        sample_count=sample_count,
+        slot_times=slot_times,
         lookback=lookback,
     )
     return StockMixerRequest(
@@ -172,25 +138,21 @@ def load_request(request_path: Path) -> StockMixerRequest:
         lookback=lookback,
         label_name=label_name,
         instrument_ids=tuple(instrument_ids),
-        sample_count=len(samples),
+        sample_count=sample_count,
         table=table,
+        samples=samples_table,
     )
 
 
 def _validate_rows(
     rows: list[dict[str, object]],
     *,
-    samples: list[tuple[str, str, int, datetime, tuple[str, ...], tuple[datetime, ...]]],
     instruments: tuple[str, ...],
-    lookback: int,
-) -> None:
-    required_slots = tuple(sorted({slot for sample in samples for slot in sample[5]}))
-    expected_count = len(required_slots) * len(instruments)
-    if len(rows) != expected_count:
+) -> tuple[datetime, ...]:
+    if not rows or len(rows) % len(instruments):
         raise ValueError("StockMixer panel row coverage mismatch")
     actual_keys: list[tuple[datetime, str]] = []
     identities: set[tuple[datetime, str]] = set()
-    rows_by_key: dict[tuple[datetime, str], dict[str, object]] = {}
     for row in rows:
         slot_time = _aware(row["slot_time"], "row slot_time")
         instrument = _text(row["instrument_id"], "row instrument_id")
@@ -198,8 +160,7 @@ def _validate_rows(
         if identity in identities:
             raise ValueError("StockMixer panel contains duplicate row identities")
         identities.add(identity)
-        rows_by_key[identity] = row
-        if slot_time not in required_slots or instrument not in instruments:
+        if instrument not in instruments:
             raise ValueError("StockMixer panel row is outside request coverage")
         actual_keys.append(identity)
 
@@ -225,14 +186,41 @@ def _validate_rows(
             raise ValueError("masked label must be zero")
     if actual_keys != sorted(actual_keys):
         raise ValueError("StockMixer panel rows must use canonical order")
-    expected_keys = {(slot, instrument) for slot in required_slots for instrument in instruments}
+    slot_times = tuple(sorted({key[0] for key in identities}))
+    expected_keys = {(slot, instrument) for slot in slot_times for instrument in instruments}
     if identities != expected_keys:
         raise ValueError("StockMixer panel time and instrument coverage mismatch")
-    for sample in samples:
-        for instrument in instruments:
-            current = rows_by_key[(sample[3], instrument)]
-            if bool(current["presence_mask"]) != (instrument in sample[4]):
-                raise ValueError("presence_mask does not match sealed universe membership")
+    return slot_times
+
+
+def _validate_samples(
+    rows: list[dict[str, object]],
+    *,
+    sample_count: int,
+    slot_times: tuple[datetime, ...],
+    lookback: int,
+) -> None:
+    if len(rows) != sample_count:
+        raise ValueError("StockMixer samples row coverage mismatch")
+    keys: list[tuple[str, datetime, str]] = []
+    for expected_id, row in enumerate(rows):
+        fold_id = _text(row["fold_id"], "sample fold_id")
+        segment = _text(row["segment"], "sample segment")
+        if segment not in {"train", "test"}:
+            raise ValueError("sample segment mismatch")
+        sample_id = _integer(row["sample_id"], "sample_id", minimum=0)
+        if sample_id != expected_id:
+            raise ValueError("sample_id must be contiguous and canonical")
+        decision_time = _aware(row["decision_time"], "sample decision_time")
+        start = _integer(row["window_start_index"], "window_start_index", minimum=0)
+        end = _integer(row["window_end_index"], "window_end_index", minimum=1)
+        if end - start != lookback or end > len(slot_times):
+            raise ValueError("sample window indices do not match lookback")
+        if slot_times[end - 1] != decision_time:
+            raise ValueError("sample window does not end at decision_time")
+        keys.append((fold_id, decision_time, segment))
+    if keys != sorted(keys):
+        raise ValueError("samples must use canonical order")
 
 
 def _panel_schema() -> pa.Schema:
@@ -247,6 +235,20 @@ def _panel_schema() -> pa.Schema:
             pa.field("label_mask", pa.bool_(), nullable=False),
             pa.field("label", pa.float64(), nullable=False),
             *(pa.field(name, pa.float64(), nullable=False) for name in _FEATURES),
+        ],
+        metadata={b"schema_version": STOCKMIXER_REQUEST_SCHEMA.encode("ascii")},
+    )
+
+
+def _samples_schema() -> pa.Schema:
+    return pa.schema(
+        [
+            pa.field("fold_id", pa.string(), nullable=False),
+            pa.field("segment", pa.string(), nullable=False),
+            pa.field("sample_id", pa.int64(), nullable=False),
+            pa.field("decision_time", pa.timestamp("us", tz="UTC"), nullable=False),
+            pa.field("window_start_index", pa.int32(), nullable=False),
+            pa.field("window_end_index", pa.int32(), nullable=False),
         ],
         metadata={b"schema_version": STOCKMIXER_REQUEST_SCHEMA.encode("ascii")},
     )

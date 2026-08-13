@@ -121,10 +121,12 @@ def test_exports_repeatable_time_aligned_panel_with_explicit_missing_masks(
     first_request = json.loads(first.request_path.read_text(encoding="utf-8"))
     second_request = json.loads(second.request_path.read_text(encoding="utf-8"))
     rows = pq.read_table(first.panel_path).to_pylist()
+    samples = pq.read_table(first.samples_path).to_pylist()
 
     assert first.content_digest == second.content_digest
     assert first_request == second_request
     assert first.panel_path.read_bytes() == second.panel_path.read_bytes()
+    assert first.samples_path.read_bytes() == second.samples_path.read_bytes()
     assert first.sample_count == 4
     assert len(rows) == 12
     assert first_request["content_digest"] == first.content_digest
@@ -142,7 +144,9 @@ def test_exports_repeatable_time_aligned_panel_with_explicit_missing_masks(
         row["event_time"] is None or row["event_time"] == row["slot_time"]
         for row in rows
     )
-    assert all(len(sample["window_times"]) == 3 for sample in first_request["samples"])
+    assert len(samples) == 4
+    assert [sample["sample_id"] for sample in samples] == [0, 1, 2, 3]
+    assert all(sample["window_end_index"] - sample["window_start_index"] == 3 for sample in samples)
 
     missing = next(
         row
@@ -159,6 +163,7 @@ def test_exports_repeatable_time_aligned_panel_with_explicit_missing_masks(
         missing[name] == 0.0 for name in ("open", "high", "low", "close", "volume")
     )
     assert first.panel_path.stat().st_size < 10_000
+    assert first.request_path.stat().st_size < 5_000
 
 
 def test_rejects_unsealed_sources_existing_output_and_incomplete_universe(

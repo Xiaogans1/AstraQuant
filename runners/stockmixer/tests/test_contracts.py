@@ -69,10 +69,41 @@ def _schema() -> pa.Schema:
     )
 
 
+def _samples_schema() -> pa.Schema:
+    return pa.schema(
+        [
+            pa.field("fold_id", pa.string(), nullable=False),
+            pa.field("segment", pa.string(), nullable=False),
+            pa.field("sample_id", pa.int64(), nullable=False),
+            pa.field("decision_time", pa.timestamp("us", tz="UTC"), nullable=False),
+            pa.field("window_start_index", pa.int32(), nullable=False),
+            pa.field("window_end_index", pa.int32(), nullable=False),
+        ],
+        metadata={b"schema_version": STOCKMIXER_REQUEST_SCHEMA.encode("ascii")},
+    )
+
+
 def _write_request(root: Path, *, rows: list[dict[str, object]] | None = None) -> Path:
     root.mkdir()
     panel = root / "panel.parquet"
+    samples = root / "samples.parquet"
     pq.write_table(pa.Table.from_pylist(rows or _rows(), schema=_schema()), panel)
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "fold_id": "fold-01",
+                    "segment": "test",
+                    "sample_id": 0,
+                    "decision_time": _DECISION,
+                    "window_start_index": 0,
+                    "window_end_index": 2,
+                }
+            ],
+            schema=_samples_schema(),
+        ),
+        samples,
+    )
     body = {
         "schema_version": STOCKMIXER_REQUEST_SCHEMA,
         "upstream_commit": STOCKMIXER_UPSTREAM_COMMIT,
@@ -96,22 +127,11 @@ def _write_request(root: Path, *, rows: list[dict[str, object]] | None = None) -
         },
         "folds_digest": f"sha256:{'e' * 64}",
         "panel_file": {"path": "panel.parquet", "digest": _file_digest(panel)},
+        "samples_file": {"path": "samples.parquet", "digest": _file_digest(samples)},
+        "sample_count": 1,
         "input_columns": ["open", "high", "low", "close", "volume"],
         "lookback": 2,
         "label_name": "future_return",
-        "samples": [
-            {
-                "fold_id": "fold-01",
-                "segment": "test",
-                "sample_id": 0,
-                "decision_time": _DECISION.isoformat(),
-                "members": ["AAA.SSE", "BBB.SSE"],
-                "window_times": [
-                    (_DECISION - timedelta(days=1)).isoformat(),
-                    _DECISION.isoformat(),
-                ],
-            }
-        ],
     }
     request = {"content_digest": canonical_digest(body), **body}
     path = root / "request.json"
@@ -126,6 +146,7 @@ def test_loads_sealed_request_and_typed_panel(tmp_path: Path) -> None:
     assert request.instrument_ids == ("AAA.SSE", "BBB.SSE")
     assert request.sample_count == 1
     assert request.table.num_rows == 4
+    assert request.samples.num_rows == 1
 
 
 def test_rejects_wrong_upstream_and_changed_panel(tmp_path: Path) -> None:
@@ -164,8 +185,8 @@ def test_rejects_noncanonical_rows_and_inconsistent_sample_masks(tmp_path: Path)
         load_request(_write_request(tmp_path / "noncanonical", rows=noncanonical))
 
     inconsistent = _rows()
-    inconsistent[3]["presence_mask"] = False
-    with pytest.raises(ValueError, match="membership"):
+    inconsistent[2]["presence_mask"] = False
+    with pytest.raises(ValueError, match="universe presence"):
         load_request(_write_request(tmp_path / "inconsistent", rows=inconsistent))
 
 

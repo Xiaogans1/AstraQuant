@@ -92,6 +92,7 @@ class StockMixerExport:
     content_digest: str
     request_path: Path
     panel_path: Path
+    samples_path: Path
     sample_count: int
 
 
@@ -190,19 +191,23 @@ def export_stockmixer_request(
                 }
             )
 
-    request_samples: list[dict[str, object]] = []
+    slot_indices = {timestamp: index for index, timestamp in enumerate(required_slot_times)}
+    sample_rows: list[dict[str, object]] = []
     for sample_id, (fold_id, segment, decision_time) in enumerate(sample_specs):
         position = timeline_index[decision_time]
         window_times = timeline[position + 1 - lookback : position + 1]
-        current_members = memberships[decision_time]
-        request_samples.append(
+        start_index = slot_indices[window_times[0]]
+        end_index = slot_indices[window_times[-1]] + 1
+        if end_index - start_index != lookback:
+            raise ValueError("StockMixer sample window is not contiguous in panel slots")
+        sample_rows.append(
             {
                 "fold_id": fold_id,
                 "segment": segment,
                 "sample_id": sample_id,
-                "decision_time": decision_time.isoformat(),
-                "members": sorted(current_members),
-                "window_times": [item.isoformat() for item in window_times],
+                "decision_time": decision_time,
+                "window_start_index": start_index,
+                "window_end_index": end_index,
             }
         )
 
@@ -214,6 +219,7 @@ def export_stockmixer_request(
     ) as staging_name:
         staging = Path(staging_name)
         staged_panel = staging / "panel.parquet"
+        staged_samples = staging / "samples.parquet"
         pq.write_table(
             pa.Table.from_pylist(rows, schema=_panel_schema()),
             staged_panel,
@@ -221,6 +227,13 @@ def export_stockmixer_request(
             version="2.6",
         )
         panel_digest = _file_digest(staged_panel)
+        pq.write_table(
+            pa.Table.from_pylist(sample_rows, schema=_samples_schema()),
+            staged_samples,
+            compression="zstd",
+            version="2.6",
+        )
+        samples_digest = _file_digest(staged_samples)
         body: dict[str, object] = {
             "schema_version": STOCKMIXER_REQUEST_SCHEMA,
             "upstream_commit": STOCKMIXER_UPSTREAM_COMMIT,
@@ -236,10 +249,11 @@ def export_stockmixer_request(
             "universe": universe_value,
             "folds_digest": _object_digest(fold_value),
             "panel_file": {"path": "panel.parquet", "digest": panel_digest},
+            "samples_file": {"path": "samples.parquet", "digest": samples_digest},
+            "sample_count": len(sample_rows),
             "input_columns": list(STOCKMIXER_INPUT_COLUMNS),
             "lookback": lookback,
             "label_name": label_name,
-            "samples": request_samples,
         }
         content_digest = _object_digest(body)
         (staging / "request.json").write_text(
@@ -259,6 +273,7 @@ def export_stockmixer_request(
         content_digest=content_digest,
         request_path=root / "request.json",
         panel_path=root / "panel.parquet",
+        samples_path=root / "samples.parquet",
         sample_count=len(sample_specs),
     )
 
@@ -456,6 +471,20 @@ def _panel_schema() -> pa.Schema:
                 pa.field(name, pa.float64(), nullable=False)
                 for name in STOCKMIXER_INPUT_COLUMNS
             ),
+        ],
+        metadata={b"schema_version": STOCKMIXER_REQUEST_SCHEMA.encode("ascii")},
+    )
+
+
+def _samples_schema() -> pa.Schema:
+    return pa.schema(
+        [
+            pa.field("fold_id", pa.string(), nullable=False),
+            pa.field("segment", pa.string(), nullable=False),
+            pa.field("sample_id", pa.int64(), nullable=False),
+            pa.field("decision_time", pa.timestamp("us", tz="UTC"), nullable=False),
+            pa.field("window_start_index", pa.int32(), nullable=False),
+            pa.field("window_end_index", pa.int32(), nullable=False),
         ],
         metadata={b"schema_version": STOCKMIXER_REQUEST_SCHEMA.encode("ascii")},
     )
