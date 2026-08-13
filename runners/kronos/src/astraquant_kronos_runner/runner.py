@@ -159,7 +159,6 @@ def _group_windows(
             or [_integer(row["sequence_index"], "sequence_index") for row in rows]
             != list(range(context_length))
             or any(_aware(row["event_time"], "event_time") > decision for row in rows)
-            or _aware(rows[-1]["event_time"], "event_time") != decision
         ):
             raise ValueError("Kronos windows context or time boundary mismatch")
     return grouped

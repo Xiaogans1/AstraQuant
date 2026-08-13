@@ -64,10 +64,10 @@
 - Create: `runners/kronos/tests/fakes.py`
 
 - [x] 先用 fake backend 测完整运行链路，不需要网络/GPU/权重；验证 row coverage、顺序、原子写入、缺权重、NaN、部分输出和 upstream import 失败均不发布半份 response。
-- [ ] Adapter 只通过 `external/Kronos/model` 调用官方 `KronosTokenizer`、`Kronos`、`KronosPredictor`，不复制或修改上游实现。
-- [ ] 默认 `Kronos-base`、最大 context 512、5-bar horizon；采样 seed 由全局 seed + fold/instrument/row identity 稳定派生，CPU/CUDA 的 device identity 写入 response。
+- [x] Adapter 只通过 `external/Kronos/model` 调用官方 `KronosTokenizer`、`Kronos`、`KronosPredictor`，不复制或修改上游实现。
+- [x] 默认 `Kronos-base`、最大 context 512、5-bar horizon；采样 seed 由全局 seed + fold/instrument/row identity 稳定派生，CPU/CUDA 的 device identity 写入 response。
 - [x] 多路径输出聚合为 terminal-return 中位数、10/50/90 分位、上涨路径占比、路径波动；`expected_return` 只表示终点中位收益，不命名为 probability。
-- [ ] 用固定小窗口和已准备的官方权重完成一次真实 smoke，记录 revision/weight/env/output digests；提交 `feat(kronos): 实现隔离零样本推理`。
+- [x] 用固定小窗口和已准备的官方权重完成一次真实 smoke，记录 revision/weight/env/output digests；提交 `feat(kronos): 实现隔离零样本推理`。
 
 ## Task 4: 接入统一可执行评价
 
