@@ -85,7 +85,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 
 ## 下一结果
 
-先把真实矩阵改为 horizon/fold 可恢复、可观察、单训练作业资源门禁，并对同一不可变矩阵做第二次独立复跑；随后恢复 DoubleEnsemble 挑战并进入 Batch 3 StockMixer v2/MASTER。下一份模型结论必须回答“是否稳定超过 Ridge 的扣费净收益与回撤”，不再回答已经解决的“模型能不能在宽面板上训练”。
+真实矩阵已支持 horizon 检查点，DoubleEnsemble 已支持逐 trial 检查点；第二次独立 108-trial 复跑的 prediction digests 和指标完全一致，耗时从约 86 分钟降到约 47.5 分钟，恢复输出仅需 4.87 秒。下一步进入 Batch 3 Shared MLP + DoubleEnsemble 强基线，再进入 Batch 4 StockMixer v2/MASTER。下一份模型结论必须回答“是否稳定超过 Ridge 的扣费净收益与回撤”，不再回答已经解决的“模型能不能在宽面板上训练”。
 
 macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、优先级和验收条件见
 [macOS 数据源与批量训练数据计划](2026-08-11-macos-data-source-and-batch-training.md)。

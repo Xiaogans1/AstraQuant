@@ -101,11 +101,11 @@
 - [x] 固定 Qlib commit 物化 718 只实际入选股票、2,058,999 行、173 个特征（Alpha158 + 15 个 AstraQuant context）；矩阵摘要 `sha256:d56feb…`。
 - [x] 完成 Ridge/LightGBM 真实矩阵：108/108 trials 成功；D1/D5/D10 均为 6/6 正 RankIC folds，Ridge 三周期均通过 `NET_EDGE`，LightGBM 未稳定超过 Ridge。
 - [x] 真实运行修复 UTC/上海上市日期、上市前状态读取、股票池预热空档、动态 universe 线性累计和退出股票池强制清仓语义。
-- [ ] 将 86 分钟本地矩阵和约 54 分钟/单 horizon 的 DoubleEnsemble 改为 horizon/fold 可恢复检查点；禁止 32 GB Windows 同时运行两套训练。
-- [ ] 两个全新 output roots 独立运行；source/universe/feature/fold/prediction/report digests 必须一致。
+- [x] 将 86 分钟本地矩阵改为 horizon 可恢复检查点，并将 DoubleEnsemble 改为逐 trial 原子检查点；同 fold 多种子复用预处理，确定性 Ridge 每 fold 只拟合一次；禁止 32 GB Windows 同时运行两套训练。
+- [x] 两次全新 output roots 独立训练：108 个 trial keys、全部 prediction digests 和核心指标一致；优化后从约 86 分钟降至约 47.5 分钟。相同 checkpoints 恢复到全新输出仅需 4.87 秒，报告文件 SHA-256 逐字节一致。
 - [x] 报告真实覆盖数量、训练用量、各模型和组合结果，不用测试 fixture 填空；当前状态明确为 `EXPLORATORY_REAL_API_CURRENT_STATUS`，不得冒充历史状态已完备的 FORMAL 结果。
 - [x] 简单基线已证明标签可学习且 Ridge 存在扣费净优势；Batch 3 允许进入 StockMixer v2/MASTER 计划，但任何复杂模型必须在同一矩阵上战胜 Ridge，LightGBM 当前不晋级。
-- [ ] 全套 pytest、Ruff、mypy、`git diff --check` 通过后提交并推送。
+- [x] 相关主环境 `18 passed`、隔离 Qlib runner `21 passed`（仅 4 条上游 FutureWarning），Ruff、mypy、`git diff --check` 通过；提交并推送。
 
 ### 首轮真实矩阵结论（2026-08-13）
 
@@ -115,7 +115,7 @@
 | D5 | `0.05623 / +1.9977% / 16.40%` | `0.06299 / +1.4415% / 16.34%` | Ridge `NET_EDGE`；LightGBM 高 RankIC 未转化为更高净收益 |
 | D10 | `0.05945 / +0.7859% / 9.92%` | `0.07238 / +0.4318% / 8.31%` | Ridge `NET_EDGE`；风险较低但收益也较低 |
 
-报告摘要：`sha256:35af7df91a4584732799cd320547a343d484aeb5ec92498b2a7aa47e48cf270e`。上述 net 是 6 folds × 3 seeds 的平均外推组合净收益，不是年化收益，也不是实盘承诺。
+优化后报告摘要：`sha256:85f2e8b5b39970fc54aea88e75dad9461c571a77f540581fe471f075e5a7f9f0`。上述 net 是 6 folds × 3 seeds 的平均外推组合净收益，不是年化收益，也不是实盘承诺。旧报告 `sha256:35af7df…` 与新报告的 prediction digests/指标完全一致；摘要变化来自确定性 Ridge 的模型身份不再错误绑定 seed，以及 trial canonical order 更新。
 
 ---
 
