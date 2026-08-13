@@ -8,6 +8,8 @@
 
 **Tech Stack:** Python 3.11、PyArrow、NumPy、PyTorch 2.7 CUDA、pytest。
 
+**Execution status (2026-08-13):** Tasks 1–3 已完成。真实 9 ETF 三折 CUDA 双跑的模型、预测和 response 全部逐字节一致；验收见 `docs/verification/quant-core-v3/stockmixer-walk-forward-training.md`。本计划只证明规范训练与可复现产出，不宣称交易效果，后续统一执行评价不得反向修改本计划冻结的训练配置。
+
 ---
 
 ### Task 1: Build lazy fold windows and masked objectives
@@ -51,4 +53,4 @@
 - [x] Persist sorted tensor state without timestamps and reject overwrite/digest mismatch.
 - [x] Add CLI `train` command and deterministic repeated-run test.
 - [x] Run all three real 9-ETF folds twice on CUDA, record runtime/metrics/digests and update progress.
-- [ ] Run all required verification, commit and push Task 3.
+- [x] Run all required verification, commit and push Task 3 (`fd72796`; runner `28 passed`; exporter `4 passed`; Ruff clean).
