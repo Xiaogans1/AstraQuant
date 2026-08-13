@@ -123,6 +123,19 @@ def test_membership_and_missing_window_bars_control_row_presence() -> None:
     assert cohort == ["A.SSE"]
 
 
+def test_empty_warmup_membership_is_skipped_until_universe_is_eligible() -> None:
+    panel = _panel()
+    membership = dict(panel.eligible_by_session)
+    membership[panel.sessions[20]] = frozenset()
+
+    rows = build_cross_sectional_context_features(
+        replace(panel, eligible_by_session=membership)
+    )
+
+    assert all(row.decision_time != panel.sessions[20] for row in rows)
+    assert any(row.decision_time == panel.sessions[21] for row in rows)
+
+
 def test_feature_rows_are_canonical_under_instrument_mapping_permutation() -> None:
     panel = _panel()
     first = build_cross_sectional_context_features(panel)

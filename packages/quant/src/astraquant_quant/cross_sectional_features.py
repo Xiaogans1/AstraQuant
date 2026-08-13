@@ -109,12 +109,15 @@ def build_cross_sectional_context_features(
     rows: list[CrossSectionalFeatureRow] = []
     for decision_index in range(20, len(sessions)):
         decision_time = sessions[decision_index]
+        eligible_instruments = panel.eligible_by_session[decision_time]
+        if not eligible_instruments:
+            continue
         window_times = sessions[decision_index - 20 : decision_index + 1]
         benchmark_window = [panel.benchmark_bars[session] for session in window_times]
         market_return_1 = _return(benchmark_window, 1)
         market_volatility = pstdev(_one_day_returns(benchmark_window))
         breadth = _market_breadth(panel, sessions[decision_index - 1], decision_time)
-        for instrument_id in sorted(panel.eligible_by_session[decision_time]):
+        for instrument_id in sorted(eligible_instruments):
             instrument = panel.instrument_bars[instrument_id]
             if any(session not in instrument for session in window_times):
                 continue
