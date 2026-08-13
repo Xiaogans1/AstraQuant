@@ -41,12 +41,11 @@
 - Create: `packages/data/src/astraquant_data/exports/kronos.py`
 - Modify: `packages/data/src/astraquant_data/exports/__init__.py`
 - Create: `tests/data/test_kronos_export.py`
-- Modify: `tools/research/run_double_ensemble_panel.py`
 
-- [ ] Red：窗口包含 decision time 之后行情、跨午休/跨日时间戳伪连续、OHLC 不合法、volume/amount 单位缺失、context 不足、snapshot identity 漂移时 fail closed。
-- [ ] 从 Task 4 exact snapshots 生成 canonical OHLCVA windows；每个窗口只含 `event_time <= decision_time`，未来 timestamps 由已 pin 交易日历生成。
-- [ ] 同一 fold 的 Kronos、DoubleEnsemble、Ridge 必须使用相同 test `row_id`；因 context 不足删除的行通过显式 eligibility mask 同步从公平对照中删除。
-- [ ] Parquet bytes、request digest 和 window ordering 重跑一致；提交 `feat(data): 导出Kronos真实K线窗口`。
+- [x] Red：窗口包含 decision time 之后行情、跨午休/跨日时间戳伪连续、OHLC 不合法、volume/amount 单位缺失、context 不足、snapshot identity 漂移时 fail closed。
+- [x] 从统一 panel 生成 canonical OHLCVA windows；每个窗口只含 `event_time <= decision_time`，未来 timestamps 由已 pin 交易日历 Protocol 生成并写入 request。
+- [x] request `rows` 和 `KronosExport.eligible_row_ids` 已形成显式 eligibility mask；Task 4 的公平评价必须用它同步筛选 Kronos、DoubleEnsemble、Ridge。
+- [x] Parquet bytes、request digest 和 window ordering 重跑一致；提交 `feat(data): 导出Kronos真实K线窗口`。
 
 ## Task 3: 实现隔离 zero-shot runner
 

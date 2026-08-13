@@ -7,6 +7,7 @@ import json
 import math
 import re
 from datetime import datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,7 @@ _REQUEST_KEYS = {
     "sources",
     "windows_file",
     "folds_digest",
+    "calendar_snapshot_id",
     "rows",
     "input_columns",
     "model",
@@ -91,6 +93,10 @@ def validate_request(payload: object, *, root: Path) -> dict[str, object]:
         raise ValueError("provider_id must be eastmoney")
     _digest_value(request["content_digest"], "content_digest")
     _digest_value(request["folds_digest"], "folds_digest")
+    _digest_value(request["calendar_snapshot_id"], "calendar_snapshot_id")
+    prediction_length = _integer(
+        request["prediction_length"], "prediction_length", minimum=1
+    )
 
     sources = _list(request["sources"], "sources")
     if not sources:
@@ -126,7 +132,7 @@ def validate_request(payload: object, *, root: Path) -> dict[str, object]:
         row = _object(value, f"row {index}")
         _exact_keys(
             row,
-            {"fold_id", "row_id", "instrument_id", "decision_time"},
+            {"fold_id", "row_id", "instrument_id", "decision_time", "forecast_times"},
             f"row {index}",
         )
         fold_id = _nonempty_string(row["fold_id"], f"row {index} fold_id")
@@ -135,6 +141,23 @@ def validate_request(payload: object, *, root: Path) -> dict[str, object]:
         if instrument not in source_instruments:
             raise ValueError("row instrument_id is absent from sources")
         decision_time = _timestamp(row["decision_time"], f"row {index} decision_time")
+        forecast_times = [
+            _timestamp(item, f"row {index} forecast time")
+            for item in _list(row["forecast_times"], f"row {index} forecast_times")
+        ]
+        parsed_decision = datetime.fromisoformat(decision_time.replace("Z", "+00:00"))
+        parsed_forecasts = [
+            datetime.fromisoformat(item.replace("Z", "+00:00")) for item in forecast_times
+        ]
+        if (
+            len(parsed_forecasts) != prediction_length
+            or any(item <= parsed_decision for item in parsed_forecasts)
+            or any(
+                previous >= current
+                for previous, current in pairwise(parsed_forecasts)
+            )
+        ):
+            raise ValueError("row forecast_times must match prediction_length and increase")
         row_keys.append((fold_id, row_id, instrument, decision_time))
     if len(set(row_keys)) != len(row_keys):
         raise ValueError("row identity must be unique")
@@ -164,7 +187,6 @@ def validate_request(payload: object, *, root: Path) -> dict[str, object]:
         raise ValueError("device_policy allow_cpu_fallback must be boolean")
     _integer(request["seed"], "seed")
     _integer(request["context_length"], "context_length", minimum=1, maximum=512)
-    _integer(request["prediction_length"], "prediction_length", minimum=1)
 
     sampling = _object(request["sampling"], "sampling")
     _exact_keys(sampling, {"temperature", "top_k", "top_p", "sample_count"}, "sampling")

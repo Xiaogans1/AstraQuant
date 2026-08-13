@@ -16,11 +16,11 @@
 
 - Create: `tests/data/test_kronos_export.py`
 
-- [ ] 测试两个标的、一个 fold 的 test rows 被按 `(fold,row,sequence)` 稳定导出，Parquet 精确列为 identity、event_time 与 OHLCVA。
-- [ ] 测试每个窗口最后时间等于 decision time，全部历史时间不晚于 decision time；午休/隔夜间隔按原时间戳保留。
-- [ ] 测试 context 不足的 test row 从 request `rows` 排除，但 full folds digest 不变；重复导出到两个新目录的 request 与 Parquet bytes 一致。
-- [ ] 测试非 exact snapshot、source/instrument 不匹配、决策时间与 raw bar 不一致、无 eligible rows、已存在 output root 全部 fail closed。
-- [ ] 首次运行 `uv run pytest tests/data/test_kronos_export.py -q`，预期因 `astraquant_data.exports.kronos` 不存在而失败。
+- [x] 测试两个标的、一个 fold 的 test rows 被按 `(fold,row,sequence)` 稳定导出，Parquet 精确列为 identity、event_time 与 OHLCVA。
+- [x] 测试每个窗口最后时间等于 decision time，全部历史时间不晚于 decision time；午休/隔夜间隔按原时间戳保留。
+- [x] 测试 context 不足的 test row 从 request `rows` 排除，但 full folds digest 不变；重复导出到两个新目录的 request 与 Parquet bytes 一致。
+- [x] 测试非 exact snapshot、source/instrument 不匹配、决策时间与 raw bar 不一致、无 eligible rows、已存在 output root 全部 fail closed。
+- [x] 首次运行 `uv run pytest tests/data/test_kronos_export.py -q`，按预期因 `astraquant_data.exports.kronos` 不存在而失败。
 
 ## Task 2.2: 实现确定性窗口和 request
 
@@ -29,12 +29,12 @@
 - Create: `packages/data/src/astraquant_data/exports/kronos.py`
 - Modify: `packages/data/src/astraquant_data/exports/__init__.py`
 
-- [ ] 定义 `KronosSource`、`KronosArtifact`、`KronosExport` 以及 panel/instrument/fold Protocol。
-- [ ] 实现 `export_kronos_request(...)`：校验 sources/folds/artifacts/config，计算 full folds digest，建立 eligible row identity。
-- [ ] 从 `row_bar_indices[local_row_id]` 向前截取 context；若窗口不足则排除，若任何 bar 晚于 decision time 或当前 bar 不等于 decision time 则拒绝整个导出。
-- [ ] 用固定 Arrow schema 写 `windows.parquet`；每条 row 保存 `fold_id,row_id,instrument_id,decision_time,sequence_index,event_time,open,high,low,close,volume,amount`。
-- [ ] 生成 Task 1 request 字段与 canonical content digest；使用 must-not-exist 输出目录和临时文件 rename，失败不发布半份 request。
-- [ ] 运行目标测试、Ruff、mypy；更新父计划和进度，提交 `feat(data): 导出Kronos真实K线窗口`。
+- [x] 定义 `KronosSource`、`KronosArtifact`、`KronosExport` 以及 panel/instrument/fold/calendar Protocol。
+- [x] 实现 `export_kronos_request(...)`：校验 sources/folds/artifacts/config，计算 full folds digest，建立 eligible row identity。
+- [x] 从 `row_bar_indices[local_row_id]` 向前截取 context；若窗口不足则排除，若任何 bar 晚于 decision time 或当前 bar 不等于 decision time 则拒绝整个导出。
+- [x] 用固定 Arrow schema 写 `windows.parquet`；每条 row 保存 `fold_id,row_id,instrument_id,decision_time,sequence_index,event_time,open,high,low,close,volume,amount`。
+- [x] 生成 Task 1 request 字段、calendar snapshot/forecast times 与 canonical content digest；使用 must-not-exist 输出目录和 staging rename，失败不发布半份 request。
+- [x] 运行目标测试、Ruff、mypy；更新父计划和进度，提交 `feat(data): 导出Kronos真实K线窗口`。
 
 ## 完成后的程序能力
 

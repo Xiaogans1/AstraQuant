@@ -51,12 +51,16 @@ def _request(root: Path) -> dict[str, object]:
             "digest": f"sha256:{'2' * 64}",
         },
         "folds_digest": f"sha256:{'3' * 64}",
+        "calendar_snapshot_id": f"sha256:{'4' * 64}",
         "rows": [
             {
                 "fold_id": "fold-01",
                 "row_id": 7,
                 "instrument_id": "512800.SSE",
                 "decision_time": "2026-08-07T06:50:00+00:00",
+                "forecast_times": [
+                    f"2026-08-07T06:{minute:02d}:00+00:00" for minute in range(51, 56)
+                ],
             }
         ],
         "input_columns": ["open", "high", "low", "close", "volume", "amount"],

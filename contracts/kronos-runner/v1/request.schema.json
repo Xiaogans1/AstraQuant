@@ -12,6 +12,7 @@
     "sources",
     "windows_file",
     "folds_digest",
+    "calendar_snapshot_id",
     "rows",
     "input_columns",
     "model",
@@ -51,6 +52,7 @@
       }
     },
     "folds_digest": { "$ref": "#/$defs/digest" },
+    "calendar_snapshot_id": { "$ref": "#/$defs/digest" },
     "rows": {
       "type": "array",
       "minItems": 1,
@@ -131,12 +133,17 @@
     "rowIdentity": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["fold_id", "row_id", "instrument_id", "decision_time"],
+      "required": ["fold_id", "row_id", "instrument_id", "decision_time", "forecast_times"],
       "properties": {
         "fold_id": { "type": "string", "minLength": 1 },
         "row_id": { "type": "integer", "minimum": 0 },
         "instrument_id": { "type": "string", "minLength": 1 },
-        "decision_time": { "type": "string", "minLength": 1 }
+        "decision_time": { "type": "string", "minLength": 1 },
+        "forecast_times": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        }
       }
     }
   }
