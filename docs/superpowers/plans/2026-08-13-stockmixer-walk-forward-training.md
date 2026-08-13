@@ -23,7 +23,7 @@
 - [x] Run the focused tests and confirm missing-module failures.
 - [x] Implement `PanelWindowDataset`, `FeatureNormalizer`, `fit_feature_normalizer` and `masked_stock_loss`.
 - [x] Run focused and existing runner tests; run Ruff (`19 passed`; Ruff clean).
-- [ ] Commit and push Task 1.
+- [x] Commit and push Task 1 (`9e76827`).
 
 ### Task 2: Train one fold without outer-test leakage
 
@@ -32,10 +32,10 @@
 - Create: `runners/stockmixer/src/astraquant_stockmixer_runner/training.py`
 - Create: `runners/stockmixer/tests/test_training.py`
 
-- [ ] Test deterministic tail-by-time inner validation, purge gap, seeded batches and test-label mutation invariance.
-- [ ] Implement immutable `TrainingConfig`, fold split, CUDA/CPU trainer, patience-based early stopping and best-state restoration.
-- [ ] Test that only inner-valid drives early stopping and outer-test is predicted once after freeze.
-- [ ] Run focused and complete runner suites; commit and push Task 2.
+- [x] Test deterministic tail-by-time inner validation, purge gap, seeded batches and test-label mutation invariance.
+- [x] Implement immutable `TrainingConfig`, fold split, CUDA/CPU trainer, patience-based early stopping and best-state restoration.
+- [x] Test that only inner-valid drives early stopping and outer-test is predicted once after freeze.
+- [ ] Run focused and complete runner suites; commit and push Task 2 (`22 passed`; Ruff clean).
 
 ### Task 3: Seal model and prediction artifacts
 
