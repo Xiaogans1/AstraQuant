@@ -232,22 +232,27 @@ def _read_request(path: Path) -> dict[str, Any]:
 
 
 def _runner_identity(request: dict[str, Any]) -> dict[str, str]:
-    expected = {
+    requested = request.get("runner_identity")
+    device = requested.get("device") if isinstance(requested, dict) else None
+    expected = current_runner_identity(device)
+    if requested != expected:
+        raise ValueError("Shared MLP runner identity mismatch")
+    return expected
+
+
+def current_runner_identity(device: object) -> dict[str, str]:
+    """Return the actual isolated runtime identity without importing it upstream."""
+
+    if device not in {"cpu", "cuda"}:
+        raise ValueError("Shared MLP device is unsupported")
+    if device == "cuda" and not torch.cuda.is_available():
+        raise ValueError("CUDA is unavailable; runner cannot report cuda")
+    return {
         "package": "astraquant-stockmixer-runner",
         "version": version("astraquant-stockmixer-runner"),
         "torch_version": torch.__version__,
-        "device": request.get("runner_identity", {}).get("device")
-        if isinstance(request.get("runner_identity"), dict)
-        else None,
+        "device": device,
     }
-    if request.get("runner_identity") != expected:
-        raise ValueError("Shared MLP runner identity mismatch")
-    device = expected["device"]
-    if device == "cuda" and not torch.cuda.is_available():
-        raise ValueError("CUDA is unavailable; runner cannot report cuda")
-    if device not in {"cpu", "cuda"}:
-        raise ValueError("Shared MLP device is unsupported")
-    return expected  # type: ignore[return-value]
 
 
 def _read_rows(root: Path, request: dict[str, Any]) -> _Rows:

@@ -4,13 +4,18 @@ import hashlib
 import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pyarrow as pa  # type: ignore[import-untyped]
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 import pytest
 
 from astraquant_domain.run_manifest import canonical_json_bytes
-from tools.research.run_stage_b_v2_baselines import _load_materialization, main
+from tools.research.run_stage_b_v2_baselines import (
+    _apply_relative_gate,
+    _load_materialization,
+    main,
+)
 
 
 def _digest(value: bytes) -> str:
@@ -92,6 +97,7 @@ def _arguments(source: Path, output: Path) -> list[str]:
         "7",
         "11",
         "--skip-double-ensemble",
+        "--skip-shared-mlp",
     ]
 
 
@@ -298,3 +304,99 @@ def test_cli_runs_pinned_double_ensemble_through_same_folds(
     assert (tmp_path / "output" / "qlib" / "request.json").is_file()
     assert (tmp_path / "output" / "qlib" / "rows.parquet").is_file()
     assert (tmp_path / "output" / "qlib" / "response.json").is_file()
+
+
+def test_cli_runs_shared_mlp_through_same_folds_and_cost_profiles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _materialization(tmp_path / "source")
+    identity = {
+        "package": "astraquant-stockmixer-runner",
+        "version": "0.1.0",
+        "torch_version": "2.7.1+test",
+        "device": "cpu",
+    }
+    monkeypatch.setattr(
+        "tools.research.run_stage_b_v2_baselines._query_shared_mlp_identity",
+        lambda project, device: identity,
+    )
+
+    def fake_execute(request_path: Path, response_path: Path, project: Path) -> None:
+        del project
+        request = json.loads(request_path.read_text(encoding="utf-8"))
+        rows = {
+            int(row["row_id"]): float(row["signal"])
+            for row in pq.read_table(request_path.parent / "rows.parquet").to_pylist()
+        }
+        trials = [
+            {
+                "trial_id": trial["trial_id"],
+                "seed": trial["seed"],
+                "processor_digest": "sha256:" + "5" * 64,
+                "model_digest": "sha256:" + "6" * 64,
+                "inner_valid_predictions": [
+                    {"row_id": row_id, "score": rows[row_id]}
+                    for row_id in trial["inner_valid_row_ids"]
+                ],
+                "outer_test_predictions": [
+                    {"row_id": row_id, "score": rows[row_id]}
+                    for row_id in trial["outer_test_row_ids"]
+                ],
+            }
+            for trial in request["trials"]
+        ]
+        body = {
+            "schema_version": "astraquant.stage-b-v2-shared-mlp-response/v1",
+            "request_content_digest": request["content_digest"],
+            "source_materialization_digest": request["source_materialization_digest"],
+            "runner_identity": identity,
+            "trials": trials,
+        }
+        response_path.write_bytes(
+            canonical_json_bytes({"content_digest": _digest(canonical_json_bytes(body)), **body})
+            + b"\n"
+        )
+
+    monkeypatch.setattr(
+        "tools.research.run_stage_b_v2_baselines._execute_shared_mlp",
+        fake_execute,
+    )
+    arguments = _arguments(source, tmp_path / "output")
+    arguments.remove("--skip-shared-mlp")
+
+    assert main(arguments) == 0
+
+    report = json.loads((tmp_path / "output" / "report.json").read_text(encoding="utf-8"))
+    assert report["models"] == ["LIGHTGBM", "RIDGE", "SHARED_MLP"]
+    assert report["trial_count"] == 12
+    shared = report["horizons"]["5"]["models"]["SHARED_MLP"]
+    assert shared["mean_rank_ic"] > 0.9
+    assert shared["mean_net_return"] > 0
+    assert set(report["trials"][-1]["portfolio_profiles"]) == {
+        "ADVERSE",
+        "BASE",
+        "SEVERE",
+    }
+    assert (tmp_path / "output" / "shared-mlp" / "request.json").is_file()
+    assert (tmp_path / "output" / "shared-mlp" / "rows.parquet").is_file()
+    assert (tmp_path / "output" / "shared-mlp" / "response.json").is_file()
+
+
+def test_shared_mlp_relative_gate_requires_severe_profit_and_seed_stability() -> None:
+    reports: dict[str, Any] = {
+        "RIDGE": {"mean_net_return": 0.01},
+        "SHARED_MLP": {
+            "gate_status": "NET_EDGE",
+            "mean_net_return": 0.013,
+            "mean_severe_net_return": -0.0001,
+            "positive_fold_count": 6,
+            "positive_fold_required": 4,
+            "seed_mean_net_return": {"7": 0.02, "29": 0.01, "53": 0.009},
+        },
+    }
+
+    _apply_relative_gate(reports)
+
+    assert reports["SHARED_MLP"]["delta_net_vs_ridge"] == pytest.approx(0.003)
+    assert reports["SHARED_MLP"]["gate_status"] == "NO_NET_EDGE"

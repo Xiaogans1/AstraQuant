@@ -44,7 +44,23 @@ _SOURCE_SCHEMA = "astraquant.stage-b-v2-materialization/v1"
 _REPORT_SCHEMA = "astraquant.stage-b-v2-baseline-report/v1"
 _DOUBLE_REQUEST_SCHEMA = "astraquant.stage-b-v2-double-ensemble-request/v1"
 _DOUBLE_RESPONSE_SCHEMA = "astraquant.stage-b-v2-double-ensemble-response/v1"
+_SHARED_REQUEST_SCHEMA = "astraquant.stage-b-v2-shared-mlp-request/v1"
+_SHARED_RESPONSE_SCHEMA = "astraquant.stage-b-v2-shared-mlp-response/v1"
 _QLIB_UPSTREAM_COMMIT = "79633dd9506ea689e5400dea0197717b5b3d74b7"
+_SHARED_MODEL_CONFIG = {
+    "hidden_dim": 64,
+    "market_dim": 32,
+    "encoder_layers": 2,
+    "dropout": 0,
+    "learning_rate": "0.001",
+    "weight_decay": "0.0001",
+    "epochs": 80,
+    "patience": 8,
+    "validation_fraction": "0.20",
+    "internal_purge_sessions": 11,
+    "session_batch_size": 16,
+    "batch_semantics": "DECISION_DATE_CROSS_SECTION",
+}
 _LOCAL_MODELS = (
     CrossSectionalModelKind.LIGHTGBM,
     CrossSectionalModelKind.RIDGE,
@@ -84,8 +100,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--purge-sessions", type=int, default=11)
     parser.add_argument("--seeds", type=int, nargs="+", default=[7, 29, 53])
     parser.add_argument("--qlib-project", type=Path, default=Path("runners/qlib"))
+    parser.add_argument("--shared-mlp-project", type=Path, default=Path("runners/stockmixer"))
+    parser.add_argument("--shared-mlp-device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--checkpoint-root", type=Path)
     parser.add_argument("--skip-double-ensemble", action="store_true")
+    parser.add_argument("--skip-shared-mlp", action="store_true")
     return parser
 
 
@@ -98,12 +117,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         horizons = _manifest_horizons(manifest)
         seeds = _canonical_seeds(arguments.seeds)
         arguments.output_root.parent.mkdir(parents=True, exist_ok=True)
-        checkpoint_root = arguments.checkpoint_root or Path(
-            f"{arguments.output_root}.checkpoints"
-        )
+        checkpoint_root = arguments.checkpoint_root or Path(f"{arguments.output_root}.checkpoints")
         checkpoint_root.mkdir(parents=True, exist_ok=True)
         auxiliary: dict[str, bytes | Path] = {}
         partial_reports: list[dict[str, Any]] = []
+        shared_identity = (
+            None
+            if arguments.skip_shared_mlp
+            else _query_shared_mlp_identity(
+                arguments.shared_mlp_project, arguments.shared_mlp_device
+            )
+        )
         for horizon in horizons:
             horizon_root = checkpoint_root / f"h{horizon}"
             checkpoint_path = horizon_root / "report.json"
@@ -118,6 +142,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fold_count=arguments.fold_count,
                 purge_sessions=arguments.purge_sessions,
                 include_double_ensemble=not arguments.skip_double_ensemble,
+                include_shared_mlp=not arguments.skip_shared_mlp,
             )
             if partial is None:
                 rows, portfolio_inputs = _load_materialization_horizon(
@@ -126,6 +151,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     horizon=horizon,
                 )
                 external_trials: dict[str, dict[str, Any]] | None = None
+                shared_trials: dict[str, dict[str, Any]] | None = None
                 if not arguments.skip_double_ensemble:
                     double_root = horizon_root / "qlib"
                     request_path = _prepare_double_ensemble_request(
@@ -151,6 +177,33 @@ def main(argv: Sequence[str] | None = None) -> int:
                         request_path=request_path,
                         source_materialization_digest=str(manifest["content_digest"]),
                     )
+                if shared_identity is not None:
+                    shared_root = horizon_root / "shared-mlp"
+                    shared_request = _prepare_shared_mlp_request(
+                        root=shared_root,
+                        manifest=manifest,
+                        rows=rows,
+                        seeds=seeds,
+                        minimum_fit_sessions=arguments.minimum_fit_sessions,
+                        inner_valid_sessions=arguments.inner_valid_sessions,
+                        outer_test_sessions=arguments.outer_test_sessions,
+                        fold_count=arguments.fold_count,
+                        purge_sessions=arguments.purge_sessions,
+                        runner_identity=shared_identity,
+                    )
+                    shared_response = shared_root / "response.json"
+                    if not shared_response.is_file():
+                        _execute_shared_mlp(
+                            shared_request,
+                            shared_response,
+                            arguments.shared_mlp_project,
+                        )
+                    shared_trials = _load_shared_mlp_response(
+                        shared_response,
+                        request_path=shared_request,
+                        source_materialization_digest=str(manifest["content_digest"]),
+                        runner_identity=shared_identity,
+                    )
                 partial = _run_matrix(
                     manifest=manifest,
                     rows=rows,
@@ -162,6 +215,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     fold_count=arguments.fold_count,
                     purge_sessions=arguments.purge_sessions,
                     external_trials=external_trials,
+                    shared_trials=shared_trials,
                 )
                 _write_horizon_checkpoint(checkpoint_path, partial)
             if not arguments.skip_double_ensemble:
@@ -179,6 +233,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                         f"{prefix}/response.json": response_path,
                     }
                 )
+            if not arguments.skip_shared_mlp:
+                shared_root = horizon_root / "shared-mlp"
+                shared_paths = (
+                    shared_root / "request.json",
+                    shared_root / "rows.parquet",
+                    shared_root / "response.json",
+                )
+                if not all(path.is_file() for path in shared_paths):
+                    raise ValueError("Shared MLP checkpoint artifacts are incomplete")
+                prefix = "shared-mlp" if len(horizons) == 1 else f"shared-mlp/h{horizon}"
+                auxiliary.update(
+                    {
+                        f"{prefix}/request.json": shared_paths[0],
+                        f"{prefix}/rows.parquet": shared_paths[1],
+                        f"{prefix}/response.json": shared_paths[2],
+                    }
+                )
             partial_reports.append(partial)
         report = _combine_reports(
             partial_reports,
@@ -191,6 +262,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             fold_count=arguments.fold_count,
             purge_sessions=arguments.purge_sessions,
             include_double_ensemble=not arguments.skip_double_ensemble,
+            include_shared_mlp=not arguments.skip_shared_mlp,
         )
         _publish(arguments.output_root, report, auxiliary=auxiliary)
     except (
@@ -428,6 +500,176 @@ def _execute_double_ensemble(
     )
 
 
+def _prepare_shared_mlp_request(
+    *,
+    root: Path,
+    manifest: dict[str, Any],
+    rows: tuple[CrossSectionalBaselineRow, ...],
+    seeds: tuple[int, ...],
+    minimum_fit_sessions: int,
+    inner_valid_sessions: int,
+    outer_test_sessions: int,
+    fold_count: int,
+    purge_sessions: int,
+    runner_identity: dict[str, str],
+) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    feature_columns = list(rows[0].features)
+    rows_path = root / "rows.parquet"
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "row_id": row.row_id,
+                    "decision_time": row.decision_time,
+                    "instrument_id": row.instrument_id,
+                    **dict(row.features),
+                    "cross_sectional_rank": row.cross_sectional_rank,
+                    "training_eligible": row.training_eligible,
+                }
+                for row in rows
+            ]
+        ),
+        rows_path,
+        compression="zstd",
+        version="2.6",
+    )
+    trial_values: list[dict[str, Any]] = []
+    horizons = tuple(sorted({row.horizon_sessions for row in rows}))
+    timeline = tuple(sorted({row.decision_time for row in rows}))
+    folds = build_cross_sectional_folds(
+        timeline,
+        horizons=horizons,
+        minimum_fit_sessions=minimum_fit_sessions,
+        inner_valid_sessions=inner_valid_sessions,
+        outer_test_sessions=outer_test_sessions,
+        fold_count=fold_count,
+        purge_sessions=purge_sessions,
+    )
+    assignments = assign_cross_sectional_fold_rows(rows, folds)
+    for assignment in assignments:
+        for seed in seeds:
+            trial_values.append(
+                {
+                    "trial_id": f"h{horizons[0]}-shared_mlp-s{seed}-{assignment.fold_id}",
+                    "seed": seed,
+                    "fit_row_ids": [rows[index].row_id for index in assignment.fit_indices],
+                    "inner_valid_row_ids": [
+                        rows[index].row_id for index in assignment.inner_valid_indices
+                    ],
+                    "outer_test_row_ids": [
+                        rows[index].row_id for index in assignment.outer_test_indices
+                    ],
+                }
+            )
+    body: dict[str, Any] = {
+        "schema_version": _SHARED_REQUEST_SCHEMA,
+        "runner_identity": runner_identity,
+        "source_materialization_digest": manifest["content_digest"],
+        "feature_columns": feature_columns,
+        "row_count": len(rows),
+        "rows_file": {"path": "rows.parquet", "digest": _digest_file(rows_path)},
+        "model_config": _SHARED_MODEL_CONFIG,
+        "trials": trial_values,
+    }
+    request = {"content_digest": _digest(canonical_json_bytes(body)), **body}
+    request_path = root / "request.json"
+    request_path.write_bytes(canonical_json_bytes(request) + b"\n")
+    return request_path
+
+
+def _query_shared_mlp_identity(project: Path, device: str) -> dict[str, str]:
+    completed = subprocess.run(
+        [
+            "uv",
+            "run",
+            "--project",
+            str(project.resolve()),
+            "--frozen",
+            "python",
+            "-m",
+            "astraquant_stockmixer_runner",
+            "identity",
+            "--device",
+            device,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    value = json.loads(completed.stdout)
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"package", "version", "torch_version", "device"}
+        or any(not isinstance(item, str) or not item for item in value.values())
+        or value.get("package") != "astraquant-stockmixer-runner"
+        or value.get("device") != device
+    ):
+        raise ValueError("Shared MLP runner identity schema mismatch")
+    return value
+
+
+def _execute_shared_mlp(request_path: Path, response_path: Path, project: Path) -> None:
+    subprocess.run(
+        [
+            "uv",
+            "run",
+            "--project",
+            str(project.resolve()),
+            "--frozen",
+            "python",
+            "-m",
+            "astraquant_stockmixer_runner",
+            "shared-mlp",
+            str(request_path.resolve()),
+            "--output",
+            str(response_path.resolve()),
+        ],
+        check=True,
+    )
+
+
+def _load_shared_mlp_response(
+    response_path: Path,
+    *,
+    request_path: Path,
+    source_materialization_digest: str,
+    runner_identity: dict[str, str],
+) -> dict[str, dict[str, Any]]:
+    request_value = json.loads(request_path.read_text(encoding="utf-8"))
+    response_value = json.loads(response_path.read_text(encoding="utf-8"))
+    if not isinstance(response_value, dict):
+        raise ValueError("Shared MLP response schema mismatch")
+    body = {key: value for key, value in response_value.items() if key != "content_digest"}
+    if (
+        response_value.get("schema_version") != _SHARED_RESPONSE_SCHEMA
+        or response_value.get("content_digest") != _digest(canonical_json_bytes(body))
+        or response_value.get("request_content_digest") != request_value.get("content_digest")
+        or response_value.get("source_materialization_digest") != source_materialization_digest
+        or response_value.get("runner_identity") != runner_identity
+    ):
+        raise ValueError("Shared MLP response identity mismatch")
+    trials = response_value.get("trials")
+    if not isinstance(trials, list) or not trials:
+        raise ValueError("Shared MLP response trials are missing")
+    result: dict[str, dict[str, Any]] = {}
+    for trial in trials:
+        if not isinstance(trial, dict) or not isinstance(trial.get("trial_id"), str):
+            raise ValueError("Shared MLP response trial schema mismatch")
+        trial_id = trial["trial_id"]
+        if trial_id in result:
+            raise ValueError("Shared MLP response trial identifiers must be unique")
+        result[trial_id] = trial
+    expected = {
+        str(trial["trial_id"])
+        for trial in request_value.get("trials", [])
+        if isinstance(trial, dict) and isinstance(trial.get("trial_id"), str)
+    }
+    if set(result) != expected:
+        raise ValueError("Shared MLP response trial coverage mismatch")
+    return result
+
+
 def _load_double_ensemble_response(
     response_path: Path,
     *,
@@ -480,6 +722,7 @@ def _run_matrix(
     fold_count: int,
     purge_sessions: int,
     external_trials: dict[str, dict[str, Any]] | None,
+    shared_trials: dict[str, dict[str, Any]] | None,
 ) -> dict[str, Any]:
     horizons = tuple(sorted({row.horizon_sessions for row in rows}))
     trials: list[dict[str, Any]] = []
@@ -572,6 +815,34 @@ def _run_matrix(
                 seeds=seeds,
                 fold_count=fold_count,
             )
+        if shared_trials is not None:
+            shared_completed: list[
+                tuple[
+                    CrossSectionalBaselineResult,
+                    dict[str, CrossSectionalPortfolioMetrics],
+                ]
+            ] = []
+            for seed in seeds:
+                for assignment in assignments:
+                    trial_id = f"h{horizon}-shared_mlp-s{seed}-{assignment.fold_id}"
+                    result = _score_external_trial(
+                        horizon_rows,
+                        assignment=assignment,
+                        seed=seed,
+                        trial=shared_trials[trial_id],
+                        model_kind=CrossSectionalModelKind.SHARED_MLP,
+                    )
+                    portfolios = _evaluate_trial_portfolios(
+                        result,
+                        portfolio_inputs=portfolio_inputs,
+                    )
+                    shared_completed.append((result, portfolios))
+                    trials.append(_trial_value(trial_id, result, portfolios))
+            model_reports[CrossSectionalModelKind.SHARED_MLP.value] = _model_summary(
+                shared_completed,
+                seeds=seeds,
+                fold_count=fold_count,
+            )
         _apply_relative_gate(model_reports)
         horizon_reports[str(horizon)] = {"models": model_reports}
     body: dict[str, Any] = {
@@ -585,6 +856,7 @@ def _run_matrix(
                     if external_trials is not None
                     else []
                 ),
+                *([CrossSectionalModelKind.SHARED_MLP.value] if shared_trials is not None else []),
             ]
         ),
         "seeds": list(seeds),
@@ -616,6 +888,7 @@ def _combine_reports(
     fold_count: int,
     purge_sessions: int,
     include_double_ensemble: bool,
+    include_shared_mlp: bool,
 ) -> dict[str, Any]:
     if len(partial_reports) != len(horizons):
         raise ValueError("baseline horizon report coverage mismatch")
@@ -645,6 +918,7 @@ def _combine_reports(
                     if include_double_ensemble
                     else []
                 ),
+                *([CrossSectionalModelKind.SHARED_MLP.value] if include_shared_mlp else []),
             ]
         ),
         "seeds": list(seeds),
@@ -676,6 +950,7 @@ def _load_horizon_checkpoint(
     fold_count: int,
     purge_sessions: int,
     include_double_ensemble: bool,
+    include_shared_mlp: bool,
 ) -> dict[str, Any] | None:
     if not path.is_file():
         return None
@@ -686,11 +961,8 @@ def _load_horizon_checkpoint(
     expected_models = sorted(
         [
             *(model.value for model in _LOCAL_MODELS),
-            *(
-                [CrossSectionalModelKind.DOUBLE_ENSEMBLE.value]
-                if include_double_ensemble
-                else []
-            ),
+            *([CrossSectionalModelKind.DOUBLE_ENSEMBLE.value] if include_double_ensemble else []),
+            *([CrossSectionalModelKind.SHARED_MLP.value] if include_shared_mlp else []),
         ]
     )
     expected_policy = {
@@ -735,28 +1007,48 @@ def _score_double_ensemble_trial(
     seed: int,
     trial: dict[str, Any],
 ) -> CrossSectionalBaselineResult:
+    return _score_external_trial(
+        rows,
+        assignment=assignment,
+        seed=seed,
+        trial=trial,
+        model_kind=CrossSectionalModelKind.DOUBLE_ENSEMBLE,
+    )
+
+
+def _score_external_trial(
+    rows: tuple[CrossSectionalBaselineRow, ...],
+    *,
+    assignment: CrossSectionalFoldRows,
+    seed: int,
+    trial: dict[str, Any],
+    model_kind: CrossSectionalModelKind,
+) -> CrossSectionalBaselineResult:
+    label = model_kind.value
     if trial.get("seed") != seed:
-        raise ValueError("DoubleEnsemble response seed mismatch")
+        raise ValueError(f"{label} response seed mismatch")
     valid_rows = tuple(rows[index] for index in assignment.inner_valid_indices)
     test_rows = tuple(rows[index] for index in assignment.outer_test_indices)
     valid_scores = _external_scores(
         trial,
         "inner_valid_predictions",
         expected_row_ids=tuple(row.row_id for row in valid_rows),
+        label=label,
     )
     test_scores = _external_scores(
         trial,
         "outer_test_predictions",
         expected_row_ids=tuple(row.row_id for row in test_rows),
+        label=label,
     )
     processor_digest = trial.get("processor_digest")
     model_digest = trial.get("model_digest")
     if not isinstance(processor_digest, str) or not isinstance(model_digest, str):
-        raise ValueError("DoubleEnsemble response digests are missing")
+        raise ValueError(f"{label} response digests are missing")
     return score_cross_sectional_predictions(
         rows,
         assignment=assignment,
-        model_kind=CrossSectionalModelKind.DOUBLE_ENSEMBLE,
+        model_kind=model_kind,
         seed=seed,
         valid_scores=valid_scores,
         test_scores=test_scores,
@@ -770,15 +1062,16 @@ def _external_scores(
     key: str,
     *,
     expected_row_ids: tuple[int, ...],
+    label: str = "DoubleEnsemble",
 ) -> tuple[float, ...]:
     values = trial.get(key)
     if not isinstance(values, list) or len(values) != len(expected_row_ids):
-        raise ValueError(f"DoubleEnsemble {key} coverage mismatch")
+        raise ValueError(f"{label} {key} coverage mismatch")
     row_ids: list[int] = []
     scores: list[float] = []
     for value in values:
         if not isinstance(value, dict):
-            raise ValueError(f"DoubleEnsemble {key} schema mismatch")
+            raise ValueError(f"{label} {key} schema mismatch")
         row_id = value.get("row_id")
         score = value.get("score")
         if (
@@ -788,11 +1081,11 @@ def _external_scores(
             or not isinstance(score, (int, float))
             or not math.isfinite(float(score))
         ):
-            raise ValueError(f"DoubleEnsemble {key} schema mismatch")
+            raise ValueError(f"{label} {key} schema mismatch")
         row_ids.append(row_id)
         scores.append(float(score))
     if tuple(row_ids) != expected_row_ids:
-        raise ValueError(f"DoubleEnsemble {key} row order mismatch")
+        raise ValueError(f"{label} {key} row order mismatch")
     return tuple(scores)
 
 
@@ -989,7 +1282,19 @@ def _apply_relative_gate(model_reports: dict[str, Any]) -> None:
             continue
         delta = net_return - ridge_net
         summary["delta_net_vs_ridge"] = delta
-        if delta < 0.002:
+        shared_stable = True
+        if model_name == CrossSectionalModelKind.SHARED_MLP.value:
+            seed_net = summary.get("seed_mean_net_return")
+            shared_stable = (
+                summary.get("positive_fold_count", 0)
+                >= summary.get("positive_fold_required", math.inf)
+                and isinstance(seed_net, dict)
+                and bool(seed_net)
+                and all(isinstance(value, float) and value > 0 for value in seed_net.values())
+                and isinstance(summary.get("mean_severe_net_return"), float)
+                and summary["mean_severe_net_return"] > 0
+            )
+        if delta < 0.002 or not shared_stable:
             summary["gate_status"] = "NO_NET_EDGE"
 
 

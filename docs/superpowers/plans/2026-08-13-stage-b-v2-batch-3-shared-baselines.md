@@ -48,10 +48,10 @@
 - Modify: `tools/research/run_stage_b_v2_baselines.py`
 - Modify: `tests/quant/test_stage_b_v2_baseline_cli.py`
 
-- [ ] CLI 增加 `--shared-mlp-project` / `--skip-shared-mlp`，Shared MLP 与 DoubleEnsemble 使用相同 rows/folds/seeds。
-- [ ] 主进程验证 response identity，用 inner-valid Huber 校准，并复用 BASE/ADVERSE/SEVERE 组合评价。
-- [ ] horizon checkpoint 绑定模型集合；已有 Ridge/LightGBM checkpoint 不得被错误当成包含 Shared MLP 的完整结果。
-- [ ] 相对门以 Ridge 为 incumbent：Shared MLP 平均净收益至少高 `0.2%`、至少 4/6 正 folds、3 seeds 方向一致且 severe net 为正才可标 `NET_EDGE`。
+- [x] CLI 增加 `--shared-mlp-project` / `--skip-shared-mlp`，Shared MLP 与 DoubleEnsemble 使用相同 rows/folds/seeds。
+- [x] 主进程验证 response identity，用 inner-valid Huber 校准，并复用 BASE/ADVERSE/SEVERE 组合评价。
+- [x] horizon checkpoint 绑定模型集合；已有 Ridge/LightGBM checkpoint 不得被错误当成包含 Shared MLP 的完整结果。
+- [x] 相对门以 Ridge 为 incumbent：Shared MLP 平均净收益至少高 `0.2%`、至少 4/6 正 folds、3 seeds 方向一致且 severe net 为正才可标 `NET_EDGE`。
 
 ## Task 4: Execute Shared MLP and resumable DoubleEnsemble
 
