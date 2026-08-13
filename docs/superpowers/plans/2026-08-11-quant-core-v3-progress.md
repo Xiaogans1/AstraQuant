@@ -26,6 +26,8 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 
 **当前唯一主节点：** StockMixer 首轮共享训练与统一执行已按 `NO_NET_EDGE` 收口；暂停继续堆模型，重新冻结 Stage B v2 的真实历史/universe、任务与 horizon 矩阵、对照基线和发布门槛后再开发。
 
+**Stage B v2 已批准方向：** 采用[全市场截面训练设计](../specs/2026-08-13-stage-b-v2-cross-sectional-design.md)。第一主战场改为真实 A 股日线动态 universe；统一训练 `D1/D5/D10` 的收益、截面 rank 和风险 heads；先通过 Ridge/LightGBM/DoubleEnsemble 标签可学习门，再让 StockMixer v2 与 MASTER 竞争。模型输出进入统一 rank-aware long-only 目标组合，不再把 rank score 当作固定收益阈值。
+
 **效率纪律：** 每个开发批次必须产生一种用户可理解的新增能力或明确淘汰结论；不以重复造基础设施代替策略结果，不降低门槛包装模型，不允许新模型绕过统一执行评价。
 
 ## 已完成
