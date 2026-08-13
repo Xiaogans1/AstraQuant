@@ -84,7 +84,7 @@
 - [x] 6 个按全市场统一时间轴的 expanding folds；fit 至少 3 年、inner-valid 至少 120 sessions、outer-test 至少 60 sessions，fit/valid 与 valid/test 两侧 purge 均为 11 sessions。
 - [x] 同一交易日所有股票只能落在同一 segment；outer test 永不参与特征 fit、校准、阈值或超参选择（`8 passed`；Ruff/mypy clean）。
 - [ ] Ridge、LightGBM、DoubleEnsemble 使用相同 rows/folds/seeds/trial budget，并统一接 Batch 1 Huber 校准与目标组合（Ridge/LightGBM fold core、train-only processor、inner-valid Huber 已完成并通过 5 项泄漏/确定性测试；待矩阵 runner 与 DoubleEnsemble）。
-- [ ] 报告 IC、Rank IC、top-bottom spread、turnover、费用、净收益、最大回撤、容量和每 fold/seed 明细；失败 trial 也计数。
+- [ ] 报告 IC、Rank IC、top-bottom spread、turnover、费用、净收益、最大回撤、容量和每 fold/seed 明细；失败 trial 也计数（基础费率组合 evaluator 与矩阵报告已完成，采用 horizon 间隔避免重叠收益，待 adverse/severe 压力成本与 DoubleEnsemble）。
 - [ ] 固定信号门：至少 4/6 folds 的 Rank IC 为正、平均 Rank IC ≥ 0.02、3 seeds 方向一致；固定交易门：扣费净收益为正、至少 4/6 folds 为正、相对 Ridge 有明确改善、压力成本下不翻为严重负值。
 - [ ] 未过门输出 `NO_LEARNABLE_EDGE` 或 `NO_NET_EDGE`；不得自动启动复杂模型。提交 `feat(research): 运行Stage B v2强基线矩阵`。
 

@@ -41,8 +41,8 @@ def _materialization(root: Path) -> Path:
                     "training_eligible": instrument_index not in (0, 9),
                     "signal": rank + session_index / 10000,
                     "missing": None if instrument_index % 4 == 0 else rank * 2,
-                    "trailing_volatility": 0.1 + instrument_index / 100,
-                    "tradable": True,
+                    "volatility_20": 0.1 + instrument_index / 100,
+                    "turnover_median_20_log": 18.0,
                 }
             )
             row_id += 1
@@ -55,7 +55,12 @@ def _materialization(root: Path) -> Path:
         "alpha158_config_digest": "sha256:" + "2" * 64,
         "alpha158_feature_count": 158,
         "alpha158_missing_values": 200,
-        "feature_columns": ["signal", "missing", "trailing_volatility"],
+        "feature_columns": [
+            "signal",
+            "missing",
+            "volatility_20",
+            "turnover_median_20_log",
+        ],
         "row_count": len(rows),
         "instrument_count": 10,
         "horizons": [5],
@@ -106,6 +111,17 @@ def test_cli_runs_identical_ridge_lightgbm_matrix_and_freezes_report(tmp_path: P
     assert report["failed_trial_count"] == 0
     assert report["horizons"]["5"]["models"]["RIDGE"]["mean_rank_ic"] > 0.9
     assert report["horizons"]["5"]["models"]["LIGHTGBM"]["mean_rank_ic"] > 0.9
+    ridge = report["horizons"]["5"]["models"]["RIDGE"]
+    assert ridge["mean_net_return"] > 0
+    assert ridge["mean_gross_return"] > ridge["mean_net_return"]
+    assert ridge["mean_one_way_turnover"] > 0
+    assert ridge["total_commission"] > 0
+    assert ridge["total_stamp_duty"] > 0
+    assert ridge["maximum_drawdown"] >= 0
+    assert ridge["capacity_breach_trials"] == 0
+    completed = next(item for item in report["trials"] if item["status"] == "COMPLETED")
+    assert completed["portfolio"]["net_return"] > 0
+    assert completed["portfolio"]["period_count"] == 1
     assert report["content_digest"] == _digest(
         canonical_json_bytes(
             {key: value for key, value in report.items() if key != "content_digest"}
