@@ -89,6 +89,18 @@ class _PortfolioInput:
     tradable: bool
 
 
+def _external_artifact_root(
+    reuse_root: Path | None,
+    *,
+    horizon: int,
+    leaf: str,
+    fallback: Path,
+) -> Path:
+    if reuse_root is None:
+        return fallback
+    return reuse_root / f"h{horizon}" / leaf
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="run-stage-b-v2-baselines")
     parser.add_argument("materialization_root", type=Path)
@@ -104,6 +116,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--shared-mlp-device", choices=("cpu", "cuda"), default="cpu")
     parser.add_argument("--checkpoint-root", type=Path)
     parser.add_argument("--reuse-local-checkpoint-root", type=Path)
+    parser.add_argument("--reuse-double-checkpoint-root", type=Path)
+    parser.add_argument("--reuse-shared-checkpoint-root", type=Path)
     parser.add_argument("--skip-double-ensemble", action="store_true")
     parser.add_argument("--skip-shared-mlp", action="store_true")
     return parser
@@ -171,19 +185,36 @@ def main(argv: Sequence[str] | None = None) -> int:
                 external_trials: dict[str, dict[str, Any]] | None = None
                 shared_trials: dict[str, dict[str, Any]] | None = None
                 if not arguments.skip_double_ensemble:
-                    double_root = horizon_root / "qlib"
-                    request_path = _prepare_double_ensemble_request(
-                        root=double_root,
-                        manifest=manifest,
-                        rows=rows,
-                        seeds=seeds,
-                        minimum_fit_sessions=arguments.minimum_fit_sessions,
-                        inner_valid_sessions=arguments.inner_valid_sessions,
-                        outer_test_sessions=arguments.outer_test_sessions,
-                        fold_count=arguments.fold_count,
-                        purge_sessions=arguments.purge_sessions,
+                    double_root = _external_artifact_root(
+                        arguments.reuse_double_checkpoint_root,
+                        horizon=horizon,
+                        leaf="qlib",
+                        fallback=horizon_root / "qlib",
                     )
+                    request_path = double_root / "request.json"
                     response_path = double_root / "response.json"
+                    if arguments.reuse_double_checkpoint_root is not None:
+                        if not all(
+                            path.is_file()
+                            for path in (
+                                request_path,
+                                response_path,
+                                double_root / "rows.parquet",
+                            )
+                        ):
+                            raise ValueError("reusable DoubleEnsemble artifacts are incomplete")
+                    else:
+                        request_path = _prepare_double_ensemble_request(
+                            root=double_root,
+                            manifest=manifest,
+                            rows=rows,
+                            seeds=seeds,
+                            minimum_fit_sessions=arguments.minimum_fit_sessions,
+                            inner_valid_sessions=arguments.inner_valid_sessions,
+                            outer_test_sessions=arguments.outer_test_sessions,
+                            fold_count=arguments.fold_count,
+                            purge_sessions=arguments.purge_sessions,
+                        )
                     if not response_path.is_file():
                         _execute_double_ensemble(
                             request_path,
@@ -196,20 +227,37 @@ def main(argv: Sequence[str] | None = None) -> int:
                         source_materialization_digest=str(manifest["content_digest"]),
                     )
                 if shared_identity is not None:
-                    shared_root = horizon_root / "shared-mlp"
-                    shared_request = _prepare_shared_mlp_request(
-                        root=shared_root,
-                        manifest=manifest,
-                        rows=rows,
-                        seeds=seeds,
-                        minimum_fit_sessions=arguments.minimum_fit_sessions,
-                        inner_valid_sessions=arguments.inner_valid_sessions,
-                        outer_test_sessions=arguments.outer_test_sessions,
-                        fold_count=arguments.fold_count,
-                        purge_sessions=arguments.purge_sessions,
-                        runner_identity=shared_identity,
+                    shared_root = _external_artifact_root(
+                        arguments.reuse_shared_checkpoint_root,
+                        horizon=horizon,
+                        leaf="shared-mlp",
+                        fallback=horizon_root / "shared-mlp",
                     )
+                    shared_request = shared_root / "request.json"
                     shared_response = shared_root / "response.json"
+                    if arguments.reuse_shared_checkpoint_root is not None:
+                        if not all(
+                            path.is_file()
+                            for path in (
+                                shared_request,
+                                shared_response,
+                                shared_root / "rows.parquet",
+                            )
+                        ):
+                            raise ValueError("reusable Shared MLP artifacts are incomplete")
+                    else:
+                        shared_request = _prepare_shared_mlp_request(
+                            root=shared_root,
+                            manifest=manifest,
+                            rows=rows,
+                            seeds=seeds,
+                            minimum_fit_sessions=arguments.minimum_fit_sessions,
+                            inner_valid_sessions=arguments.inner_valid_sessions,
+                            outer_test_sessions=arguments.outer_test_sessions,
+                            fold_count=arguments.fold_count,
+                            purge_sessions=arguments.purge_sessions,
+                            runner_identity=shared_identity,
+                        )
                     if not shared_response.is_file():
                         _execute_shared_mlp(
                             shared_request,
@@ -238,7 +286,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 _write_horizon_checkpoint(checkpoint_path, partial)
             if not arguments.skip_double_ensemble:
-                double_root = horizon_root / "qlib"
+                double_root = _external_artifact_root(
+                    arguments.reuse_double_checkpoint_root,
+                    horizon=horizon,
+                    leaf="qlib",
+                    fallback=horizon_root / "qlib",
+                )
                 request_path = double_root / "request.json"
                 response_path = double_root / "response.json"
                 rows_path = double_root / "rows.parquet"
@@ -253,7 +306,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                     }
                 )
             if not arguments.skip_shared_mlp:
-                shared_root = horizon_root / "shared-mlp"
+                shared_root = _external_artifact_root(
+                    arguments.reuse_shared_checkpoint_root,
+                    horizon=horizon,
+                    leaf="shared-mlp",
+                    fallback=horizon_root / "shared-mlp",
+                )
                 shared_paths = (
                     shared_root / "request.json",
                     shared_root / "rows.parquet",

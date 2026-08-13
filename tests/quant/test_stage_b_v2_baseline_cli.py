@@ -305,6 +305,24 @@ def test_cli_runs_pinned_double_ensemble_through_same_folds(
     assert (tmp_path / "output" / "qlib" / "rows.parquet").is_file()
     assert (tmp_path / "output" / "qlib" / "response.json").is_file()
 
+    monkeypatch.setattr(
+        "tools.research.run_stage_b_v2_baselines._execute_double_ensemble",
+        lambda *args, **kwargs: pytest.fail("verified DoubleEnsemble trials must be reused"),
+    )
+    resumed = _arguments(source, tmp_path / "resumed")
+    resumed.remove("--skip-double-ensemble")
+    resumed.extend(
+        [
+            "--reuse-double-checkpoint-root",
+            str(tmp_path / "output.checkpoints"),
+        ]
+    )
+
+    assert main(resumed) == 0
+    assert (tmp_path / "output" / "report.json").read_bytes() == (
+        tmp_path / "resumed" / "report.json"
+    ).read_bytes()
+
 
 def test_cli_runs_shared_mlp_through_same_folds_and_cost_profiles(
     tmp_path: Path,
@@ -370,6 +388,7 @@ def test_cli_runs_shared_mlp_through_same_folds_and_cost_profiles(
     report = json.loads((tmp_path / "output" / "report.json").read_text(encoding="utf-8"))
     assert report["models"] == ["LIGHTGBM", "RIDGE", "SHARED_MLP"]
     assert report["trial_count"] == 12
+
     shared = report["horizons"]["5"]["models"]["SHARED_MLP"]
     assert shared["mean_rank_ic"] > 0.9
     assert shared["mean_net_return"] > 0
@@ -484,3 +503,24 @@ def test_cli_reuses_verified_local_trials_when_adding_shared_mlp(
     report = json.loads((tmp_path / "combined" / "report.json").read_text(encoding="utf-8"))
     assert report["models"] == ["LIGHTGBM", "RIDGE", "SHARED_MLP"]
     assert report["trial_count"] == 12
+
+    monkeypatch.setattr(
+        "tools.research.run_stage_b_v2_baselines._execute_shared_mlp",
+        lambda *args, **kwargs: pytest.fail("verified Shared MLP trials must be reused"),
+    )
+    resumed_arguments = _arguments(source, tmp_path / "resumed-combined")
+    resumed_arguments.remove("--skip-shared-mlp")
+    resumed_arguments.extend(
+        [
+            "--checkpoint-root",
+            str(tmp_path / "resumed-checkpoints"),
+            "--reuse-local-checkpoint-root",
+            str(local_checkpoints),
+            "--reuse-shared-checkpoint-root",
+            str(tmp_path / "combined-checkpoints"),
+        ]
+    )
+    assert main(resumed_arguments) == 0
+    assert (tmp_path / "combined" / "report.json").read_bytes() == (
+        tmp_path / "resumed-combined" / "report.json"
+    ).read_bytes()
