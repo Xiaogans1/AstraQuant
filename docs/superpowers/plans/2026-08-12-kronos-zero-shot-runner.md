@@ -71,6 +71,8 @@
 
 ## Task 4: 接入统一可执行评价
 
+**Executable micro plan:** `docs/superpowers/plans/2026-08-13-kronos-task4-unified-evaluation.md`
+
 **Files:**
 
 - Create: `tools/research/run_kronos_zero_shot.py`
