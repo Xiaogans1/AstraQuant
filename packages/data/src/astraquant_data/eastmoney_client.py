@@ -290,6 +290,13 @@ class EastmoneyBridgeClient:
         self._list_result(response.result)
         return response
 
+    def stock_instruments_with_evidence(self) -> BridgeResponse:
+        """Return the complete exchange stock catalog and immutable call evidence."""
+
+        response = self._request_response("stock_instruments", {})
+        self._list_result(response.result)
+        return response
+
     def history_n(
         self,
         *,

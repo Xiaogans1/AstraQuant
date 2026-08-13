@@ -45,6 +45,27 @@ def test_bridge_client_correlates_monotonic_request_ids() -> None:
         assert client.last_request_id == 2
 
 
+def test_bridge_client_returns_complete_stock_reference_catalog_with_evidence() -> None:
+    client = make_client()
+    with client:
+        client.configure("valid-token", permission_tier="level1-history")
+        response = client.stock_instruments_with_evidence()
+
+    assert response.result == [
+        {
+            "symbol": "SHSE.600000",
+            "sec_name": "浦发银行",
+            "listed_date": "1999-11-10T00:00:00+08:00",
+            "delisted_date": "2038-01-01T00:00:00+08:00",
+            "sec_type": 1,
+            "sec_type_ext": 0,
+            "exchange": "SHSE",
+        }
+    ]
+    assert response.evidence.permission_tier == "level1-history"
+    assert response.evidence.observed_schema["kind"] == "list"
+
+
 def test_bridge_client_forwards_explicit_price_adjustment() -> None:
     client = make_client()
     with client:

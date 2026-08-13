@@ -146,6 +146,23 @@ for line in sys.stdin:
     if method == "history_n":
         success(request, [params], permission=permission_tier)
         continue
+    if method == "stock_instruments":
+        success(
+            request,
+            [
+                {
+                    "symbol": "SHSE.600000",
+                    "sec_name": "浦发银行",
+                    "listed_date": "1999-11-10T00:00:00+08:00",
+                    "delisted_date": "2038-01-01T00:00:00+08:00",
+                    "sec_type": 1,
+                    "sec_type_ext": 0,
+                    "exchange": "SHSE",
+                }
+            ],
+            permission=permission_tier,
+        )
+        continue
     if method == "history_range":
         page = params["page"]
         rows = [

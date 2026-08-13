@@ -160,6 +160,12 @@ def invoke(method: str, params: dict[str, Any]) -> Any:
                 start_date=params["start_date"],
                 end_date=params["end_date"],
             )
+        if method == "stock_instruments":
+            return gm.get_instrumentinfos(
+                sec_types=[gm.SEC_TYPE_STOCK],
+                exchanges=["SHSE", "SZSE", "BSE"],
+                df=False,
+            )
     raise ValueError("unsupported_method")
 
 
