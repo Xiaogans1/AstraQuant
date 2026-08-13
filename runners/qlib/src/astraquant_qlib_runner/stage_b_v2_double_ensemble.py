@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
-from . import QLIB_UPSTREAM_COMMIT, _canonical_bytes, _digest, _ensure_qlib_initialized
+from . import QLIB_UPSTREAM_COMMIT, _canonical_bytes, _ensure_qlib_initialized
 from .dataset import AstraFoldDataset
 from .model_adapters import create_double_ensemble_model
 
@@ -38,35 +38,74 @@ def run_double_ensemble_request(request_path: Path, output_path: Path) -> dict[s
     from qlib.workflow import R
 
     results: list[dict[str, Any]] = []
+    row_index = {int(row_id): index for index, row_id in enumerate(frame["row_id"])}
+    valid_row_ids = set(row_index)
+    training_eligible = {
+        int(row_id): bool(eligible)
+        for row_id, eligible in zip(
+            frame["row_id"],
+            frame["training_eligible"],
+            strict=True,
+        )
+    }
+    decision_times = {
+        int(row_id): decision_time
+        for row_id, decision_time in zip(
+            frame["row_id"],
+            frame["decision_time"],
+            strict=True,
+        )
+    }
+    cached_fit_ids: tuple[int, ...] | None = None
+    cached_processor: dict[str, Any] | None = None
+    cached_transformed: pd.DataFrame | None = None
+    cached_model_fit_ids: tuple[int, ...] | None = None
+    cached_model_valid_ids: tuple[int, ...] | None = None
     for raw_trial in trials:
         if not isinstance(raw_trial, dict):
             raise ValueError("DoubleEnsemble trial schema mismatch")
         trial_id = _text(raw_trial, "trial_id")
         seed = _integer(raw_trial, "seed", allow_zero=True)
-        fit_row_ids = _row_ids(raw_trial, "fit_row_ids", frame)
-        inner_valid_row_ids = _row_ids(raw_trial, "inner_valid_row_ids", frame)
-        outer_test_row_ids = _row_ids(raw_trial, "outer_test_row_ids", frame)
+        fit_row_ids = _row_ids(raw_trial, "fit_row_ids", valid_row_ids)
+        inner_valid_row_ids = _row_ids(raw_trial, "inner_valid_row_ids", valid_row_ids)
+        outer_test_row_ids = _row_ids(raw_trial, "outer_test_row_ids", valid_row_ids)
         if (
             set(fit_row_ids) & set(inner_valid_row_ids)
             or set(fit_row_ids) & set(outer_test_row_ids)
             or set(inner_valid_row_ids) & set(outer_test_row_ids)
         ):
             raise ValueError(f"DoubleEnsemble trial segments overlap: {trial_id}")
-        row_index = {int(row_id): index for index, row_id in enumerate(frame["row_id"])}
         eligible_fit_ids = tuple(
             row_id
             for row_id in fit_row_ids
-            if bool(frame.iloc[row_index[row_id]]["training_eligible"])
+            if training_eligible[row_id]
         )
         if len(eligible_fit_ids) < 10:
             raise ValueError(f"DoubleEnsemble fit segment is too small: {trial_id}")
-        processor = _fit_processor(frame, eligible_fit_ids, row_index, feature_columns)
-        transformed = _transform(frame, processor, feature_columns)
-        model_fit_ids, model_valid_ids = _internal_validation_ids(
-            transformed,
-            eligible_fit_ids,
-            row_index,
-        )
+        if eligible_fit_ids != cached_fit_ids:
+            cached_processor = _fit_processor(
+                frame,
+                eligible_fit_ids,
+                row_index,
+                feature_columns,
+            )
+            cached_transformed = _transform(frame, cached_processor, feature_columns)
+            cached_model_fit_ids, cached_model_valid_ids = _internal_validation_ids(
+                eligible_fit_ids,
+                decision_times,
+            )
+            cached_fit_ids = eligible_fit_ids
+        if (
+            cached_processor is None
+            or cached_transformed is None
+            or cached_model_fit_ids is None
+            or cached_model_valid_ids is None
+        ):
+            raise RuntimeError("DoubleEnsemble fold preprocessing cache is incomplete")
+        processor = cached_processor
+        transformed = cached_transformed
+        model_fit_ids = cached_model_fit_ids
+        model_valid_ids = cached_model_valid_ids
         model_fit = [row_index[row_id] for row_id in model_fit_ids]
         model_valid = [row_index[row_id] for row_id in model_valid_ids]
         inner_valid = [row_index[row_id] for row_id in inner_valid_row_ids]
@@ -151,7 +190,7 @@ def _read_rows(root: Path, request: dict[str, Any]) -> pd.DataFrame:
     if not isinstance(value, dict) or value.get("path") != "rows.parquet":
         raise ValueError("DoubleEnsemble rows file schema mismatch")
     path = root / "rows.parquet"
-    if not path.is_file() or value.get("digest") != _digest(path.read_bytes()):
+    if not path.is_file() or value.get("digest") != _digest_file(path):
         raise ValueError("DoubleEnsemble rows digest mismatch")
     frame = pq.read_table(path).to_pandas()
     features = _string_list(request, "feature_columns")
@@ -222,13 +261,10 @@ def _transform(
 
 
 def _internal_validation_ids(
-    frame: pd.DataFrame,
     fit_row_ids: tuple[int, ...],
-    row_index: dict[int, int],
+    decision_times: dict[int, Any],
 ) -> tuple[tuple[int, ...], tuple[int, ...]]:
-    sessions = tuple(
-        sorted({frame.iloc[row_index[row_id]]["decision_time"] for row_id in fit_row_ids})
-    )
+    sessions = tuple(sorted({decision_times[row_id] for row_id in fit_row_ids}))
     validation_count = max(1, math.ceil(len(sessions) * 0.2))
     if validation_count >= len(sessions):
         raise ValueError("DoubleEnsemble internal validation leaves no fit sessions")
@@ -236,9 +272,10 @@ def _internal_validation_ids(
     fit = tuple(
         row_id
         for row_id in fit_row_ids
-        if frame.iloc[row_index[row_id]]["decision_time"] not in validation_sessions
+        if decision_times[row_id] not in validation_sessions
     )
-    valid = tuple(row_id for row_id in fit_row_ids if row_id not in set(fit))
+    fit_set = set(fit)
+    valid = tuple(row_id for row_id in fit_row_ids if row_id not in fit_set)
     return fit, valid
 
 
@@ -268,9 +305,8 @@ def _predictions(row_ids: tuple[int, ...], scores: pd.Series) -> list[dict[str, 
     ]
 
 
-def _row_ids(value: dict[str, Any], key: str, frame: pd.DataFrame) -> tuple[int, ...]:
+def _row_ids(value: dict[str, Any], key: str, valid_ids: set[int]) -> tuple[int, ...]:
     item = value.get(key)
-    valid_ids = {int(row_id) for row_id in frame["row_id"]}
     if (
         not isinstance(item, list)
         or not item
@@ -311,3 +347,11 @@ def _integer(value: dict[str, Any], key: str, *, allow_zero: bool = False) -> in
 
 def _object_digest(value: object) -> str:
     return f"sha256:{hashlib.sha256(_canonical_bytes(value)).hexdigest()}"
+
+
+def _digest_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(8 * 1024 * 1024):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"

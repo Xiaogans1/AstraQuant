@@ -103,3 +103,45 @@ def test_runner_fits_train_only_processor_and_returns_valid_test_scores(
     assert [item["row_id"] for item in trial["inner_valid_predictions"]] == list(range(40, 50))
     assert [item["row_id"] for item in trial["outer_test_predictions"]] == list(range(50, 60))
     assert (tmp_path / "first.json").read_bytes() == (tmp_path / "second.json").read_bytes()
+
+
+def test_runner_reuses_fold_preprocessing_for_adjacent_seeds(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "astraquant_qlib_runner.stage_b_v2_double_ensemble.create_double_ensemble_model",
+        lambda config, seed: _FakeModel(),
+    )
+    request_path = _request(tmp_path)
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    second = {**request["trials"][0], "trial_id": "h5-double_ensemble-s11-fold-01", "seed": 11}
+    body = {
+        key: value
+        for key, value in {**request, "trials": [request["trials"][0], second]}.items()
+        if key != "content_digest"
+    }
+    request_path.write_bytes(
+        _canonical({"content_digest": _digest(_canonical(body)), **body}) + b"\n"
+    )
+    calls = {"fit": 0, "transform": 0}
+    from astraquant_qlib_runner import stage_b_v2_double_ensemble as runner
+
+    original_fit = runner._fit_processor
+    original_transform = runner._transform
+
+    def counted_fit(*args, **kwargs):
+        calls["fit"] += 1
+        return original_fit(*args, **kwargs)
+
+    def counted_transform(*args, **kwargs):
+        calls["transform"] += 1
+        return original_transform(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "_fit_processor", counted_fit)
+    monkeypatch.setattr(runner, "_transform", counted_transform)
+
+    response = run_double_ensemble_request(request_path, tmp_path / "response.json")
+
+    assert [trial["seed"] for trial in response["trials"]] == [7, 11]
+    assert calls == {"fit": 1, "transform": 1}

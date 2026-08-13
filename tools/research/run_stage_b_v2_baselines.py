@@ -342,8 +342,8 @@ def _prepare_double_ensemble_request(
             purge_sessions=purge_sessions,
         )
         assignments = assign_cross_sectional_fold_rows(horizon_rows, folds)
-        for seed in seeds:
-            for assignment in assignments:
+        for assignment in assignments:
+            for seed in seeds:
                 trial_values.append(
                     {
                         "trial_id": (f"h{horizon}-double_ensemble-s{seed}-{assignment.fold_id}"),
