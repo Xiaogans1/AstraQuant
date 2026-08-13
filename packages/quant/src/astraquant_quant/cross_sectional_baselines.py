@@ -25,6 +25,7 @@ class CrossSectionalModelKind(StrEnum):
     RIDGE = "RIDGE"
     LIGHTGBM = "LIGHTGBM"
     DOUBLE_ENSEMBLE = "DOUBLE_ENSEMBLE"
+    SHARED_MLP = "SHARED_MLP"
 
 
 class _Predictor(Protocol):
@@ -191,8 +192,11 @@ def score_cross_sectional_predictions(
 ) -> CrossSectionalBaselineResult:
     """Calibrate externally trained scores without exposing outer-test labels."""
 
-    if model_kind is not CrossSectionalModelKind.DOUBLE_ENSEMBLE:
-        raise ValueError("external score contract only accepts DoubleEnsemble")
+    if model_kind not in {
+        CrossSectionalModelKind.DOUBLE_ENSEMBLE,
+        CrossSectionalModelKind.SHARED_MLP,
+    }:
+        raise ValueError("external score contract only accepts isolated runner models")
     return _score_predictions(
         tuple(rows),
         assignment=assignment,

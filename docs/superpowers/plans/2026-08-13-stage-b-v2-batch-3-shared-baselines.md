@@ -20,10 +20,10 @@
 - Create: `contracts/research-runner/stage-b-v2-shared-mlp-v1/response.schema.json`
 - Create: `tests/repository/test_stage_b_v2_shared_mlp_contract.py`
 
-- [ ] 增加 `SHARED_MLP` 模型身份，只允许通过 external score contract 进入主评价，主环境不得 import PyTorch。
-- [ ] 固定 request：source materialization digest、feature columns、rows digest、逐 trial fit/inner-valid/outer-test row ids、seed、模型配置和 runner identity。
-- [ ] 固定模型配置：hidden 64、market 32、两层共享 encoder、dropout 0、masked market mean、最多 80 epochs、patience 8、batch 为完整 decision-date cross-section。
-- [ ] response 必须逐 trial 返回 processor/model/prediction digests 和有序 valid/test scores；未知字段、缺 trial、重复 row、摘要不符 fail closed。
+- [x] 增加 `SHARED_MLP` 模型身份，只允许通过 external score contract 进入主评价，主环境不得 import PyTorch。
+- [x] 固定 request：source materialization digest、feature columns、rows digest、逐 trial fit/inner-valid/outer-test row ids、seed、模型配置和 runner identity。
+- [x] 固定模型配置：hidden 64、market 32、两层共享 encoder、dropout 0、masked market mean、最多 80 epochs、patience 8、batch 为完整 decision-date cross-section。
+- [x] response 必须逐 trial 返回 processor/model/prediction digests 和有序 valid/test scores；未知字段、缺 trial、重复 row、摘要不符 fail closed。
 
 ## Task 2: Implement the isolated Shared MLP runner
 

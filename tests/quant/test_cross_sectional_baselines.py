@@ -244,7 +244,13 @@ def test_baseline_rejects_feature_schema_horizon_and_nonfinite_target() -> None:
         )
 
 
-def test_external_double_ensemble_scores_use_inner_valid_for_calibration_only() -> None:
+@pytest.mark.parametrize(
+    "model_kind",
+    [CrossSectionalModelKind.DOUBLE_ENSEMBLE, CrossSectionalModelKind.SHARED_MLP],
+)
+def test_external_scores_use_inner_valid_for_calibration_only(
+    model_kind: CrossSectionalModelKind,
+) -> None:
     rows = _rows()
     assignment = _assignment(rows)
     valid_scores = tuple(
@@ -257,7 +263,7 @@ def test_external_double_ensemble_scores_use_inner_valid_for_calibration_only() 
     result = score_cross_sectional_predictions(
         rows,
         assignment=assignment,
-        model_kind=CrossSectionalModelKind.DOUBLE_ENSEMBLE,
+        model_kind=model_kind,
         seed=7,
         valid_scores=valid_scores,
         test_scores=test_scores,
@@ -265,7 +271,7 @@ def test_external_double_ensemble_scores_use_inner_valid_for_calibration_only() 
         model_digest="sha256:" + "2" * 64,
     )
 
-    assert result.model_kind is CrossSectionalModelKind.DOUBLE_ENSEMBLE
+    assert result.model_kind is model_kind
     assert result.model_digest == "sha256:" + "2" * 64
     assert result.mean_rank_ic > 0.9
     assert result.predictions[0].row_id == rows[assignment.outer_test_indices[0]].row_id
