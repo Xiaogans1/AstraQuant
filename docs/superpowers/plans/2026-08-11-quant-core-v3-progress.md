@@ -28,6 +28,8 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 
 **Stage B v2 已批准方向：** 采用[全市场截面训练设计](../specs/2026-08-13-stage-b-v2-cross-sectional-design.md)。第一主战场改为真实 A 股日线动态 universe；统一训练 `D1/D5/D10` 的收益、截面 rank 和风险 heads；先通过 Ridge/LightGBM/DoubleEnsemble 标签可学习门，再让 StockMixer v2 与 MASTER 竞争。模型输出进入统一 rank-aware long-only 目标组合，不再把 rank score 当作固定收益阈值。
 
+**正在实施：** [Stage B v2 Batch 1](2026-08-13-stage-b-v2-batch-1-label-portfolio.md) 已拆成可执行清单，先交付 D1/D5/D10 next-open 标签、inner-valid Huber 收益校准和统一 rank-aware long-only 目标组合；完成后立即进入真实东方财富日线宽历史 Batch 2。
+
 **效率纪律：** 每个开发批次必须产生一种用户可理解的新增能力或明确淘汰结论；不以重复造基础设施代替策略结果，不降低门槛包装模型，不允许新模型绕过统一执行评价。
 
 ## 已完成
