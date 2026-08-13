@@ -175,8 +175,20 @@ def _fit_trial(
         lr=float(config["learning_rate"]),
         weight_decay=float(config["weight_decay"]),
     )
-    train_batches = _session_batches(rows, transformed, model_fit_ids, device=device)
-    valid_batches = _session_batches(rows, transformed, model_valid_ids, device=device)
+    train_batches = _session_batches(
+        rows,
+        transformed,
+        model_fit_ids,
+        device=device,
+        session_batch_size=config["session_batch_size"],
+    )
+    valid_batches = _session_batches(
+        rows,
+        transformed,
+        model_valid_ids,
+        device=device,
+        session_batch_size=config["session_batch_size"],
+    )
     best_loss = math.inf
     best_state: dict[str, Tensor] | None = None
     stale_epochs = 0
@@ -184,15 +196,11 @@ def _fit_trial(
     for _epoch in range(config["epochs"]):
         model.train()
         order = torch.randperm(len(train_batches), generator=generator).tolist()
-        batch_size = config["session_batch_size"]
-        for start in range(0, len(order), batch_size):
+        for batch_index in order:
             optimizer.zero_grad(set_to_none=True)
-            losses = []
-            for batch_index in order[start : start + batch_size]:
-                features, mask, targets, target_mask = train_batches[batch_index]
-                scores = model(features, mask)
-                losses.append(torch.mean((scores[target_mask] - targets[target_mask]) ** 2))
-            loss = torch.stack(losses).mean()
+            features, mask, targets, target_mask = train_batches[batch_index]
+            scores = model(features, mask)
+            loss = torch.mean((scores[target_mask] - targets[target_mask]) ** 2)
             loss.backward()
             optimizer.step()
         validation_loss = _mean_loss(model, valid_batches)
@@ -357,17 +365,33 @@ def _session_batches(
     row_ids: tuple[int, ...],
     *,
     device: torch.device,
+    session_batch_size: int,
 ) -> list[tuple[Tensor, Tensor, Tensor, Tensor]]:
     grouped: dict[object, list[int]] = {}
     for row_id in row_ids:
         index = rows.row_index[row_id]
         grouped.setdefault(rows.decision_times[index], []).append(index)
+    if session_batch_size <= 0:
+        raise ValueError("Shared MLP session batch size must be positive")
     result = []
-    for session in sorted(grouped):
-        indices = grouped[session]
-        features = torch.from_numpy(transformed[indices]).unsqueeze(0).to(device)
-        targets = torch.from_numpy(rows.targets[indices].astype(np.float32)).unsqueeze(0).to(device)
-        mask = torch.ones(targets.shape, dtype=torch.bool, device=device)
+    sessions = sorted(grouped)
+    for start in range(0, len(sessions), session_batch_size):
+        chunk = sessions[start : start + session_batch_size]
+        maximum_stocks = max(len(grouped[session]) for session in chunk)
+        feature_values = np.zeros(
+            (len(chunk), maximum_stocks, transformed.shape[1]), dtype=np.float32
+        )
+        target_values = np.zeros((len(chunk), maximum_stocks), dtype=np.float32)
+        mask_values = np.zeros((len(chunk), maximum_stocks), dtype=np.bool_)
+        for batch_index, session in enumerate(chunk):
+            indices = grouped[session]
+            stock_count = len(indices)
+            feature_values[batch_index, :stock_count] = transformed[indices]
+            target_values[batch_index, :stock_count] = rows.targets[indices]
+            mask_values[batch_index, :stock_count] = True
+        features = torch.from_numpy(feature_values).to(device)
+        targets = torch.from_numpy(target_values).to(device)
+        mask = torch.from_numpy(mask_values).to(device)
         result.append((features, mask, targets, mask))
     return result
 

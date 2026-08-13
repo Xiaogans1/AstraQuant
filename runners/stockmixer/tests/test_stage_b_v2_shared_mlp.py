@@ -5,12 +5,16 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 import torch
 from astraquant_stockmixer_runner.__main__ import main
 from astraquant_stockmixer_runner.stage_b_v2_shared_mlp import (
+    _read_request,
+    _read_rows,
+    _session_batches,
     run_shared_mlp_request,
 )
 
@@ -217,3 +221,25 @@ def test_shared_mlp_cli_writes_response(tmp_path: Path) -> None:
     assert json.loads(output.read_text(encoding="utf-8"))["schema_version"] == (
         "astraquant.stage-b-v2-shared-mlp-response/v1"
     )
+
+
+def test_session_batch_pads_multiple_dates_into_one_masked_gpu_call(tmp_path: Path) -> None:
+    request_path = _write_request(tmp_path)
+    request = _read_request(request_path)
+    rows = _read_rows(tmp_path, request)
+    row_ids = tuple(int(value) for value in rows.row_ids[:14])
+
+    batches = _session_batches(
+        rows,
+        np.nan_to_num(rows.features).astype(np.float32),
+        row_ids,
+        device=torch.device("cpu"),
+        session_batch_size=4,
+    )
+
+    assert len(batches) == 1
+    features, mask, targets, target_mask = batches[0]
+    assert features.shape == (4, 4, 2)
+    assert mask.sum(dim=1).tolist() == [3, 4, 3, 4]
+    assert torch.equal(mask, target_mask)
+    assert targets.shape == mask.shape
