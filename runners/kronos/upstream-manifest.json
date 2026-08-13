@@ -5,7 +5,9 @@
   "commit": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
   "source_root": "../../external/Kronos",
   "default_model": "NeoQuasar/Kronos-base",
+  "default_model_revision": "2b554741eca47781b64468546e77fef3e85130e6",
   "default_tokenizer": "NeoQuasar/Kronos-Tokenizer-base",
+  "default_tokenizer_revision": "0e0117387f39004a9016484a186a908917e22426",
   "models": [
     {
       "name": "Kronos-mini",
@@ -26,7 +28,9 @@
     {
       "name": "Kronos-base",
       "model_id": "NeoQuasar/Kronos-base",
+      "revision": "2b554741eca47781b64468546e77fef3e85130e6",
       "tokenizer_id": "NeoQuasar/Kronos-Tokenizer-base",
+      "tokenizer_revision": "0e0117387f39004a9016484a186a908917e22426",
       "parameters": 102300000,
       "context_length": 512,
       "open_source": true

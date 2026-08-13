@@ -1,0 +1,21 @@
+[project]
+name = "astraquant-kronos-runner"
+version = "0.1.0"
+description = "Pinned Kronos zero-shot runner for AstraQuant"
+requires-python = ">=3.11,<3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "jsonschema>=4.25,<5",
+  "pytest>=9.0,<10",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+pythonpath = ["src"]
+testpaths = ["tests"]

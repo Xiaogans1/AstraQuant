@@ -37,7 +37,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 ## 当前开发
 
 - 生产训练 Stage A：统一 task/score 契约、声明式 Qlib runner、DoubleEnsemble 接入和真实多标的 Task 4 均已完成。9 个 Eastmoney exact snapshots 的两次独立训练得到完全相同的 input/fold/prediction/report digests；DoubleEnsemble 扣费净收益 `-2.5082%`，Ridge 为 `-1.8550%`，两者均为 `NO_NET_EDGE`，因此不进入 Shadow/Paper。Stage A 的公平评价通道保留，训练核心继续推进。
-- Kronos K 线基础模型：官方完整仓库已作为 `external/Kronos` submodule 封存到 commit `67b630e67f6a18c9e9be918d9b4337c960db1e9a`，不是 shallow clone；`runners/kronos` 已固定官方模型清单、默认 `Kronos-base` 和只读边界。它是独立 challenger，不替换或阻塞自有模型。未来将提供 K 线图“核预测”按钮、概率路径图层、结构化分析，并在验证后作为组合因子；这些均排在当前 DoubleEnsemble Task 4 和统一训练主线之后。
+- Kronos K 线基础模型：官方完整仓库已作为 `external/Kronos` submodule 封存到 commit `67b630e67f6a18c9e9be918d9b4337c960db1e9a`；Task 1 推理契约已经完成，模型 revision 固定为 `2b554741...`、tokenizer revision 固定为 `0e011738...`，本地权重必须逐文件校验 SHA-256。它是独立 challenger，不替换或阻塞自有模型。当前进入 Task 2：从 Eastmoney exact snapshots 导出无未来泄漏的 OHLCVA 窗口。
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
 - S2a Qlib 公平对照：3/3 已完成；同一 Eastmoney 行集/folds 可在固定 commit 的独立 Qlib LightGBM runner 训练，再由 AstraQuant 统一按相同费率与阈值评分。

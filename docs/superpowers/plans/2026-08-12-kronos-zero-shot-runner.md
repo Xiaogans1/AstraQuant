@@ -26,11 +26,11 @@
 - Create: `runners/kronos/tests/test_contracts.py`
 - Modify: `runners/kronos/upstream-manifest.json`
 
-- [ ] Red：拒绝非 exact snapshot、未知 upstream commit、未 pin model/tokenizer revision、缺本地 weight digest、非法 OHLCVA schema、非正 context/horizon/sample count。
-- [ ] Request 固定 `schema_version`、source/fold/row digests、model/tokenizer IDs + revisions + weight digests、device policy、seed、context length、horizon、sampling config。
-- [ ] Response 固定逐 `fold_id/row_id/instrument_id/decision_time` 的路径摘要、`expected_return`、方向一致性、波动和不确定性，并回传全部输入/环境 identity。
-- [ ] 权重允许预先下载到 Git 忽略目录，但 runner 只读显式本地路径并重算 SHA-256；下载/缓存准备是独立命令，不发生在正式 evaluate 中。
-- [ ] 运行 runner contract tests、Ruff；提交 `feat(kronos): 冻结零样本推理契约`。
+- [x] Red：拒绝非 exact snapshot、未知 upstream commit、未 pin model/tokenizer revision、缺本地 weight digest、非法 OHLCVA schema、非正 context/horizon/sample count。
+- [x] Request 固定 `schema_version`、source/fold/row digests、model/tokenizer IDs + revisions + weight digests、device policy、seed、context length、horizon、sampling config。
+- [x] Response 固定逐 `fold_id/row_id/instrument_id/decision_time` 的路径摘要、`expected_return`、方向一致性、波动和不确定性，并回传全部输入/环境 identity。
+- [x] 权重允许预先下载到 Git 忽略目录，但 runner 只读显式本地路径并重算 SHA-256；下载/缓存准备是独立命令，不发生在正式 evaluate 中。
+- [x] 运行 runner contract tests、Ruff；提交 `feat(kronos): 冻结零样本推理契约`。
 
 ## Task 2: 导出无泄漏 K 线窗口
 

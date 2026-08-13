@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://astraquant.local/contracts/kronos-runner/v1/response.schema.json",
+  "title": "AstraQuant Kronos zero-shot response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "content_digest",
+    "schema_version",
+    "request_content_digest",
+    "upstream_commit",
+    "model",
+    "tokenizer",
+    "environment",
+    "forecasts"
+  ],
+  "properties": {
+    "content_digest": { "$ref": "#/$defs/digest" },
+    "schema_version": { "const": "astraquant.kronos-response/v1" },
+    "request_content_digest": { "$ref": "#/$defs/digest" },
+    "upstream_commit": { "const": "67b630e67f6a18c9e9be918d9b4337c960db1e9a" },
+    "model": {
+      "$ref": "#/$defs/responseArtifact"
+    },
+    "tokenizer": {
+      "$ref": "#/$defs/responseArtifact"
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python", "torch", "device"],
+      "properties": {
+        "python": { "type": "string", "minLength": 1 },
+        "torch": { "type": "string", "minLength": 1 },
+        "device": { "type": "string", "minLength": 1 }
+      }
+    },
+    "forecasts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fold_id",
+          "row_id",
+          "instrument_id",
+          "decision_time",
+          "expected_return",
+          "up_path_fraction",
+          "terminal_return_p10",
+          "terminal_return_p50",
+          "terminal_return_p90",
+          "predicted_volatility",
+          "uncertainty_width"
+        ],
+        "properties": {
+          "fold_id": { "type": "string", "minLength": 1 },
+          "row_id": { "type": "integer", "minimum": 0 },
+          "instrument_id": { "type": "string", "minLength": 1 },
+          "decision_time": { "type": "string", "minLength": 1 },
+          "expected_return": { "type": "number" },
+          "up_path_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+          "terminal_return_p10": { "type": "number" },
+          "terminal_return_p50": { "type": "number" },
+          "terminal_return_p90": { "type": "number" },
+          "predicted_volatility": { "type": "number", "minimum": 0 },
+          "uncertainty_width": { "type": "number", "minimum": 0 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:(?!0{64}$)[0-9a-f]{64}$"
+    },
+    "responseArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "revision", "weights_digest"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "weights_digest": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}
