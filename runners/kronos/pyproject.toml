@@ -4,7 +4,14 @@ version = "0.1.0"
 description = "Pinned Kronos zero-shot runner for AstraQuant"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+  "einops==0.8.1",
+  "huggingface-hub==0.33.1",
+  "numpy>=2,<3",
+  "pandas==2.2.2",
   "pyarrow>=18,<20",
+  "safetensors==0.6.2",
+  "torch>=2.7,<2.8",
+  "tqdm==4.67.1",
   "tzdata>=2025.2",
 ]
 
