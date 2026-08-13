@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import dataclass
 from typing import Literal
+
+# Must be present before the first CUDA BLAS handle is created anywhere in this process.
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 
 import torch
 from torch import Tensor
@@ -362,4 +366,3 @@ def _state_digest(state: dict[str, Tensor]) -> str:
         digest.update(repr(tuple(tensor.shape)).encode("ascii"))
         digest.update(tensor.numpy().tobytes())
     return f"sha256:{digest.hexdigest()}"
-

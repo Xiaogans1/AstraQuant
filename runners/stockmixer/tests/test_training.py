@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime, timedelta
 
 import pyarrow as pa
+import pytest
 import torch
 from astraquant_stockmixer_runner.contracts import StockMixerRequest
 from astraquant_stockmixer_runner.dataset import PanelWindowDataset
@@ -114,3 +116,22 @@ def test_outer_test_labels_cannot_change_training_or_predictions() -> None:
     assert normal.best_epoch == poisoned.best_epoch
     torch.testing.assert_close(normal.test_predictions, poisoned.test_predictions, rtol=0, atol=0)
 
+
+def test_training_module_enables_deterministic_cublas_workspace() -> None:
+    assert os.environ["CUBLAS_WORKSPACE_CONFIG"] in {":4096:8", ":16:8"}
+
+
+def test_existing_cublas_workspace_value_is_not_overwritten(monkeypatch) -> None:
+    monkeypatch.setenv("CUBLAS_WORKSPACE_CONFIG", ":16:8")
+    # CPU training must not mutate CUDA process policy.
+    train_fold(_request(), fold_id="fold-0", config=_config(), device="cpu")
+    assert os.environ["CUBLAS_WORKSPACE_CONFIG"] == ":16:8"
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
+def test_small_fold_trains_with_deterministic_cuda() -> None:
+    first = train_fold(_request(), fold_id="fold-0", config=_config(), device="cuda")
+    second = train_fold(_request(), fold_id="fold-0", config=_config(), device="cuda")
+
+    assert first.model_state_digest == second.model_state_digest
+    torch.testing.assert_close(first.test_predictions, second.test_predictions, rtol=0, atol=0)

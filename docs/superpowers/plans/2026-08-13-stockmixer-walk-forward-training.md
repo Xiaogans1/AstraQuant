@@ -35,7 +35,7 @@
 - [x] Test deterministic tail-by-time inner validation, purge gap, seeded batches and test-label mutation invariance.
 - [x] Implement immutable `TrainingConfig`, fold split, CUDA/CPU trainer, patience-based early stopping and best-state restoration.
 - [x] Test that only inner-valid drives early stopping and outer-test is predicted once after freeze.
-- [ ] Run focused and complete runner suites; commit and push Task 2 (`22 passed`; Ruff clean).
+- [x] Run focused and complete runner suites; commit and push Task 2 (`21c26db`; `22 passed`; Ruff clean).
 
 ### Task 3: Seal model and prediction artifacts
 
@@ -47,8 +47,8 @@
 - Create: `runners/stockmixer/tests/test_cli.py`
 - Modify: `docs/superpowers/plans/2026-08-11-quant-core-v3-progress.md`
 
-- [ ] Define a versioned response carrying request/config/code/model/prediction digests and fold metrics.
-- [ ] Persist sorted tensor state without timestamps and reject overwrite/digest mismatch.
-- [ ] Add CLI `train` command and deterministic repeated-run test.
-- [ ] Run a real 9-ETF fold on CUDA, record runtime/metrics/digests and update progress.
+- [x] Define a versioned response carrying request/config/code/model/prediction digests and fold metrics.
+- [x] Persist sorted tensor state without timestamps and reject overwrite/digest mismatch.
+- [x] Add CLI `train` command and deterministic repeated-run test.
+- [x] Run all three real 9-ETF folds twice on CUDA, record runtime/metrics/digests and update progress.
 - [ ] Run all required verification, commit and push Task 3.
