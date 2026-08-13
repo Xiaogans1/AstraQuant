@@ -137,7 +137,7 @@ uv run ruff check packages/domain/src/astraquant_domain/cross_sectional.py tests
 
 Expected: all selected tests pass and Ruff reports `All checks passed!`.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1 (`bb0b9a4`)**
 
 ```powershell
 git add packages/domain/src/astraquant_domain/cross_sectional.py packages/domain/src/astraquant_domain/__init__.py tests/domain/test_cross_sectional.py
@@ -151,7 +151,7 @@ git commit -m "feat(domain): 冻结截面任务与组合契约"
 - Create: `packages/quant/src/astraquant_quant/cross_sectional_labels.py`
 - Create: `tests/quant/test_cross_sectional_labels.py`
 
-- [ ] **Step 1: Write failing next-open and rank tests**
+- [x] **Step 1: Write failing next-open and rank tests**
 
 The fixture contains 50 instruments and 13 timezone-aware sessions. For instrument `S000`, decision session index 0, D5 must use `open[1]` as entry and `open[6]` as exit. The test must assert:
 
@@ -173,7 +173,7 @@ Add independent tests that:
 - confirm all valid rows remain present even when `training_eligible=False`;
 - reject a non-canonical session calendar, unknown membership instrument or missing benchmark bar.
 
-- [ ] **Step 2: Run the label tests and confirm the missing module red light**
+- [x] **Step 2: Run the label tests and confirm the missing module red light**
 
 Run:
 
@@ -183,7 +183,7 @@ uv run pytest tests/quant/test_cross_sectional_labels.py -q --basetemp .test-tmp
 
 Expected: collection fails for `astraquant_quant.cross_sectional_labels`.
 
-- [ ] **Step 3: Implement panel and label types**
+- [x] **Step 3: Implement panel and label types**
 
 Use these public types:
 
@@ -221,7 +221,7 @@ class CrossSectionalLabelRow:
 6. sort rows by `(decision_time, horizon, instrument_id)`;
 7. mark the bottom/top `floor(n * 0.025)` rows as train-ineligible using `(return, instrument_id)` canonical order, without deleting rows.
 
-- [ ] **Step 4: Run label green tests and existing minute-label regressions**
+- [x] **Step 4: Run label green tests and existing minute-label regressions (`19 passed`; Ruff and mypy clean)**
 
 Run:
 
