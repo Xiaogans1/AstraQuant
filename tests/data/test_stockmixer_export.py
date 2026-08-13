@@ -126,34 +126,29 @@ def test_exports_repeatable_time_aligned_panel_with_explicit_missing_masks(
     assert first_request == second_request
     assert first.panel_path.read_bytes() == second.panel_path.read_bytes()
     assert first.sample_count == 4
-    assert len(rows) == 24
+    assert len(rows) == 12
     assert first_request["content_digest"] == first.content_digest
     assert first_request["input_columns"] == ["open", "high", "low", "close", "volume"]
     assert first_request["lookback"] == 3
     assert first_request["universe"]["snapshot_id"] == f"sha256:{'c' * 64}"
     assert [
-        (row["fold_id"], row["decision_time"], row["instrument_id"], row["sequence_index"])
+        (row["slot_time"], row["instrument_id"])
         for row in rows
     ] == sorted(
-        (
-            row["fold_id"],
-            row["decision_time"],
-            row["instrument_id"],
-            row["sequence_index"],
-        )
+        (row["slot_time"], row["instrument_id"])
         for row in rows
     )
     assert all(
-        row["event_time"] is None or row["event_time"] <= row["decision_time"]
+        row["event_time"] is None or row["event_time"] == row["slot_time"]
         for row in rows
     )
+    assert all(len(sample["window_times"]) == 3 for sample in first_request["samples"])
 
     missing = next(
         row
         for row in rows
         if row["instrument_id"] == "BBB.SSE"
-        and row["decision_time"] == _TIMES[5]
-        and row["sequence_index"] == 2
+        and row["slot_time"] == _TIMES[5]
     )
     assert missing["presence_mask"] is True
     assert missing["tradable_mask"] is False
@@ -163,12 +158,7 @@ def test_exports_repeatable_time_aligned_panel_with_explicit_missing_masks(
     assert all(
         missing[name] == 0.0 for name in ("open", "high", "low", "close", "volume")
     )
-    prior = [
-        row
-        for row in rows
-        if row["instrument_id"] == "BBB.SSE" and row["decision_time"] == _TIMES[5]
-    ]
-    assert [row["feature_mask"] for row in prior] == [True, True, False]
+    assert first.panel_path.stat().st_size < 10_000
 
 
 def test_rejects_unsealed_sources_existing_output_and_incomplete_universe(

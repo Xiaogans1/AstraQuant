@@ -24,20 +24,15 @@ def _file_digest(path: Path) -> str:
 
 def _rows() -> list[dict[str, object]]:
     values = []
-    for instrument_id, present in (("AAA.SSE", True), ("BBB.SSE", False)):
-        for sequence_index in range(2):
+    for sequence_index in range(2):
+        slot_time = _DECISION - timedelta(days=1 - sequence_index)
+        for instrument_id, present in (("AAA.SSE", True), ("BBB.SSE", False)):
             feature = present
             values.append(
                 {
-                    "fold_id": "fold-01",
-                    "segment": "test",
-                    "sample_id": 0,
-                    "decision_time": _DECISION,
+                    "slot_time": slot_time,
                     "instrument_id": instrument_id,
-                    "sequence_index": sequence_index,
-                    "event_time": (
-                        _DECISION - timedelta(days=1 - sequence_index) if feature else None
-                    ),
+                    "event_time": slot_time if feature else None,
                     "feature_mask": feature,
                     "presence_mask": True,
                     "tradable_mask": present,
@@ -56,12 +51,8 @@ def _rows() -> list[dict[str, object]]:
 def _schema() -> pa.Schema:
     return pa.schema(
         [
-            pa.field("fold_id", pa.string(), nullable=False),
-            pa.field("segment", pa.string(), nullable=False),
-            pa.field("sample_id", pa.int64(), nullable=False),
-            pa.field("decision_time", pa.timestamp("us", tz="UTC"), nullable=False),
+            pa.field("slot_time", pa.timestamp("us", tz="UTC"), nullable=False),
             pa.field("instrument_id", pa.string(), nullable=False),
-            pa.field("sequence_index", pa.int16(), nullable=False),
             pa.field("event_time", pa.timestamp("us", tz="UTC"), nullable=True),
             pa.field("feature_mask", pa.bool_(), nullable=False),
             pa.field("presence_mask", pa.bool_(), nullable=False),
@@ -115,6 +106,10 @@ def _write_request(root: Path, *, rows: list[dict[str, object]] | None = None) -
                 "sample_id": 0,
                 "decision_time": _DECISION.isoformat(),
                 "members": ["AAA.SSE", "BBB.SSE"],
+                "window_times": [
+                    (_DECISION - timedelta(days=1)).isoformat(),
+                    _DECISION.isoformat(),
+                ],
             }
         ],
     }
@@ -152,8 +147,8 @@ def test_rejects_wrong_upstream_and_changed_panel(tmp_path: Path) -> None:
 
 def test_rejects_future_bar_and_unmasked_zero_placeholder(tmp_path: Path) -> None:
     future_rows = _rows()
-    future_rows[0]["event_time"] = _DECISION + timedelta(seconds=1)
-    with pytest.raises(ValueError, match="after decision_time"):
+    future_rows[0]["event_time"] = future_rows[0]["slot_time"] + timedelta(seconds=1)  # type: ignore[operator]
+    with pytest.raises(ValueError, match="does not match slot_time"):
         load_request(_write_request(tmp_path / "future", rows=future_rows))
 
     invalid_missing = _rows()
@@ -164,23 +159,21 @@ def test_rejects_future_bar_and_unmasked_zero_placeholder(tmp_path: Path) -> Non
 
 def test_rejects_noncanonical_rows_and_inconsistent_sample_masks(tmp_path: Path) -> None:
     noncanonical = _rows()
-    noncanonical[0], noncanonical[1] = noncanonical[1], noncanonical[0]
+    noncanonical[0], noncanonical[-1] = noncanonical[-1], noncanonical[0]
     with pytest.raises(ValueError, match="canonical order"):
         load_request(_write_request(tmp_path / "noncanonical", rows=noncanonical))
 
     inconsistent = _rows()
-    inconsistent[1]["tradable_mask"] = False
-    inconsistent[1]["label_mask"] = False
-    inconsistent[1]["label"] = 0.0
-    with pytest.raises(ValueError, match="sample masks and label must be constant"):
+    inconsistent[3]["presence_mask"] = False
+    with pytest.raises(ValueError, match="membership"):
         load_request(_write_request(tmp_path / "inconsistent", rows=inconsistent))
 
 
 def test_rejects_tradable_sample_without_current_feature(tmp_path: Path) -> None:
     invalid = _rows()
-    invalid[1]["feature_mask"] = False
-    invalid[1]["event_time"] = None
+    invalid[2]["feature_mask"] = False
+    invalid[2]["event_time"] = None
     for name in ("open", "high", "low", "close", "volume"):
-        invalid[1][name] = 0.0
-    with pytest.raises(ValueError, match="tradable sample requires current feature"):
+        invalid[2][name] = 0.0
+    with pytest.raises(ValueError, match="tradable_mask requires a real feature"):
         load_request(_write_request(tmp_path / "missing-current", rows=invalid))

@@ -140,7 +140,56 @@ def export_stockmixer_request(
     if not sample_specs:
         raise ValueError("StockMixer export has no eligible samples")
 
+    required_slot_times = tuple(
+        sorted(
+            {
+                slot_time
+                for _, _, decision_time in sample_specs
+                for slot_time in timeline[
+                    timeline_index[decision_time] + 1 - lookback : timeline_index[decision_time] + 1
+                ]
+            }
+        )
+    )
     rows: list[dict[str, object]] = []
+    for slot_time in required_slot_times:
+        current_members = memberships[slot_time]
+        for instrument_id in instrument_ids:
+            bar = bars_by_instrument[instrument_id].get(slot_time)
+            presence = instrument_id in current_members
+            feature_mask = presence and bar is not None
+            tradable = feature_mask and bar is not None and bar.volume > 0
+            raw_label = labels.get((instrument_id, slot_time))
+            label_mask = tradable and raw_label is not None
+            label = raw_label if label_mask and raw_label is not None else 0.0
+            if feature_mask and bar is not None:
+                if bar.timestamp != slot_time:
+                    raise ValueError("StockMixer bar does not match its market time slot")
+                feature_values = {
+                    "open": float(bar.open),
+                    "high": float(bar.high),
+                    "low": float(bar.low),
+                    "close": float(bar.close),
+                    "volume": float(bar.volume),
+                }
+                event_time: datetime | None = bar.timestamp
+            else:
+                feature_values = {name: 0.0 for name in STOCKMIXER_INPUT_COLUMNS}
+                event_time = None
+            rows.append(
+                {
+                    "slot_time": slot_time,
+                    "instrument_id": instrument_id,
+                    "event_time": event_time,
+                    "feature_mask": feature_mask,
+                    "presence_mask": presence,
+                    "tradable_mask": tradable,
+                    "label_mask": label_mask,
+                    "label": label,
+                    **feature_values,
+                }
+            )
+
     request_samples: list[dict[str, object]] = []
     for sample_id, (fold_id, segment, decision_time) in enumerate(sample_specs):
         position = timeline_index[decision_time]
@@ -153,50 +202,9 @@ def export_stockmixer_request(
                 "sample_id": sample_id,
                 "decision_time": decision_time.isoformat(),
                 "members": sorted(current_members),
+                "window_times": [item.isoformat() for item in window_times],
             }
         )
-        for instrument_id in instrument_ids:
-            instrument_bars = bars_by_instrument[instrument_id]
-            current_bar = instrument_bars.get(decision_time)
-            presence = instrument_id in current_members
-            tradable = presence and current_bar is not None and current_bar.volume > 0
-            raw_label = labels.get((instrument_id, decision_time))
-            label_mask = tradable and raw_label is not None
-            label = raw_label if label_mask and raw_label is not None else 0.0
-            for sequence_index, event_slot in enumerate(window_times):
-                bar = instrument_bars.get(event_slot)
-                feature_mask = instrument_id in memberships[event_slot] and bar is not None
-                if feature_mask and bar is not None:
-                    if bar.timestamp > decision_time:
-                        raise ValueError("StockMixer panel contains a future bar")
-                    feature_values = {
-                        "open": float(bar.open),
-                        "high": float(bar.high),
-                        "low": float(bar.low),
-                        "close": float(bar.close),
-                        "volume": float(bar.volume),
-                    }
-                    event_time: datetime | None = bar.timestamp
-                else:
-                    feature_values = {name: 0.0 for name in STOCKMIXER_INPUT_COLUMNS}
-                    event_time = None
-                rows.append(
-                    {
-                        "fold_id": fold_id,
-                        "segment": segment,
-                        "sample_id": sample_id,
-                        "decision_time": decision_time,
-                        "instrument_id": instrument_id,
-                        "sequence_index": sequence_index,
-                        "event_time": event_time,
-                        "feature_mask": feature_mask,
-                        "presence_mask": presence,
-                        "tradable_mask": tradable,
-                        "label_mask": label_mask,
-                        "label": label,
-                        **feature_values,
-                    }
-                )
 
     root.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
@@ -436,12 +444,8 @@ def _labels_by_identity(
 def _panel_schema() -> pa.Schema:
     return pa.schema(
         [
-            pa.field("fold_id", pa.string(), nullable=False),
-            pa.field("segment", pa.string(), nullable=False),
-            pa.field("sample_id", pa.int64(), nullable=False),
-            pa.field("decision_time", pa.timestamp("us", tz="UTC"), nullable=False),
+            pa.field("slot_time", pa.timestamp("us", tz="UTC"), nullable=False),
             pa.field("instrument_id", pa.string(), nullable=False),
-            pa.field("sequence_index", pa.int16(), nullable=False),
             pa.field("event_time", pa.timestamp("us", tz="UTC"), nullable=True),
             pa.field("feature_mask", pa.bool_(), nullable=False),
             pa.field("presence_mask", pa.bool_(), nullable=False),

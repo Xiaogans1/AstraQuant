@@ -102,10 +102,19 @@ def load_request(request_path: Path) -> StockMixerRequest:
     sample_values = _array(request["samples"], "samples")
     if not sample_values:
         raise ValueError("samples must not be empty")
-    samples: list[tuple[str, str, int, datetime, tuple[str, ...]]] = []
+    samples: list[
+        tuple[str, str, int, datetime, tuple[str, ...], tuple[datetime, ...]]
+    ] = []
     for index, value in enumerate(sample_values):
         sample = _object(value, f"sample {index}")
-        if set(sample) != {"fold_id", "segment", "sample_id", "decision_time", "members"}:
+        if set(sample) != {
+            "fold_id",
+            "segment",
+            "sample_id",
+            "decision_time",
+            "members",
+            "window_times",
+        }:
             raise ValueError("sample fields mismatch")
         segment = _text(sample["segment"], "sample segment")
         if segment not in {"train", "test"}:
@@ -116,13 +125,25 @@ def load_request(request_path: Path) -> StockMixerRequest:
         )
         if members != tuple(sorted(set(members))) or not set(members).issubset(instrument_ids):
             raise ValueError("sample members must be canonical source instruments")
+        window_times = tuple(
+            _timestamp(item, "sample window time")
+            for item in _array(sample["window_times"], "window_times")
+        )
+        decision_time = _timestamp(sample["decision_time"], "sample decision_time")
+        if (
+            len(window_times) != lookback
+            or window_times != tuple(sorted(set(window_times)))
+            or window_times[-1] != decision_time
+        ):
+            raise ValueError("sample window_times must be unique, ordered and end at decision_time")
         samples.append(
             (
                 _text(sample["fold_id"], "sample fold_id"),
                 segment,
                 _integer(sample["sample_id"], "sample_id", minimum=0),
-                _timestamp(sample["decision_time"], "sample decision_time"),
+                decision_time,
                 members,
+                window_times,
             )
         )
     if samples != sorted(samples, key=lambda item: (item[0], item[3], item[1])):
@@ -159,95 +180,66 @@ def load_request(request_path: Path) -> StockMixerRequest:
 def _validate_rows(
     rows: list[dict[str, object]],
     *,
-    samples: list[tuple[str, str, int, datetime, tuple[str, ...]]],
+    samples: list[tuple[str, str, int, datetime, tuple[str, ...], tuple[datetime, ...]]],
     instruments: tuple[str, ...],
     lookback: int,
 ) -> None:
-    expected_count = len(samples) * len(instruments) * lookback
+    required_slots = tuple(sorted({slot for sample in samples for slot in sample[5]}))
+    expected_count = len(required_slots) * len(instruments)
     if len(rows) != expected_count:
         raise ValueError("StockMixer panel row coverage mismatch")
-    sample_by_id = {item[2]: item for item in samples}
-    actual_keys: list[tuple[str, datetime, str, int]] = []
-    identities: set[tuple[str, int, str, int]] = set()
-    groups: dict[tuple[str, int, str], list[dict[str, object]]] = {}
+    actual_keys: list[tuple[datetime, str]] = []
+    identities: set[tuple[datetime, str]] = set()
+    rows_by_key: dict[tuple[datetime, str], dict[str, object]] = {}
     for row in rows:
-        fold_id = _text(row["fold_id"], "row fold_id")
-        segment = _text(row["segment"], "row segment")
-        sample_id = _integer(row["sample_id"], "row sample_id", minimum=0)
-        decision_time = _aware(row["decision_time"], "row decision_time")
+        slot_time = _aware(row["slot_time"], "row slot_time")
         instrument = _text(row["instrument_id"], "row instrument_id")
-        sequence_index = _integer(
-            row["sequence_index"], "row sequence_index", minimum=0, maximum=lookback - 1
-        )
-        identity = (fold_id, sample_id, instrument, sequence_index)
+        identity = (slot_time, instrument)
         if identity in identities:
             raise ValueError("StockMixer panel contains duplicate row identities")
         identities.add(identity)
-        groups.setdefault((fold_id, sample_id, instrument), []).append(row)
-        sample = sample_by_id.get(sample_id)
-        if (
-            sample is None
-            or fold_id != sample[0]
-            or segment != sample[1]
-            or decision_time != sample[3]
-            or instrument not in instruments
-        ):
-            raise ValueError("StockMixer panel row does not match request samples")
-        actual_keys.append((fold_id, decision_time, instrument, sequence_index))
+        rows_by_key[identity] = row
+        if slot_time not in required_slots or instrument not in instruments:
+            raise ValueError("StockMixer panel row is outside request coverage")
+        actual_keys.append(identity)
 
         event_time = row["event_time"]
         feature_mask = _boolean(row["feature_mask"], "feature_mask")
         presence_mask = _boolean(row["presence_mask"], "presence_mask")
         tradable_mask = _boolean(row["tradable_mask"], "tradable_mask")
         label_mask = _boolean(row["label_mask"], "label_mask")
-        members = sample[4]
-        if presence_mask != (instrument in members):
-            raise ValueError("presence_mask does not match sealed universe membership")
         features = [_number(row[name], name) for name in _FEATURES]
         label = _number(row["label"], "label")
         if feature_mask:
             if not isinstance(event_time, datetime):
                 raise ValueError("unmasked features require event_time")
-            if _aware(event_time, "event_time") > decision_time:
-                raise ValueError("panel event_time is after decision_time")
+            if _aware(event_time, "event_time") != slot_time:
+                raise ValueError("panel event_time does not match slot_time")
         elif event_time is not None or any(value != 0.0 for value in features):
             raise ValueError("masked features must be zero with null event_time")
-        if tradable_mask and not presence_mask:
-            raise ValueError("tradable_mask requires universe presence")
+        if tradable_mask and not (presence_mask and feature_mask):
+            raise ValueError("tradable_mask requires a real feature and universe presence")
         if label_mask and not tradable_mask:
             raise ValueError("label_mask requires a tradable sample")
         if not label_mask and label != 0.0:
             raise ValueError("masked label must be zero")
     if actual_keys != sorted(actual_keys):
         raise ValueError("StockMixer panel rows must use canonical order")
-    for values in groups.values():
-        if len(values) != lookback:
-            raise ValueError("StockMixer panel lookback coverage mismatch")
-        sample_values = {
-            (
-                row["presence_mask"],
-                row["tradable_mask"],
-                row["label_mask"],
-                row["label"],
-            )
-            for row in values
-        }
-        if len(sample_values) != 1:
-            raise ValueError("sample masks and label must be constant across lookback")
-        current = values[-1]
-        if current["tradable_mask"] is True and current["feature_mask"] is not True:
-            raise ValueError("tradable sample requires current feature")
+    expected_keys = {(slot, instrument) for slot in required_slots for instrument in instruments}
+    if identities != expected_keys:
+        raise ValueError("StockMixer panel time and instrument coverage mismatch")
+    for sample in samples:
+        for instrument in instruments:
+            current = rows_by_key[(sample[3], instrument)]
+            if bool(current["presence_mask"]) != (instrument in sample[4]):
+                raise ValueError("presence_mask does not match sealed universe membership")
 
 
 def _panel_schema() -> pa.Schema:
     return pa.schema(
         [
-            pa.field("fold_id", pa.string(), nullable=False),
-            pa.field("segment", pa.string(), nullable=False),
-            pa.field("sample_id", pa.int64(), nullable=False),
-            pa.field("decision_time", pa.timestamp("us", tz="UTC"), nullable=False),
+            pa.field("slot_time", pa.timestamp("us", tz="UTC"), nullable=False),
             pa.field("instrument_id", pa.string(), nullable=False),
-            pa.field("sequence_index", pa.int16(), nullable=False),
             pa.field("event_time", pa.timestamp("us", tz="UTC"), nullable=True),
             pa.field("feature_mask", pa.bool_(), nullable=False),
             pa.field("presence_mask", pa.bool_(), nullable=False),
