@@ -81,8 +81,8 @@
 - Create: `tools/research/run_stage_b_v2_baselines.py`
 - Create: `tests/quant/test_stage_b_v2_baseline_cli.py`
 
-- [ ] 6 个按全市场统一时间轴的 expanding folds；train 至少 3 年、inner-valid 至少 120 sessions、outer-test 至少 60 sessions，purge 为 11 sessions。
-- [ ] 同一交易日所有股票只能落在同一 segment；outer test 永不参与特征 fit、校准、阈值或超参选择。
+- [x] 6 个按全市场统一时间轴的 expanding folds；fit 至少 3 年、inner-valid 至少 120 sessions、outer-test 至少 60 sessions，fit/valid 与 valid/test 两侧 purge 均为 11 sessions。
+- [x] 同一交易日所有股票只能落在同一 segment；outer test 永不参与特征 fit、校准、阈值或超参选择（`8 passed`；Ruff/mypy clean）。
 - [ ] Ridge、LightGBM、DoubleEnsemble 使用相同 rows/folds/seeds/trial budget，并统一接 Batch 1 Huber 校准与目标组合。
 - [ ] 报告 IC、Rank IC、top-bottom spread、turnover、费用、净收益、最大回撤、容量和每 fold/seed 明细；失败 trial 也计数。
 - [ ] 固定信号门：至少 4/6 folds 的 Rank IC 为正、平均 Rank IC ≥ 0.02、3 seeds 方向一致；固定交易门：扣费净收益为正、至少 4/6 folds 为正、相对 Ridge 有明确改善、压力成本下不翻为严重负值。
