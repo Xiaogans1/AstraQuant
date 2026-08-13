@@ -18,10 +18,10 @@
 - Modify: `packages/domain/src/astraquant_domain/__init__.py`
 - Modify: `tests/domain/test_cross_sectional.py`
 
-- [ ] 增加 `HistoricalUniversePolicy` frozen contract 与 canonical digest。
-- [ ] 固定正式值：60 日流动性窗口、120 日最短历史、目标 500 只、最少 300/最多 800、最低价格 2 元、窗口可用率 95%、排除 ST、只纳入普通 A 股。
-- [ ] 拒绝窗口/历史/上下限矛盾、非有限 Decimal、未知 schema。
-- [ ] 运行 domain tests、Ruff、mypy；提交 `feat(domain): 冻结历史流动性股票池契约`。
+- [x] 增加 `HistoricalUniversePolicy` frozen contract 与 canonical digest。
+- [x] 固定正式值：60 日流动性窗口、120 日最短历史、目标 500 只、最少 300/最多 800、最低价格 2 元、窗口可用率 95%、排除 ST、只纳入普通 A 股。
+- [x] 拒绝窗口/历史/上下限矛盾、非有限 Decimal、未知 schema。
+- [x] 运行 domain tests、Ruff、mypy（`25 passed`）；提交 `feat(domain): 冻结历史流动性股票池契约`。
 
 ## Task 2: Build a leakage-safe historical dynamic universe
 

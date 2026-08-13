@@ -7,6 +7,7 @@ import pytest
 
 from astraquant_domain import (
     CrossSectionalTaskMatrix,
+    HistoricalUniversePolicy,
     RankPortfolioPolicy,
     ReturnCalibrationPolicy,
 )
@@ -31,6 +32,22 @@ def test_rank_policy_freezes_strategy_semantics() -> None:
     assert policy.max_instrument_weight == Decimal("0.03")
     assert policy.max_one_way_turnover == Decimal("0.20")
     assert policy.policy_digest.startswith("sha256:")
+
+
+def test_historical_universe_policy_freezes_stage_b_v2_selection() -> None:
+    first = HistoricalUniversePolicy.stage_b_v2()
+    second = HistoricalUniversePolicy.stage_b_v2()
+
+    assert first.liquidity_lookback_sessions == 60
+    assert first.minimum_history_sessions == 120
+    assert first.target_size == 500
+    assert first.minimum_size == 300
+    assert first.maximum_size == 800
+    assert first.minimum_price == Decimal("2")
+    assert first.minimum_observation_ratio == Decimal("0.95")
+    assert first.exclude_special_treatment
+    assert first.common_a_share_only
+    assert first.policy_digest == second.policy_digest
 
 
 @pytest.mark.parametrize("horizons", [(1, 1), (5, 1), ()])
@@ -76,3 +93,21 @@ def test_rank_policy_rejects_invalid_values() -> None:
         replace(policy, max_instrument_weight=Decimal("1.1"))
     with pytest.raises(ValueError):
         replace(policy, max_one_way_turnover=Decimal("Infinity"))
+
+
+def test_historical_universe_policy_rejects_invalid_values() -> None:
+    policy = HistoricalUniversePolicy.stage_b_v2()
+    with pytest.raises(ValueError, match="lookback"):
+        replace(policy, liquidity_lookback_sessions=0)
+    with pytest.raises(ValueError, match="history"):
+        replace(policy, minimum_history_sessions=59)
+    with pytest.raises(ValueError, match="sizes"):
+        replace(policy, target_size=299)
+    with pytest.raises(ValueError, match="sizes"):
+        replace(policy, maximum_size=499)
+    with pytest.raises(ValueError, match="minimum_price"):
+        replace(policy, minimum_price=Decimal("NaN"))
+    with pytest.raises(ValueError, match="observation"):
+        replace(policy, minimum_observation_ratio=Decimal("1.01"))
+    with pytest.raises(ValueError, match="boolean"):
+        replace(policy, exclude_special_treatment=1)  # type: ignore[arg-type]

@@ -10,6 +10,7 @@ from decimal import Decimal
 _TASK_SCHEMA = "astraquant.cross-sectional-task/v1"
 _CALIBRATION_SCHEMA = "astraquant.return-calibration/v1"
 _PORTFOLIO_SCHEMA = "astraquant.rank-portfolio/v1"
+_UNIVERSE_SCHEMA = "astraquant.historical-universe-policy/v1"
 
 
 def _digest(value: object) -> str:
@@ -179,5 +180,84 @@ class RankPortfolioPolicy:
                 "max_positions": self.max_positions,
                 "schema_version": self.schema_version,
                 "top_fraction": str(self.top_fraction),
+            }
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class HistoricalUniversePolicy:
+    """Frozen historical liquidity universe used by every Stage B v2 model."""
+
+    schema_version: str
+    liquidity_lookback_sessions: int
+    minimum_history_sessions: int
+    target_size: int
+    minimum_size: int
+    maximum_size: int
+    minimum_price: Decimal
+    minimum_observation_ratio: Decimal
+    exclude_special_treatment: bool
+    common_a_share_only: bool
+
+    def __post_init__(self) -> None:
+        if self.schema_version != _UNIVERSE_SCHEMA:
+            raise ValueError("historical universe schema_version mismatch")
+        if (
+            isinstance(self.liquidity_lookback_sessions, bool)
+            or self.liquidity_lookback_sessions <= 0
+        ):
+            raise ValueError("liquidity lookback sessions must be positive")
+        if (
+            isinstance(self.minimum_history_sessions, bool)
+            or self.minimum_history_sessions < self.liquidity_lookback_sessions
+        ):
+            raise ValueError("minimum history must cover the liquidity lookback")
+        sizes = (self.minimum_size, self.target_size, self.maximum_size)
+        if any(isinstance(value, bool) or value <= 0 for value in sizes) or not (
+            self.minimum_size <= self.target_size <= self.maximum_size
+        ):
+            raise ValueError("universe sizes must be positive and minimum <= target <= maximum")
+        if not self.minimum_price.is_finite() or self.minimum_price <= 0:
+            raise ValueError("minimum_price must be finite and positive")
+        if (
+            not self.minimum_observation_ratio.is_finite()
+            or self.minimum_observation_ratio <= 0
+            or self.minimum_observation_ratio > 1
+        ):
+            raise ValueError("minimum observation ratio must be finite and in (0, 1]")
+        if not isinstance(self.exclude_special_treatment, bool) or not isinstance(
+            self.common_a_share_only, bool
+        ):
+            raise ValueError("historical universe switches must be boolean")
+
+    @classmethod
+    def stage_b_v2(cls) -> HistoricalUniversePolicy:
+        return cls(
+            schema_version=_UNIVERSE_SCHEMA,
+            liquidity_lookback_sessions=60,
+            minimum_history_sessions=120,
+            target_size=500,
+            minimum_size=300,
+            maximum_size=800,
+            minimum_price=Decimal("2"),
+            minimum_observation_ratio=Decimal("0.95"),
+            exclude_special_treatment=True,
+            common_a_share_only=True,
+        )
+
+    @property
+    def policy_digest(self) -> str:
+        return _digest(
+            {
+                "common_a_share_only": self.common_a_share_only,
+                "exclude_special_treatment": self.exclude_special_treatment,
+                "liquidity_lookback_sessions": self.liquidity_lookback_sessions,
+                "maximum_size": self.maximum_size,
+                "minimum_history_sessions": self.minimum_history_sessions,
+                "minimum_observation_ratio": str(self.minimum_observation_ratio),
+                "minimum_price": str(self.minimum_price),
+                "minimum_size": self.minimum_size,
+                "schema_version": self.schema_version,
+                "target_size": self.target_size,
             }
         )

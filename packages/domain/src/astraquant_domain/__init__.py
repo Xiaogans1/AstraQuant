@@ -3,6 +3,7 @@
 from astraquant_domain.clocks import Clock, FixedClock, SystemClock
 from astraquant_domain.cross_sectional import (
     CrossSectionalTaskMatrix,
+    HistoricalUniversePolicy,
     RankPortfolioPolicy,
     ReturnCalibrationPolicy,
 )
@@ -68,6 +69,7 @@ __all__ = [
     "FeatureFrame",
     "FeatureRow",
     "FixedClock",
+    "HistoricalUniversePolicy",
     "InstrumentId",
     "LiveQuote",
     "MarketEventQuality",
