@@ -362,7 +362,11 @@ def _evaluate(
             "fold_policy": fold_policy,
             "execution_policy": execution,
         },
-        "kronos_path_diagnostics": _path_diagnostics(panel, forecasts),
+        "kronos_path_diagnostics": _path_diagnostics(
+            panel,
+            forecasts,
+            forecast_horizon_bars=_required_int(execution, "holding_bars"),
+        ),
         "models": models,
         "digests": {
             "kronos_input": kronos_request["content_digest"],
@@ -492,8 +496,14 @@ def _filter_predictions(
 
 
 def _path_diagnostics(
-    panel: PanelDataset, forecasts: Sequence[Mapping[str, object]]
-) -> dict[str, float]:
+    panel: PanelDataset,
+    forecasts: Sequence[Mapping[str, object]],
+    *,
+    forecast_horizon_bars: int,
+) -> dict[str, float | int | str]:
+    if forecast_horizon_bars <= 0:
+        raise ValueError("Kronos diagnostic horizon must be positive")
+    instruments = {item.instrument_id: item for item in panel.instruments}
     absolute_errors = []
     direction_hits = 0
     coverage_hits = 0
@@ -502,7 +512,15 @@ def _path_diagnostics(
         row_id = item["row_id"]
         if isinstance(row_id, bool) or not isinstance(row_id, int):
             raise ValueError("Kronos diagnostic row_id mismatch")
-        actual = float(panel.rows[row_id]["future_return"])
+        observation = panel.observations[row_id]
+        instrument = instruments[observation.instrument_id]
+        decision_index = instrument.row_bar_indices[observation.local_row_id]
+        terminal_index = decision_index + forecast_horizon_bars
+        if terminal_index >= len(instrument.raw_bars):
+            raise ValueError("Kronos diagnostic terminal bar is unavailable")
+        decision_close = instrument.raw_bars[decision_index].close
+        terminal_close = instrument.raw_bars[terminal_index].close
+        actual = float((terminal_close - decision_close) / decision_close)
         predicted = _finite(item.get("expected_return"), "expected return")
         lower = _finite(item.get("terminal_return_p10"), "p10")
         upper = _finite(item.get("terminal_return_p90"), "p90")
@@ -512,6 +530,8 @@ def _path_diagnostics(
         widths.append(_finite(item.get("uncertainty_width"), "uncertainty width"))
     count = len(forecasts)
     return {
+        "truth_basis": "DECISION_CLOSE_TO_TERMINAL_CLOSE",
+        "forecast_horizon_bars": forecast_horizon_bars,
         "terminal_return_mae": sum(absolute_errors) / count,
         "direction_accuracy": direction_hits / count,
         "p10_p90_coverage": coverage_hits / count,

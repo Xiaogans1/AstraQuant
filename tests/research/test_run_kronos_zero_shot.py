@@ -189,7 +189,10 @@ def test_prepare_and_evaluate_three_models_on_one_eligibility_mask(tmp_path: Pat
     assert report["schema_version"] == "astraquant.kronos-unified-executable/v1"
     assert set(report["models"]) == {"KRONOS_ZERO_SHOT", "DOUBLE_ENSEMBLE", "RIDGE"}
     assert report["shared_contract"]["eligible_rows"] == len(kronos_request["rows"])
-    assert report["kronos_path_diagnostics"]["terminal_return_mae"] == pytest.approx(0)
+    diagnostics = report["kronos_path_diagnostics"]
+    assert diagnostics["truth_basis"] == "DECISION_CLOSE_TO_TERMINAL_CLOSE"
+    assert diagnostics["forecast_horizon_bars"] == 2
+    assert diagnostics["terminal_return_mae"] >= 0
     assert context["kronos_request_content_digest"] == kronos_request["content_digest"]
 
 

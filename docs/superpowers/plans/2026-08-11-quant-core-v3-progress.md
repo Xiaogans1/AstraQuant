@@ -24,7 +24,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 | D 专家路由与漂移 | 未开始 | TRA/DoubleAdapt、任务专家、漂移检测、可靠 fallback | 路由可解释，失效时自动回退且不放大风险 |
 | E 组合与发布闭环 | 未开始 | ForecastCombiner、唯一目标仓位、Shadow/Paper 反馈 | 成本、容量、回撤、漂移和账户一致性全部过门 |
 
-**当前唯一主节点：** 完成 Kronos zero-shot 的契约、真实推理和公平评价；同时扩展真实历史覆盖。Kronos 验收后无论通过还是淘汰，都立即进入 StockMixer，而不是无限调参。
+**当前唯一主节点：** Kronos zero-shot 已按 `NO_NET_EDGE` 收口；立即进入 StockMixer + dynamic universe 全市场共享训练，同时扩展真实历史覆盖，不在失败的 zero-shot 结果上无限调参。
 
 **效率纪律：** 每个开发批次必须产生一种用户可理解的新增能力或明确淘汰结论；不以重复造基础设施代替策略结果，不降低门槛包装模型，不允许新模型绕过统一执行评价。
 
@@ -37,7 +37,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 ## 当前开发
 
 - 生产训练 Stage A：统一 task/score 契约、声明式 Qlib runner、DoubleEnsemble 接入和真实多标的 Task 4 均已完成。9 个 Eastmoney exact snapshots 的两次独立训练得到完全相同的 input/fold/prediction/report digests；DoubleEnsemble 扣费净收益 `-2.5082%`，Ridge 为 `-1.8550%`，两者均为 `NO_NET_EDGE`，因此不进入 Shadow/Paper。Stage A 的公平评价通道保留，训练核心继续推进。
-- Kronos K 线基础模型：Task 1–3 已完成，官方 `Kronos-base`/tokenizer 固定 revision 权重已在 RTX 4060 Ti 上消费真实 Eastmoney K 线并两次逐字节复现；64 行批量推理的单位窗口吞吐比单行进程约提升 40 倍。Task 4 的统一评价代码也已完成，可强制 Kronos、DoubleEnsemble、Ridge 使用同一 eligibility/folds/费率/滑点/容量/next-open 语义。当前关键节点是运行 Task 5 的 9 ETF 全量 zero-shot 验收并据真实净结果判定去留。
+- Kronos K 线基础模型：Tasks 1–5 全部完成。官方 `Kronos-base` 在 RTX 4060 Ti 上对 9 个 Eastmoney exact snapshots、40,437 个窗口完成两次逐字节一致的 CUDA 推理；统一执行结果为净收益 `-9.1663%`、4,257 笔、0/3 正收益 folds、最差单标的回撤 `29.84%`，正式状态 `NO_NET_EDGE`。工程能力保留，正式 UI/组合因子/Shadow/Paper 暂停，主线转入 StockMixer。
 
 - Strategy Fast Lane S1：公平开源基线矩阵，6/6 已完成；同一 Eastmoney snapshot 可比较 no-skill、Logistic Regression 与 LightGBM 的 OOS 扣费净收益。
 - S2a Qlib 公平对照：3/3 已完成；同一 Eastmoney 行集/folds 可在固定 commit 的独立 Qlib LightGBM runner 训练，再由 AstraQuant 统一按相同费率与阈值评分。
@@ -87,7 +87,7 @@ macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、
 
 1. **Stage A 统一训练协议（已完成）**：task/score 契约、DoubleEnsemble 与真实多标的统一评价已经关闭；概率、预期收益、rank、风险各走声明过的选择规则。
 2. **扩大全市场真实历史**：探索数据用于覆盖验证，正式结论继续使用已资格认证的真实 API snapshot；训练接口不写死当前十只 ETF。
-3. **Kronos 基础模型通道（主线评价链路完成后）**：直接使用官方 `Kronos-base` 预训练权重完成 zero-shot 批量推理；只有公平验证显示明确 A 股域偏差时才微调，不从零重复预训练。随后才开发 K 线预测图层和组合因子。
+3. **Kronos 基础模型通道（已完成，`NO_NET_EDGE`）**：官方预训练权重、批量推理和公平评价已关闭；保留研究通道但不微调、不开发正式图层、不进入组合，待更长历史与更多 regime 出现新证据后再挑战。
 4. **Stage B 全市场共享表征**：接入 StockMixer 和动态 universe panel，不为每只股票单独训练一套模型。
 5. **Stage C 关系与状态**：接入 MASTER/HIST，验证行业、概念、潜在关系和市场 regime 是否带来可重复净改善。
 6. **Stage D 路由与漂移**：接入 TRA/DoubleAdapt，形成任务专家、动态路由、滚动适应与可靠 fallback。
@@ -95,4 +95,4 @@ macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、
 8. **P1 第二认证源与跨平台一致性**：实测 Tushare Pro/Choice；macOS 与 Windows 只保留 provider/runtime 差异，训练 artifact 语义一致。
 9. **LIVE 设计**：只有账户、订单、费用、T+1、对账及 Stage A–E 全部通过后才讨论 Broker Gateway 与 LIVE。
 
-当前 Strategy Fast Lane 的 S1–S6、DoubleEnsemble challenger、Kronos 官方推理与统一评价链路均已完成，但仍未产生可晋级模型。训练核心 Stage B 正在最后验收：下一项主链工作是完成 Kronos 9 ETF 全量 zero-shot 运行；无论结论为候选或淘汰，随后都进入 StockMixer 全市场共享训练并继续扩大真实 API 历史覆盖。
+当前 Strategy Fast Lane 的 S1–S6、DoubleEnsemble challenger 和 Kronos Tasks 1–5 均已完成，但仍未产生可晋级模型。训练核心 Stage B 的下一项主链工作已经切换为 StockMixer + dynamic universe 全市场共享训练，并继续扩大真实 API 历史覆盖；Kronos 保留为独立研究能力，不再占用当前主线。

@@ -1,7 +1,7 @@
 # Kronos 基础模型独立集成设计
 
 **日期：** 2026-08-12  
-**状态：** 已批准  
+**状态：** 工程接入完成；zero-shot 交易验收为 `NO_NET_EDGE`
 **目标：** 完整引入 Kronos 官方开源项目，并把它建设为与 AstraQuant 自有模型并存的独立 K 线基础模型能力。
 
 ## 1. 边界
@@ -54,3 +54,9 @@ Kronos 验证通过后，在每个专业 K 线图提供一个独立的“核预�
 - AstraQuant 仓库不复制、修改或混入上游源码。
 - 文档明确权重、源码、推理输入和自有模型的边界。
 - 现有训练任务契约与 runner contract 测试保持通过。
+
+## 6. 2026-08-13 验收结论
+
+官方 `Kronos-base` 已使用 9 个 Eastmoney exact snapshots 完成 40,437 个 zero-shot 窗口的两次 CUDA 推理，两次响应逐字节一致。统一 next-open 执行回测中，Kronos 扣费净收益为 `-9.1663%`、4,257 笔成交、0/3 正收益 folds，结论为 `NO_NET_EDGE`。
+
+因此本设计的隔离集成目标已经完成，但产品图层和组合因子条件尚未满足。当前保留 runner 与研究入口，不开发正式 UI、不进入 Shadow/Paper、不立即微调；训练主线转入 StockMixer 全市场共享表征。完整证据见 `docs/verification/quant-core-v3/kronos-zero-shot.md`。

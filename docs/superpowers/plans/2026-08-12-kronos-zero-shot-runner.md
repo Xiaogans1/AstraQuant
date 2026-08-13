@@ -94,17 +94,17 @@
 - Modify: `docs/superpowers/plans/2026-08-11-quant-core-v3-progress.md`
 - Modify: `docs/superpowers/specs/2026-08-12-kronos-foundation-model-integration-design.md`
 
-- [ ] 在与 DoubleEnsemble 相同的 Eastmoney snapshots/folds/execution policy 上运行两次并封存全部 digests。
-- [ ] 状态只能为 `INSUFFICIENT_EVIDENCE`、`NO_NET_EDGE` 或 `ZERO_SHOT_CANDIDATE`；必须同时披露净收益、回撤、稳定性、成交集中度、路径误差与不确定性校准。
-- [ ] `ZERO_SHOT_CANDIDATE` 仍不进入 Shadow/Paper；先扩大历史和 regime。只有确认 A 股域偏差且 zero-shot 有可利用信息，才另写微调计划。
-- [ ] 无论成败，Kronos runner 保持独立可关闭；不得让自有模型依赖其权重、环境或服务。
-- [ ] 提交 `test(research): 验收Kronos零样本模型`。
+- [x] 在与 DoubleEnsemble 相同的 Eastmoney snapshots/folds/execution policy 上运行两次并封存全部 digests。
+- [x] 状态判定为 `NO_NET_EDGE`；已同时披露净收益、回撤、稳定性、成交集中度、路径误差与不确定性校准。
+- [x] 未把失败结果晋级 Shadow/Paper；当前不事后反转信号、不降阈值、不启动微调。
+- [x] Kronos runner 保持独立可关闭；自有模型不依赖其权重、环境或服务。
+- [x] 提交 `test(research): 验收Kronos零样本模型`。
 
 ## Task 6: 后续产品与组合交接（不在本批次实现）
 
 - [ ] zero-shot 验收通过后，另写 K 线图“核预测”图层计划；默认关闭，明确区分真实 K 线与生成路径。
 - [ ] 跨时期/证券稳定后，另写 Kronos forecast-to-factor 计划；使用版本化因子进入组合层，Kronos 永不直接下单。
-- [ ] 若 zero-shot 不通过，保留研究入口和报告，不开发 UI、不强行微调、不阻塞 StockMixer/MASTER 主线。
+- [x] zero-shot 未通过：保留研究入口和报告，不开发正式 UI、不强行微调、不阻塞 StockMixer/MASTER 主线。
 
 ## 验收命令骨架
 
