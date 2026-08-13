@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 
 from astraquant_data.eastmoney_daily_bootstrap import (
     eastmoney_daily_rows_to_domain_bars,
+    publish_compact_daily_snapshot,
     select_liquid_common_a_share_candidates,
 )
 
@@ -87,3 +89,45 @@ def test_daily_rows_map_to_unadjusted_domain_bars_and_reject_wrong_symbol() -> N
             "000001.SZSE",
             rows,
         )
+
+
+def test_compact_daily_snapshot_is_repeatable_and_uses_one_parquet_file(
+    tmp_path: Path,
+) -> None:
+    bars = eastmoney_daily_rows_to_domain_bars(
+        "600000.SSE",
+        [
+            {
+                "symbol": "SHSE.600000",
+                "eob": "2026-08-12T15:00:00+08:00",
+                "open": 9.1,
+                "high": 9.3,
+                "low": 9.0,
+                "close": 9.2,
+                "volume": 10_000,
+                "amount": 92_000,
+            }
+        ],
+    )
+    fetched_at = datetime.fromisoformat("2026-08-13T07:01:00+00:00")
+    provider = {"id": "eastmoney", "interface": "gm_python_sdk", "version": "3.0.186"}
+
+    first = publish_compact_daily_snapshot(
+        tmp_path,
+        dataset_id="cn-equity-600000-sse-1d-none",
+        bars=bars,
+        provider=provider,
+        source_fetched_at=fetched_at,
+    )
+    second = publish_compact_daily_snapshot(
+        tmp_path,
+        dataset_id="cn-equity-600000-sse-1d-none",
+        bars=bars,
+        provider=provider,
+        source_fetched_at=fetched_at,
+    )
+
+    assert first.snapshot_id == second.snapshot_id
+    assert len(first.manifest.files) == 1
+    assert first.manifest.files[0].path == "bars.parquet"
+    assert (first.snapshot_path / "bars.parquet").is_file()

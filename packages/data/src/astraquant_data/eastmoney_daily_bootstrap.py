@@ -3,11 +3,22 @@
 from __future__ import annotations
 
 import math
+import os
+import re
+import shutil
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import Path
 
+import pyarrow.parquet as pq  # type: ignore[import-untyped]
+
+from astraquant_data.arrow_schema import bars_to_table
+from astraquant_data.manifests import SnapshotFile, SnapshotManifest
+from astraquant_data.parquet_store import PublishedSnapshot
+from astraquant_data.quality import evaluate_bars
 from astraquant_domain import Adjustment, Bar, BarFrequency
 
 from .eastmoney_protocol import from_eastmoney_symbol
@@ -17,6 +28,7 @@ _COMMON_PREFIXES = {
     "SZSE": ("000", "001", "002", "003", "300", "301"),
     "BSE": ("43", "83", "87", "88", "92"),
 }
+_DATASET_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,99}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +153,89 @@ def eastmoney_daily_rows_to_domain_bars(
     return tuple(bars[timestamp] for timestamp in sorted(bars))
 
 
+def publish_compact_daily_snapshot(
+    data_root: Path,
+    *,
+    dataset_id: str,
+    bars: Sequence[Bar],
+    provider: Mapping[str, str],
+    source_fetched_at: datetime,
+) -> PublishedSnapshot:
+    """Publish one immutable Parquet file per instrument instead of one file per day."""
+
+    if not _DATASET_ID.fullmatch(dataset_id):
+        raise ValueError("daily dataset_id must be canonical")
+    exact_bars = tuple(bars)
+    if not exact_bars or any(bar.frequency is not BarFrequency.DAY for bar in exact_bars):
+        raise ValueError("compact daily snapshot requires daily bars")
+    if len({bar.instrument_id for bar in exact_bars}) != 1:
+        raise ValueError("compact daily snapshot requires exactly one instrument")
+    if set(provider) != {"id", "interface", "version"}:
+        raise ValueError("provider must contain id, interface and version")
+    quality = evaluate_bars(
+        exact_bars,
+        expected_trading_dates={bar.trading_date for bar in exact_bars},
+        source_fetched_at=source_fetched_at,
+    )
+    if not quality.publishable:
+        raise ValueError("compact daily snapshot failed quality rules")
+    root = data_root.resolve()
+    staging_root = root / ".staging"
+    staging_root.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix="daily-", dir=staging_root))
+    try:
+        parquet_path = staging / "bars.parquet"
+        pq.write_table(
+            bars_to_table(exact_bars),
+            parquet_path,
+            compression="zstd",
+            version="2.6",
+        )
+        file = SnapshotFile(
+            path="bars.parquet",
+            sha256=_file_sha256(parquet_path),
+            rows=len(exact_bars),
+        )
+        manifest = SnapshotManifest.create(
+            dataset_id=dataset_id,
+            kind="bars",
+            created_at=source_fetched_at,
+            source_fetched_at=source_fetched_at,
+            provider=dict(provider),
+            adjustment="none",
+            calendar_version="eastmoney-gm-observed-sessions-v1",
+            series_kind="instrument",
+            roll_policy=None,
+            availability_policy="session_close",
+            row_count=len(exact_bars),
+            min_event_time=exact_bars[0].event_time,
+            max_event_time=exact_bars[-1].event_time,
+            files=(file,),
+            quality=quality,
+        )
+        manifest_path = staging / "manifest.json"
+        manifest_path.write_text(manifest.to_json(), encoding="utf-8", newline="\n")
+        target = root / "datasets" / dataset_id / "snapshots" / manifest.snapshot_id
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():
+            existing = SnapshotManifest.from_path(target / "manifest.json")
+            if existing != manifest or _file_sha256(target / "bars.parquet") != file.sha256:
+                raise RuntimeError("daily snapshot identity conflicts with existing artifact")
+            shutil.rmtree(staging)
+        else:
+            os.replace(staging, target)
+        return PublishedSnapshot(
+            snapshot_id=manifest.snapshot_id,
+            snapshot_path=target,
+            manifest_path=target / "manifest.json",
+            manifest=manifest,
+        )
+    except Exception:
+        if staging.exists():
+            shutil.rmtree(staging)
+        raise
+
+
 def _is_common_a_share(provider_symbol: str) -> bool:
     try:
         exchange, symbol = provider_symbol.split(".", maxsplit=1)
@@ -171,3 +266,13 @@ def _to_provider_symbol(instrument_id: str) -> str:
     if exchange is None:
         raise ValueError("unsupported daily bootstrap venue")
     return f"{exchange}.{symbol}"
+
+
+def _file_sha256(path: Path) -> str:
+    import hashlib
+
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
