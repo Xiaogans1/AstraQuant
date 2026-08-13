@@ -14,6 +14,8 @@
 
 ## Task 1: 冻结 Kronos 推理契约与权重身份
 
+**Executable micro plan:** `docs/superpowers/plans/2026-08-13-kronos-task1-contracts.md`
+
 **Files:**
 
 - Create: `contracts/kronos-runner/v1/request.schema.json`
