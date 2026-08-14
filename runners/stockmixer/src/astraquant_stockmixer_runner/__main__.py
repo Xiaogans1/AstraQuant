@@ -11,6 +11,7 @@ from pathlib import Path
 from .artifacts import write_training_artifact
 from .contracts import load_request
 from .stage_b_v2_shared_mlp import current_runner_identity, run_shared_mlp_request
+from .stage_b_v2_stockmixer import run_stockmixer_v2_request
 from .training import TrainingConfig, train_fold
 
 
@@ -38,6 +39,9 @@ def _parser() -> argparse.ArgumentParser:
     shared = commands.add_parser("shared-mlp")
     shared.add_argument("request", type=Path)
     shared.add_argument("--output", required=True, type=Path)
+    stockmixer_v2 = commands.add_parser("stockmixer-v2")
+    stockmixer_v2.add_argument("request", type=Path)
+    stockmixer_v2.add_argument("--output", required=True, type=Path)
     identity = commands.add_parser("identity")
     identity.add_argument("--device", choices=("cpu", "cuda"), required=True)
     return parser
@@ -48,6 +52,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if arguments.command == "shared-mlp":
             run_shared_mlp_request(arguments.request, arguments.output)
+            print(arguments.output)
+            return 0
+        if arguments.command == "stockmixer-v2":
+            run_stockmixer_v2_request(arguments.request, arguments.output)
             print(arguments.output)
             return 0
         if arguments.command == "identity":

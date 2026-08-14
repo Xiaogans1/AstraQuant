@@ -31,6 +31,7 @@ TEMPORAL_COLUMNS = (
 
 @dataclass(frozen=True, slots=True)
 class TemporalPanel:
+    manifest_path: Path
     content_digest: str
     source_raw_export_digest: str
     source_materialization_digest: str
@@ -173,9 +174,9 @@ def load_temporal_panel(manifest_path: Path) -> TemporalPanel:
     row_ids = np.asarray(rows["row_id"].to_numpy(), dtype=np.int64)
     if not np.array_equal(row_ids, np.arange(len(row_ids), dtype=np.int64)):
         raise ValueError("StockMixer v2 row identifiers must be contiguous and canonical")
-    decision_time_us = np.asarray(
-        rows["decision_time"].to_numpy(), dtype="datetime64[us]"
-    ).astype(np.int64)
+    decision_time_us = np.asarray(rows["decision_time"].to_numpy(), dtype="datetime64[us]").astype(
+        np.int64
+    )
     row_instrument_ids = rows["instrument_id"]
     panel_instrument_index = {value: index for index, value in enumerate(instrument_ids)}
     observed_instruments = set(cast(list[str], pc.unique(row_instrument_ids).to_pylist()))
@@ -208,11 +209,10 @@ def load_temporal_panel(manifest_path: Path) -> TemporalPanel:
         for start, end in zip(starts, ends, strict=True)
     }
     return TemporalPanel(
+        manifest_path=manifest_path.resolve(),
         content_digest=cast(str, manifest["content_digest"]),
         source_raw_export_digest=cast(str, manifest["source_raw_export_digest"]),
-        source_materialization_digest=cast(
-            str, manifest["source_materialization_digest"]
-        ),
+        source_materialization_digest=cast(str, manifest["source_materialization_digest"]),
         horizons=horizons,
         lookback=lookback,
         instrument_ids=instrument_ids,
@@ -329,9 +329,11 @@ def _canonical_panel_axis(
     expected_indices = np.arange(instrument_count, dtype=np.int32)
     if not np.all(encoded_indices == expected_indices):
         raise ValueError("StockMixer v2 panel instrument coverage mismatch")
-    slot_time_us = np.asarray(
-        table["slot_time"].to_numpy(), dtype="datetime64[us]"
-    ).astype(np.int64).reshape(session_count, instrument_count)
+    slot_time_us = (
+        np.asarray(table["slot_time"].to_numpy(), dtype="datetime64[us]")
+        .astype(np.int64)
+        .reshape(session_count, instrument_count)
+    )
     if not np.all(slot_time_us == slot_time_us[:, :1]):
         raise ValueError("StockMixer v2 panel session coverage mismatch")
     session_values = slot_time_us[:, 0]
@@ -341,9 +343,7 @@ def _canonical_panel_axis(
         np.arange(0, session_count * instrument_count, instrument_count),
         type=pa.int64(),
     )
-    sessions = tuple(
-        cast(list[datetime], table["slot_time"].take(session_offsets).to_pylist())
-    )
+    sessions = tuple(cast(list[datetime], table["slot_time"].take(session_offsets).to_pylist()))
     return instruments, sessions
 
 
