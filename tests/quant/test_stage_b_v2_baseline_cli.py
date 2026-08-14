@@ -14,6 +14,7 @@ from astraquant_domain.run_manifest import canonical_json_bytes
 from tools.research.run_stage_b_v2_baselines import (
     _apply_relative_gate,
     _load_materialization,
+    _select_batch_incumbent,
     main,
 )
 
@@ -419,6 +420,93 @@ def test_shared_mlp_relative_gate_requires_severe_profit_and_seed_stability() ->
 
     assert reports["SHARED_MLP"]["delta_net_vs_ridge"] == pytest.approx(0.003)
     assert reports["SHARED_MLP"]["gate_status"] == "NO_NET_EDGE"
+
+
+def test_batch_incumbent_uses_one_aggregate_policy_across_horizons() -> None:
+    def summary(
+        *,
+        net: float,
+        rank_ic: float,
+        severe: float,
+        seed_net: tuple[float, float, float] = (0.01, 0.01, 0.01),
+        positive_folds: int = 6,
+    ) -> dict[str, Any]:
+        return {
+            "status": "LEARNABLE_EDGE",
+            "mean_net_return": net,
+            "mean_rank_ic": rank_ic,
+            "mean_severe_net_return": severe,
+            "positive_fold_count": positive_folds,
+            "positive_fold_required": 4,
+            "seed_mean_net_return": {
+                "7": seed_net[0],
+                "29": seed_net[1],
+                "53": seed_net[2],
+            },
+        }
+
+    horizons = {
+        "1": {
+            "models": {
+                "RIDGE": summary(net=0.010, rank_ic=0.050, severe=0.004),
+                "SHARED_MLP": summary(net=0.016, rank_ic=0.052, severe=0.008),
+                "DOUBLE_ENSEMBLE": summary(net=0.020, rank_ic=0.045, severe=0.010),
+            }
+        },
+        "5": {
+            "models": {
+                "RIDGE": summary(net=0.010, rank_ic=0.055, severe=0.005),
+                "SHARED_MLP": summary(net=0.011, rank_ic=0.056, severe=0.006),
+                "DOUBLE_ENSEMBLE": summary(net=0.011, rank_ic=0.049, severe=0.007),
+            }
+        },
+        "10": {
+            "models": {
+                "RIDGE": summary(net=0.010, rank_ic=0.060, severe=0.006),
+                "SHARED_MLP": summary(net=0.012, rank_ic=0.061, severe=0.007),
+                "DOUBLE_ENSEMBLE": summary(net=0.013, rank_ic=0.058, severe=0.008),
+            }
+        },
+    }
+
+    aggregate, incumbent = _select_batch_incumbent(horizons)
+
+    assert aggregate["DOUBLE_ENSEMBLE"]["aggregate_gate_status"] == "NET_EDGE"
+    assert aggregate["DOUBLE_ENSEMBLE"]["mean_net_return"] == pytest.approx(
+        (0.020 + 0.011 + 0.013) / 3
+    )
+    assert aggregate["DOUBLE_ENSEMBLE"]["delta_net_vs_ridge"] == pytest.approx(
+        aggregate["DOUBLE_ENSEMBLE"]["mean_net_return"] - 0.010
+    )
+    assert incumbent["model"] == "DOUBLE_ENSEMBLE"
+    assert incumbent["selection_scope"] == "ALL_HORIZONS_EQUAL_WEIGHT"
+
+
+def test_batch_incumbent_rejects_unstable_challenger() -> None:
+    ridge = {
+        "status": "LEARNABLE_EDGE",
+        "mean_net_return": 0.01,
+        "mean_rank_ic": 0.05,
+        "mean_severe_net_return": 0.004,
+        "positive_fold_count": 6,
+        "positive_fold_required": 4,
+        "seed_mean_net_return": {"7": 0.01, "29": 0.01, "53": 0.01},
+    }
+    unstable = {
+        **ridge,
+        "mean_net_return": 0.02,
+        "mean_severe_net_return": 0.01,
+        "seed_mean_net_return": {"7": 0.02, "29": -0.001, "53": 0.02},
+    }
+    horizons = {
+        "1": {"models": {"RIDGE": ridge, "SHARED_MLP": unstable}},
+        "5": {"models": {"RIDGE": ridge, "SHARED_MLP": unstable}},
+    }
+
+    aggregate, incumbent = _select_batch_incumbent(horizons)
+
+    assert aggregate["SHARED_MLP"]["aggregate_gate_status"] == "NO_NET_EDGE"
+    assert incumbent["model"] == "RIDGE"
 
 
 def test_cli_reuses_verified_local_trials_when_adding_shared_mlp(

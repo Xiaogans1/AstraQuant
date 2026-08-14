@@ -1005,6 +1005,7 @@ def _combine_reports(
             raise ValueError("baseline partial report schema mismatch")
         horizon_reports.update(partial_horizons)
         trials.extend(partial_trials)
+    aggregate_models, batch_incumbent = _select_batch_incumbent(horizon_reports)
     body: dict[str, Any] = {
         "schema_version": _REPORT_SCHEMA,
         "source_materialization_digest": manifest["content_digest"],
@@ -1032,8 +1033,112 @@ def _combine_reports(
         "failed_trial_count": sum(item["status"] == "FAILED" for item in trials),
         "trials": trials,
         "horizons": horizon_reports,
+        "aggregate_models": aggregate_models,
+        "batch_incumbent": batch_incumbent,
     }
     return {"content_digest": _digest(canonical_json_bytes(body)), **body}
+
+
+def _select_batch_incumbent(
+    horizon_reports: dict[str, Any],
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Select one stable incumbent using all horizons with equal weight."""
+
+    if not horizon_reports:
+        raise ValueError("batch incumbent requires at least one horizon")
+    ordered_horizons = sorted(horizon_reports, key=int)
+    model_sets: list[set[str]] = []
+    for horizon in ordered_horizons:
+        horizon_value = horizon_reports[horizon]
+        models = horizon_value.get("models") if isinstance(horizon_value, dict) else None
+        if not isinstance(models, dict) or not models:
+            raise ValueError("batch incumbent horizon models schema mismatch")
+        model_sets.append(set(models))
+    if any(model_set != model_sets[0] for model_set in model_sets[1:]):
+        raise ValueError("batch incumbent model coverage mismatch")
+
+    aggregate: dict[str, dict[str, Any]] = {}
+    for model_name in sorted(model_sets[0]):
+        summaries = [horizon_reports[horizon]["models"][model_name] for horizon in ordered_horizons]
+        if any(not isinstance(summary, dict) for summary in summaries):
+            raise ValueError("batch incumbent model summary schema mismatch")
+        required_fields = ("mean_net_return", "mean_rank_ic", "mean_severe_net_return")
+        if any(
+            not isinstance(summary.get(field), float)
+            for summary in summaries
+            for field in required_fields
+        ):
+            raise ValueError("batch incumbent metric schema mismatch")
+        stable = all(_is_stable_horizon_summary(summary) for summary in summaries)
+        aggregate[model_name] = {
+            "horizon_count": len(ordered_horizons),
+            "mean_net_return": _mean(summary["mean_net_return"] for summary in summaries),
+            "mean_rank_ic": _mean(summary["mean_rank_ic"] for summary in summaries),
+            "mean_severe_net_return": _mean(
+                summary["mean_severe_net_return"] for summary in summaries
+            ),
+            "maximum_drawdown": max(
+                float(summary.get("maximum_drawdown", 0.0)) for summary in summaries
+            ),
+            "stable_across_all_horizons": stable,
+        }
+
+    ridge = aggregate.get(CrossSectionalModelKind.RIDGE.value)
+    if ridge is None:
+        raise ValueError("batch incumbent requires RIDGE reference")
+    ridge_net = ridge["mean_net_return"]
+    eligible: list[str] = []
+    for model_name, summary in aggregate.items():
+        delta = summary["mean_net_return"] - ridge_net
+        summary["delta_net_vs_ridge"] = delta
+        passes_relative_edge = model_name == CrossSectionalModelKind.RIDGE.value or delta >= 0.002
+        summary["aggregate_gate_status"] = (
+            "NET_EDGE"
+            if summary["stable_across_all_horizons"] and passes_relative_edge
+            else "NO_NET_EDGE"
+        )
+        if summary["aggregate_gate_status"] == "NET_EDGE":
+            eligible.append(model_name)
+    if not eligible:
+        raise ValueError("batch incumbent has no stable eligible model")
+    selected = sorted(
+        eligible,
+        key=lambda name: (
+            -aggregate[name]["mean_net_return"],
+            -aggregate[name]["mean_rank_ic"],
+            name,
+        ),
+    )[0]
+    selected_summary = aggregate[selected]
+    incumbent = {
+        "model": selected,
+        "selection_scope": "ALL_HORIZONS_EQUAL_WEIGHT",
+        "minimum_delta_net_vs_ridge": 0.002,
+        "requires_all_horizons_stable": True,
+        "mean_net_return": selected_summary["mean_net_return"],
+        "mean_rank_ic": selected_summary["mean_rank_ic"],
+        "mean_severe_net_return": selected_summary["mean_severe_net_return"],
+        "maximum_drawdown": selected_summary["maximum_drawdown"],
+    }
+    return aggregate, incumbent
+
+
+def _is_stable_horizon_summary(summary: dict[str, Any]) -> bool:
+    seed_net = summary.get("seed_mean_net_return")
+    capacity_breaches = summary.get("capacity_breach_trials", 0)
+    return (
+        summary.get("status") == "LEARNABLE_EDGE"
+        and isinstance(summary.get("positive_fold_count"), int)
+        and isinstance(summary.get("positive_fold_required"), int)
+        and summary["positive_fold_count"] >= summary["positive_fold_required"]
+        and isinstance(seed_net, dict)
+        and bool(seed_net)
+        and all(isinstance(value, float) and value > 0 for value in seed_net.values())
+        and isinstance(summary.get("mean_severe_net_return"), float)
+        and summary["mean_severe_net_return"] > 0
+        and isinstance(capacity_breaches, int)
+        and capacity_breaches == 0
+    )
 
 
 def _load_horizon_checkpoint(
