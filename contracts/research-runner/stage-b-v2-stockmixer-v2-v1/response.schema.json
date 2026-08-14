@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://astraquant.local/contracts/research-runner/stage-b-v2-stockmixer-v2-v1/response.schema.json",
+  "title": "AstraQuant Stage B v2 StockMixer v2 response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "content_digest",
+    "schema_version",
+    "request_content_digest",
+    "source_materialization_digest",
+    "source_raw_export_digest",
+    "runner_identity",
+    "trials"
+  ],
+  "properties": {
+    "content_digest": { "$ref": "#/$defs/digest" },
+    "schema_version": { "const": "astraquant.stage-b-v2-stockmixer-v2-response/v1" },
+    "request_content_digest": { "$ref": "#/$defs/digest" },
+    "source_materialization_digest": { "$ref": "#/$defs/digest" },
+    "source_raw_export_digest": { "$ref": "#/$defs/digest" },
+    "runner_identity": { "$ref": "#/$defs/runner_identity" },
+    "trials": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/trial" }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "runner_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "version", "torch_version", "device"],
+      "properties": {
+        "package": { "const": "astraquant-stockmixer-runner" },
+        "version": { "type": "string", "minLength": 1 },
+        "torch_version": { "type": "string", "minLength": 1 },
+        "device": { "enum": ["cpu", "cuda"] }
+      }
+    },
+    "prediction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["row_id", "score"],
+      "properties": {
+        "row_id": { "type": "integer", "minimum": 0 },
+        "score": { "type": "number" }
+      }
+    },
+    "trial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trial_id",
+        "seed",
+        "processor_digest",
+        "model_digest",
+        "inner_valid_predictions",
+        "outer_test_predictions"
+      ],
+      "properties": {
+        "trial_id": { "type": "string", "minLength": 1 },
+        "seed": { "type": "integer", "minimum": 0 },
+        "processor_digest": { "$ref": "#/$defs/digest" },
+        "model_digest": { "$ref": "#/$defs/digest" },
+        "inner_valid_predictions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/prediction" }
+        },
+        "outer_test_predictions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/prediction" }
+        }
+      }
+    }
+  }
+}

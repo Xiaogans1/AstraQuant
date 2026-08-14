@@ -246,7 +246,11 @@ def test_baseline_rejects_feature_schema_horizon_and_nonfinite_target() -> None:
 
 @pytest.mark.parametrize(
     "model_kind",
-    [CrossSectionalModelKind.DOUBLE_ENSEMBLE, CrossSectionalModelKind.SHARED_MLP],
+    [
+        CrossSectionalModelKind.DOUBLE_ENSEMBLE,
+        CrossSectionalModelKind.SHARED_MLP,
+        CrossSectionalModelKind.STOCKMIXER_V2,
+    ],
 )
 def test_external_scores_use_inner_valid_for_calibration_only(
     model_kind: CrossSectionalModelKind,

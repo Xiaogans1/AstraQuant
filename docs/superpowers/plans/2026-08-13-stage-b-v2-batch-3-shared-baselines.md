@@ -62,9 +62,9 @@
 - Artifacts: ignored `.astraquant/research/stage-b-v2-*`
 
 - [x] 在冻结的 `sha256:d56feb…` materialization 上运行 Shared MLP D1/D5/D10、6 folds、3 seeds，54/54 trials 成功；D1 通过 `NET_EDGE`，D5/D10 未过相对门。
-- [ ] 使用逐 trial checkpoints 恢复并完成 DoubleEnsemble，不允许再因后续组合错误丢失已训练预测。
-- [ ] 两个新 output roots 重复运行；trial/prediction/report digests 可复现，恢复路径必须实际命中且不重新训练已完成 trial。
-- [ ] 报告训练时间、峰值内存/device、RankIC、净收益、压力、回撤、换手与容量；允许两个 challenger 都失败。
+- [x] 使用逐 trial checkpoints 恢复并完成 DoubleEnsemble，不允许再因后续组合错误丢失已训练预测。
+- [x] 两个新 output roots 重复运行；trial/prediction/report digests 可复现，恢复路径必须实际命中且不重新训练已完成 trial。
+- [x] 报告训练时间、峰值内存/device、RankIC、净收益、压力、回撤、换手与容量；允许两个 challenger 都失败。
 
 ## Task 5: Freeze the Batch 4 incumbent and open complex challengers
 
@@ -73,11 +73,11 @@
 - Modify: `docs/superpowers/plans/2026-08-11-quant-core-v3-progress.md`
 - Create: `docs/superpowers/plans/2026-08-13-stage-b-v2-batch-4-stockmixer-master.md`
 
-- [ ] 以 Batch 3 聚合扣费净收益最强且通过稳定性门的模型作为唯一 incumbent；不得按 horizon 为同一 challenger 单独调规则。
-- [ ] Batch 4 StockMixer v2 使用 raw OHLCV/context 的历史 lookback、动态 universe masks 和同一 labels/folds/portfolio。
-- [ ] Batch 4 MASTER 固定官方 commit，市场引导/关系输入必须来自 exact PIT artifact；schema 不匹配时只允许从头训练，不加载官方样例权重冒充可迁移。
-- [ ] StockMixer v2/MASTER 必须同时改善 RankIC 与净收益，至少 4/6 folds 为正、3 seeds 同方向、回撤不超过 incumbent 1.2 倍，并通过延迟/滑点/容量压力；否则保留工程能力但裁决 `NO_NET_EDGE`。
-- [ ] Batch 4 通过后才进入 HIST/TRA/DoubleAdapt 和 Shadow/Paper；Kronos 继续作为 K 线预测/辅助因子独立通道，不替换统一训练主线。
+- [x] 以 Batch 3 聚合扣费净收益最强且通过稳定性门的模型作为唯一 incumbent；程序已冻结 `DOUBLE_ENSEMBLE`，不得按 horizon 为同一 challenger 单独调规则。
+- [x] Batch 4 StockMixer v2 使用 raw OHLCV/context 的历史 lookback、动态 universe masks 和同一 labels/folds/portfolio。
+- [x] Batch 4 MASTER 固定官方 commit，市场引导/关系输入必须来自 exact PIT artifact；schema 不匹配时只允许从头训练，不加载官方样例权重冒充可迁移。
+- [x] StockMixer v2/MASTER 必须同时改善 RankIC 与净收益，至少 4/6 folds 为正、3 seeds 同方向、回撤不超过 incumbent 1.2 倍，并通过延迟/滑点/容量压力；否则保留工程能力但裁决 `NO_NET_EDGE`。
+- [x] Batch 4 通过后才进入 HIST/TRA/DoubleAdapt 和 Shadow/Paper；Kronos 继续作为 K 线预测/辅助因子独立通道，不替换统一训练主线。
 
 ---
 

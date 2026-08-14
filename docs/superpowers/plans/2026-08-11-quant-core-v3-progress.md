@@ -1,4 +1,4 @@
-# Quant Core v3 当前进度（2026-08-13）
+# Quant Core v3 当前进度（2026-08-14）
 
 > **长期完成标准：** 当前 no-skill、Logistic、LightGBM 与 Qlib LightGBM 只是统一实验协议的基线。训练核心按[生产级统一训练架构](../specs/2026-08-12-production-training-architecture-design.md)继续推进，只有多任务、全市场共享表征、关系建模、状态路由、组合决策和 Shadow/Paper 反馈全部闭环才算完成。
 
@@ -19,12 +19,12 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 | Stage | 当前状态 | 程序交付 | 进入下一阶段的硬门 |
 | --- | --- | --- | --- |
 | A 统一协议与强基线 | **完成** | exact snapshot、统一 score、walk-forward、真实执行评价、DoubleEnsemble | 不同模型能在相同数据/费用/切分下可重复比较 |
-| B 全市场共享表征 | **v2 Batch 3 Shared MLP 已完成 / DoubleEnsemble 运行中** | 10 年真实宽历史、D1/D5/D10 截面矩阵、Ridge/LightGBM/Shared MLP 162 trials；D1 Shared MLP 已过相对门 | 完成 DoubleEnsemble 后冻结 Batch 4 incumbent |
+| B 全市场共享表征 | **v2 Batch 3 完成 / Batch 4 StockMixer v2 开始** | 10 年真实宽历史、D1/D5/D10 截面矩阵、四模型 216 trials；统一 incumbent 已冻结为 DoubleEnsemble | StockMixer v2/MASTER 在同一协议下同时改善 RankIC、净收益与风险 |
 | C 关系与市场状态 | 未开始 | MASTER/HIST、行业/概念/潜在关系、regime conditioning | 关系输入无未来信息，跨 regime 改善可重复 |
 | D 专家路由与漂移 | 未开始 | TRA/DoubleAdapt、任务专家、漂移检测、可靠 fallback | 路由可解释，失效时自动回退且不放大风险 |
 | E 组合与发布闭环 | 未开始 | ForecastCombiner、唯一目标仓位、Shadow/Paper 反馈 | 成本、容量、回撤、漂移和账户一致性全部过门 |
 
-**当前唯一主节点：** Stage B v2 Batch 3 已完成 Shared MLP 真实挑战：D1 同时改善 RankIC、净收益和回撤并通过相对门，D5/D10 只有不足门槛的小幅净改善。当前继续完成可恢复 DoubleEnsemble；随后冻结 Batch 4 incumbent 并启动 StockMixer v2/MASTER，不能因 D1 首胜提前结束长期目标。
+**当前唯一主节点：** Stage B v2 Batch 3 已完成 216/216 四模型真实 trials，并按全周期统一规则冻结 `DOUBLE_ENSEMBLE` 为 Batch 4 incumbent。当前进入 [Batch 4 StockMixer v2 / MASTER](2026-08-14-stage-b-v2-batch-4-stockmixer-master.md)：先把 exact raw OHLCV/context 物化为 64 日动态时间窗口，再让时间混合与市场引导关系模型在同一费用/组合下挑战，不因 Shared MLP 或 DoubleEnsemble 的阶段性领先提前结束长期目标。
 
 **Stage B v2 已批准方向：** 采用[全市场截面训练设计](../specs/2026-08-13-stage-b-v2-cross-sectional-design.md)。第一主战场改为真实 A 股日线动态 universe；统一训练 `D1/D5/D10` 的收益、截面 rank 和风险 heads；先通过 Ridge/LightGBM/DoubleEnsemble 标签可学习门，再让 StockMixer v2 与 MASTER 竞争。模型输出进入统一 rank-aware long-only 目标组合，不再把 rank score 当作固定收益阈值。
 
@@ -35,6 +35,8 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 **首轮真实宽历史结果：** 东方财富真实 API 已完成 800 只候选 + benchmark 的 10 年引导，动态股票池最终产生 718 只入选股票、2,058,999 行 D1/D5/D10 训练矩阵和 173 个特征。Ridge/LightGBM 共 108/108 trials 成功；两者三周期均为 6/6 正 RankIC folds，但 LightGBM 扣费后均未超过 Ridge。Ridge 的 D1/D5/D10 平均净收益分别为 `+3.2949% / +1.9977% / +0.7859%`，最大回撤分别约 `30.11% / 16.40% / 9.92%`。报告摘要 `sha256:35af7df…`。这证明全市场截面标签可学，也证明“更复杂树模型”暂未胜出；当前结果仍是 `EXPLORATORY_REAL_API_CURRENT_STATUS`，历史 ST/status 证据补齐前不能晋级生产。
 
 **Shared MLP 真实结果：** 54/54 CUDA trials 成功，失败 0。D1 RankIC/净收益/重压净收益/最大回撤为 `0.05094 / +3.8179% / +1.1226% / 28.28%`，相对 Ridge 净提高 `0.5231%` 并通过 `NET_EDGE`；D5/D10 净收益为 `+2.1452% / +0.9690%`，但 RankIC 下降且相对净改善不足冻结的 `0.2%`，均保持 `NO_NET_EDGE`。报告摘要 `sha256:536907f…`，全量恢复仅 7.61 秒且报告文件 SHA-256 一致。程序已证明共享全市场表示在 D1 有实际价值，但尚未证明所有周期都应改用神经网络。
+
+**Batch 3 最终结果：** DoubleEnsemble 54/54 trials 经两次真实中断后从逐 trial 检查点完整恢复。D1/D5/D10 净收益为 `+4.6667% / +2.1728% / +0.9790%`，重压净收益均正；四模型三周期等权聚合后，DoubleEnsemble 净收益 `+2.6062%`，比 Ridge 高 `0.5800%`，高于 Shared MLP 的 `+2.3107%`。程序按首轮前冻结的全周期稳定门将其选为唯一 incumbent。216-trial 最终报告摘要 `sha256:9d89cec…`，两个新输出根的报告文件 SHA-256 均为 `43D61F8327FCA60EDF9CC0DBF33D673BA737A46964E1412158083ECC9B45D84D`。
 
 **效率纪律：** 每个开发批次必须产生一种用户可理解的新增能力或明确淘汰结论；不以重复造基础设施代替策略结果，不降低门槛包装模型，不允许新模型绕过统一执行评价。
 
@@ -87,7 +89,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 
 ## 下一结果
 
-Shared MLP 已完成并在 D1 形成首个共享模型净优势；当前 DoubleEnsemble 正按 54 个逐 trial 检查点继续运行。完成后立即冻结 Batch 4 incumbent，再进入 StockMixer v2/MASTER。下一份模型结论继续回答“时间混合或关系建模是否在同一成本下进一步超过 Shared MLP/Ridge”，不回退到 demo 规模。
+Batch 3 已完成并冻结 DoubleEnsemble 为唯一 incumbent。当前执行 Batch 4 Task 1：冻结 StockMixer v2 的 64 日 raw OHLCV/context 动态面板与 external runner contract。下一份模型结论必须回答“时间混合是否在同一成本下同时超过 DoubleEnsemble 的 RankIC 与净收益”，不回退到 demo 规模。
 
 macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、优先级和验收条件见
 [macOS 数据源与批量训练数据计划](2026-08-11-macos-data-source-and-batch-training.md)。
@@ -97,11 +99,11 @@ macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、
 1. **Stage A 统一训练协议（已完成）**：task/score 契约、DoubleEnsemble 与真实多标的统一评价已经关闭；概率、预期收益、rank、风险各走声明过的选择规则。
 2. **扩大全市场真实历史（首轮完成）**：已完成 800 候选、10 年真实 API 引导和 718 只实际入选训练矩阵；下一步补历史 ST/status 高保真证据并扩到更宽 universe，而不是退回十只 ETF。
 3. **Kronos 基础模型通道（已完成，`NO_NET_EDGE`）**：官方预训练权重、批量推理和公平评价已关闭；保留研究通道但不微调、不开发正式图层、不进入组合，待更长历史与更多 regime 出现新证据后再挑战。
-4. **Stage B 全市场共享表征（首轮完成，`NO_NET_EDGE`）**：StockMixer 官方语义、动态 universe、正式训练和统一执行均已关闭；下一步先重做 Stage B v2 的数据/任务/horizon 实验设计，不为每只股票单独训练，也不在失败结果上事后调参。
+4. **Stage B 全市场共享表征（Batch 3 完成，Batch 4 进行中）**：Stage B v2 已用 718 股票、10 年、D1/D5/D10 冻结 DoubleEnsemble incumbent；当前实现 StockMixer v2 raw temporal panel，随后按同一规则运行 MASTER，不为每只股票单独训练，也不在结果上事后调参。
 5. **Stage C 关系与状态**：接入 MASTER/HIST，验证行业、概念、潜在关系和市场 regime 是否带来可重复净改善。
 6. **Stage D 路由与漂移**：接入 TRA/DoubleAdapt，形成任务专家、动态路由、滚动适应与可靠 fallback。
 7. **Stage E 组合和发布**：把各任务 forecast 校准并组合为唯一目标仓位，完成压力测试、治理收口与 Shadow/Paper 反馈。
 8. **P1 第二认证源与跨平台一致性**：实测 Tushare Pro/Choice；macOS 与 Windows 只保留 provider/runtime 差异，训练 artifact 语义一致。
 9. **LIVE 设计**：只有账户、订单、费用、T+1、对账及 Stage A–E 全部通过后才讨论 Broker Gateway 与 LIVE。
 
-当前 Strategy Fast Lane S1–S6、DoubleEnsemble、Kronos、StockMixer 首轮、Stage B v2 Batch 1 和 Batch 2 首轮真实基线均已完成。首次得到可进入下一轮挑战的宽市场 Ridge 基线，但尚无复杂模型超过它，也未达到 Shadow/Paper 发布条件。当前先完成可恢复训练与独立复跑，再让 StockMixer v2/MASTER 在同一真实矩阵挑战 Ridge；Kronos 保留为独立研究能力，不占用当前主线。
+当前 Strategy Fast Lane S1–S6、Kronos、StockMixer 首轮和 Stage B v2 Batch 1–3 均已完成；DoubleEnsemble 已在统一规则下超过 Ridge，成为新的研究 incumbent，但仍未达到 Shadow/Paper 发布条件。当前让 StockMixer v2/MASTER 在同一真实矩阵挑战 DoubleEnsemble；Kronos 保留为独立研究能力，不占用当前主线。

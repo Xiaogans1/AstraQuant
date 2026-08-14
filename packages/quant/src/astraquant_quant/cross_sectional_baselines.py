@@ -26,6 +26,7 @@ class CrossSectionalModelKind(StrEnum):
     LIGHTGBM = "LIGHTGBM"
     DOUBLE_ENSEMBLE = "DOUBLE_ENSEMBLE"
     SHARED_MLP = "SHARED_MLP"
+    STOCKMIXER_V2 = "STOCKMIXER_V2"
 
 
 class _Predictor(Protocol):
@@ -195,6 +196,7 @@ def score_cross_sectional_predictions(
     if model_kind not in {
         CrossSectionalModelKind.DOUBLE_ENSEMBLE,
         CrossSectionalModelKind.SHARED_MLP,
+        CrossSectionalModelKind.STOCKMIXER_V2,
     }:
         raise ValueError("external score contract only accepts isolated runner models")
     return _score_predictions(

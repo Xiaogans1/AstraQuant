@@ -1,6 +1,6 @@
 # Stage B v2 真实宽市场强基线验收
 
-日期：2026-08-13
+日期：2026-08-14
 
 ## 用户可用能力
 
@@ -15,33 +15,47 @@
 
 ## 结果
 
-108/108 Ridge/LightGBM trials 与 54/54 Shared MLP trials 完成，失败 0。传统基线两个全新训练运行的 trial identities、prediction digests 和全部核心指标一致；Shared MLP 的完整报告从检查点恢复到全新输出目录后文件 SHA-256 一致。
+Ridge、LightGBM、Shared MLP、DoubleEnsemble 共 216/216 trials 完成，失败 0。传统基线两个全新训练运行的 trial identities、prediction digests 和全部核心指标一致；Shared MLP、DoubleEnsemble 均按逐 trial 检查点从真实中断处恢复。最终四模型报告从同一检查点恢复到两个全新输出目录后文件 SHA-256 一致。
 
 | Horizon | Model | Mean RankIC | Positive folds | Base net | Adverse net | Severe net | Max drawdown | Gate |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | D1 | Ridge | 0.04985 | 6/6 | +3.2949% | +2.5953% | +0.5017% | 30.11% | `NET_EDGE` |
 | D1 | LightGBM | 0.04893 | 6/6 | +3.2764% | +2.5531% | +0.3892% | 33.45% | `NO_NET_EDGE` |
 | D1 | Shared MLP | 0.05094 | 6/6 | +3.8179% | +3.1431% | +1.1226% | 28.28% | `NET_EDGE` |
+| D1 | DoubleEnsemble | 0.04036 | 5/6 | +4.6667% | +3.9564% | +1.8307% | 33.50% | `NET_EDGE` |
 | D5 | Ridge | 0.05623 | 6/6 | +1.9977% | +1.8969% | +1.5917% | 16.40% | `NET_EDGE` |
 | D5 | LightGBM | 0.06299 | 6/6 | +1.4415% | +1.3204% | +0.9538% | 16.34% | `NO_NET_EDGE` |
 | D5 | Shared MLP | 0.05544 | 6/6 | +2.1452% | +2.0118% | +1.6078% | 16.52% | `NO_NET_EDGE` |
+| D5 | DoubleEnsemble | 0.04872 | 6/6 | +2.1728% | +2.0706% | +1.7611% | 12.45% | `NO_NET_EDGE` |
 | D10 | Ridge | 0.05945 | 6/6 | +0.7859% | +0.7264% | +0.5460% | 9.92% | `NET_EDGE` |
 | D10 | LightGBM | 0.07238 | 6/6 | +0.4318% | +0.3656% | +0.1649% | 8.31% | `NO_NET_EDGE` |
 | D10 | Shared MLP | 0.05553 | 6/6 | +0.9690% | +0.8972% | +0.6795% | 11.58% | `NO_NET_EDGE` |
+| D10 | DoubleEnsemble | 0.05848 | 6/6 | +0.9790% | +0.9353% | +0.8028% | 7.62% | `NO_NET_EDGE` |
 
 Shared MLP 合并报告摘要：`sha256:536907f451f0aa29cf24738333dccfcb832af3d57d0c20e7ed00b31aaee0584f`；报告文件 SHA-256：`3AEC1012429C58341F78B8AE6FA962A62404B00A82637E14F83A00D0945757BD`。
 
+最终四模型报告摘要：`sha256:9d89cec7eed138df99b38d11013dc892a6e5aa49e00fe0a71df6d9c4749e8c39`；报告文件 SHA-256：`43D61F8327FCA60EDF9CC0DBF33D673BA737A46964E1412158083ECC9B45D84D`。
+
+| Aggregate model | Mean RankIC | Mean base net | Mean severe net | Worst drawdown | Delta net vs Ridge | Stable gate |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Ridge | 0.05518 | +2.0262% | +0.8798% | 30.11% | 0 | `NET_EDGE` |
+| LightGBM | 0.06143 | +1.7166% | +0.5026% | 33.45% | -0.3096% | `NO_NET_EDGE` |
+| Shared MLP | 0.05397 | +2.3107% | +1.1366% | 28.28% | +0.2845% | `NET_EDGE` |
+| DoubleEnsemble | 0.04919 | +2.6062% | +1.4649% | 33.50% | +0.5800% | `NET_EDGE / INCUMBENT` |
+
 ## 裁决
 
-真实宽市场截面标签通过可学习门。Shared MLP 在 D1 同时提高 RankIC、净收益和重压净收益，并把最大回撤从 Ridge 的 30.11% 降到 28.28%，相对净收益提高 0.5231 个百分点，成为 D1 challenger。D5/D10 虽略增净收益，但 RankIC 下降且相对净提升分别只有 0.1475/0.1830 个百分点，未达到冻结的 0.2% 门，不晋级。LightGBM 虽在 D5/D10 有更高 RankIC，但没有转化为更高扣费净收益。
+真实宽市场截面标签通过可学习门。Shared MLP 在 D1 同时提高 RankIC、净收益和重压净收益，并把最大回撤从 Ridge 的 30.11% 降到 28.28%。DoubleEnsemble 的 D1 净收益最强，D5/D10 也保持正的压力净收益；按首轮结果前冻结的“D1/D5/D10 等权聚合、全周期至少 4/6 正 folds、三 seeds 净收益同方向、severe net 为正、容量无违约、相对 Ridge 聚合净收益至少提高 0.2%”唯一规则，程序选择 `DOUBLE_ENSEMBLE` 为 Batch 4 incumbent。不得按 horizon 另选对手或为 StockMixer 改组合/费用。
 
-上述 net 为各 walk-forward trial 的平均组合收益，不是年化收益、未来收益承诺或实盘发布证据。下一阶段允许 Shared MLP、DoubleEnsemble、StockMixer v2、MASTER 依序挑战，但必须在同一矩阵上同时改善净收益与风险，不能只提高 IC。
+上述 net 为各 walk-forward trial 的平均组合收益，不是年化收益、未来收益承诺或实盘发布证据。下一阶段 StockMixer v2、MASTER 必须在同一矩阵上同时超过 DoubleEnsemble 的聚合 RankIC 与扣费净收益，且最大回撤不得超过 40.20%；不能只提高 IC 或只挑一个 horizon 宣称成功。
 
 ## 工程容量
 
 - 优化前本地矩阵约 86 分钟；按 horizon 分片、fold 预处理复用及 Ridge 去重后约 47.5 分钟。
 - D1/D5/D10 分别原子写检查点；同一检查点恢复到全新 output root 用时 4.87 秒且报告文件 SHA-256 一致。
 - DoubleEnsemble 每个 trial 原子写检查点；任一后续 trial 失败时，已完成 trial 不重训。
+- DoubleEnsemble 54 个 Qlib CPU trials 从 2026-08-13 21:19 至 2026-08-14 00:07 分段完成；两次进程中断后均只继续未完成 trial。
 - Shared MLP 54 个真实 CUDA trials 约 40.7 分钟完成；按 16 个交易日 masked batch 并行，动态股票数不改变网络宽度。
 - Shared MLP 完整 checkpoint 恢复到全新 output root 用时 7.61 秒，报告文件 SHA-256 一致。
+- 四模型 216-trial 统一成本重评分约 14.1 分钟；完成后仅从检查点生成新输出用时 13.1 秒，第二次独立恢复用时 9.4 秒且报告文件 SHA-256 一致。
 - 32 GB Windows 机器单作业可运行；本地模型峰值约 20.5 GB，DoubleEnsemble 主/子合计约 18 GB，禁止并发两套训练矩阵。
