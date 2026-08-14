@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import shutil
 import subprocess
 import sys
@@ -46,6 +47,8 @@ _DOUBLE_REQUEST_SCHEMA = "astraquant.stage-b-v2-double-ensemble-request/v1"
 _DOUBLE_RESPONSE_SCHEMA = "astraquant.stage-b-v2-double-ensemble-response/v1"
 _SHARED_REQUEST_SCHEMA = "astraquant.stage-b-v2-shared-mlp-request/v1"
 _SHARED_RESPONSE_SCHEMA = "astraquant.stage-b-v2-shared-mlp-response/v1"
+_STOCKMIXER_REQUEST_SCHEMA = "astraquant.stage-b-v2-stockmixer-v2-request/v1"
+_STOCKMIXER_RESPONSE_SCHEMA = "astraquant.stage-b-v2-stockmixer-v2-response/v1"
 _QLIB_UPSTREAM_COMMIT = "79633dd9506ea689e5400dea0197717b5b3d74b7"
 _SHARED_MODEL_CONFIG = {
     "hidden_dim": 64,
@@ -60,6 +63,21 @@ _SHARED_MODEL_CONFIG = {
     "internal_purge_sessions": 11,
     "session_batch_size": 16,
     "batch_semantics": "DECISION_DATE_CROSS_SECTION",
+}
+_STOCKMIXER_MODEL_CONFIG = {
+    "hidden_dim": 64,
+    "market_dim": 32,
+    "context_dim": 32,
+    "scales": [1, 2, 4],
+    "learning_rate": "0.001",
+    "weight_decay": "0.0001",
+    "ranking_weight": "0.1",
+    "epochs": 80,
+    "patience": 8,
+    "validation_fraction": "0.20",
+    "internal_purge_sessions": 11,
+    "session_batch_size": 16,
+    "batch_semantics": "DECISION_DATE_DYNAMIC_UNIVERSE",
 }
 _LOCAL_MODELS = (
     CrossSectionalModelKind.LIGHTGBM,
@@ -653,6 +671,127 @@ def _prepare_shared_mlp_request(
     request_path = root / "request.json"
     request_path.write_bytes(canonical_json_bytes(request) + b"\n")
     return request_path
+
+
+def _prepare_stockmixer_v2_request(
+    *,
+    root: Path,
+    panel_root: Path,
+    manifest: dict[str, Any],
+    rows: tuple[CrossSectionalBaselineRow, ...],
+    seeds: tuple[int, ...],
+    minimum_fit_sessions: int,
+    inner_valid_sessions: int,
+    outer_test_sessions: int,
+    fold_count: int,
+    purge_sessions: int,
+    runner_identity: dict[str, str],
+) -> Path:
+    """Bind one horizon's folds to a shared, hard-linked temporal panel."""
+
+    if not rows:
+        raise ValueError("StockMixer v2 request rows must not be empty")
+    horizons = tuple(sorted({row.horizon_sessions for row in rows}))
+    if len(horizons) != 1:
+        raise ValueError("StockMixer v2 request must contain exactly one horizon")
+    panel_manifest_path = panel_root / "manifest.json"
+    panel = json.loads(panel_manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(panel, dict):
+        raise ValueError("StockMixer v2 panel manifest schema mismatch")
+    panel_body = {key: value for key, value in panel.items() if key != "content_digest"}
+    if (
+        panel.get("schema_version") != "astraquant.stage-b-v2-stockmixer-panel/v1"
+        or panel.get("content_digest") != _digest(canonical_json_bytes(panel_body))
+        or panel.get("source_materialization_digest") != manifest.get("content_digest")
+        or horizons[0] not in panel.get("horizons", [])
+    ):
+        raise ValueError("StockMixer v2 panel identity mismatch")
+    temporal_file = _stockmixer_panel_file(
+        panel_root,
+        panel.get("temporal_panel_file"),
+        expected_name="temporal-panel.parquet",
+    )
+    rows_file = _stockmixer_panel_file(
+        panel_root,
+        panel.get("rows_file"),
+        expected_name="rows.parquet",
+    )
+    root.mkdir(parents=True, exist_ok=True)
+    _hardlink_exact(temporal_file, root / temporal_file.name)
+    _hardlink_exact(rows_file, root / rows_file.name)
+    manifest_target = root / "manifest.json"
+    if manifest_target.is_file():
+        if manifest_target.read_bytes() != panel_manifest_path.read_bytes():
+            raise ValueError("StockMixer v2 request manifest already differs")
+    else:
+        shutil.copyfile(panel_manifest_path, manifest_target)
+    timeline = tuple(sorted({row.decision_time for row in rows}))
+    folds = build_cross_sectional_folds(
+        timeline,
+        horizons=horizons,
+        minimum_fit_sessions=minimum_fit_sessions,
+        inner_valid_sessions=inner_valid_sessions,
+        outer_test_sessions=outer_test_sessions,
+        fold_count=fold_count,
+        purge_sessions=purge_sessions,
+    )
+    assignments = assign_cross_sectional_fold_rows(rows, folds)
+    trials = [
+        {
+            "trial_id": f"h{horizons[0]}-stockmixer_v2-s{seed}-{assignment.fold_id}",
+            "seed": seed,
+            "fit_row_ids": [rows[index].row_id for index in assignment.fit_indices],
+            "inner_valid_row_ids": [rows[index].row_id for index in assignment.inner_valid_indices],
+            "outer_test_row_ids": [rows[index].row_id for index in assignment.outer_test_indices],
+        }
+        for assignment in assignments
+        for seed in seeds
+    ]
+    body: dict[str, Any] = {
+        "schema_version": _STOCKMIXER_REQUEST_SCHEMA,
+        "runner_identity": runner_identity,
+        "source_materialization_digest": manifest["content_digest"],
+        "source_raw_export_digest": panel["source_raw_export_digest"],
+        "horizon_sessions": horizons[0],
+        "instrument_count": panel["instrument_count"],
+        "row_count": len(rows),
+        "temporal_panel_file": panel["temporal_panel_file"],
+        "rows_file": panel["rows_file"],
+        "feature_spec": {
+            "lookback": panel["lookback"],
+            "temporal_columns": panel["temporal_columns"],
+            "context_columns": panel["context_columns"],
+            "price_transform": panel["price_transform"],
+            "volume_transform": panel["volume_transform"],
+            "context_visibility": panel["context_visibility"],
+        },
+        "model_config": _STOCKMIXER_MODEL_CONFIG,
+        "trials": trials,
+    }
+    request = {"content_digest": _digest(canonical_json_bytes(body)), **body}
+    request_path = root / "request.json"
+    request_path.write_bytes(canonical_json_bytes(request) + b"\n")
+    return request_path
+
+
+def _stockmixer_panel_file(root: Path, value: object, *, expected_name: str) -> Path:
+    if not isinstance(value, dict) or value.get("path") != expected_name:
+        raise ValueError("StockMixer v2 panel file schema mismatch")
+    path = root / expected_name
+    if not path.is_file() or value.get("digest") != _digest_file(path):
+        raise ValueError("StockMixer v2 panel file digest mismatch")
+    return path
+
+
+def _hardlink_exact(source: Path, target: Path) -> None:
+    if target.is_file():
+        if _digest_file(target) != _digest_file(source):
+            raise ValueError("StockMixer v2 hard-linked payload already differs")
+        return
+    try:
+        os.link(source, target)
+    except OSError as error:
+        raise ValueError("StockMixer v2 shared panel requires same-volume hard links") from error
 
 
 def _query_shared_mlp_identity(project: Path, device: str) -> dict[str, str]:

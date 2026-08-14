@@ -52,11 +52,11 @@
 - Create: `runners/stockmixer/tests/test_stockmixer_v2.py`
 - Modify: `runners/stockmixer/src/astraquant_stockmixer_runner/__main__.py`
 
-- [ ] StockMixer v2 复用已验证的 causal multi-scale time mixer 与 masked stock-to-market bottleneck；增加 current-context encoder，并保持证券排列等变、masked padding 不影响有效证券。
-- [ ] 每 fold 只用 training-eligible inner-train 窗口拟合 processor；fit 尾部 20% sessions 作早停，固定 11-session purge；outer-test 标签不得参与归一化、早停或阈值。
-- [ ] 固定 hidden 64、market 32、context 32、scales 1/2/4、最多 80 epochs、patience 8、16 decision dates/batch；只允许首轮前冻结的一组配置。
-- [ ] 每个 trial 原子写预测检查点；中断后只继续未完成 trial。相同 request/seed/device 双跑 prediction/model digests 一致，CUDA 不可用时不得伪报。
-- [ ] 先完成小 fixture 全套测试，再运行真实 D1 fold-01 seed-7 smoke；测得显存/耗时满足 32 GB 单机后才放开 54-trial 正式矩阵。
+- [x] StockMixer v2 复用已验证的 causal multi-scale time mixer 与 masked stock-to-market bottleneck；增加 current-context encoder，并保持证券排列等变、masked padding 不影响有效证券。
+- [x] 每 fold 只用 training-eligible inner-train 窗口拟合 processor；fit 尾部 20% sessions 作早停，固定 11-session purge；outer-test 标签不得参与归一化、早停或阈值。
+- [x] 固定 hidden 64、market 32、context 32、scales 1/2/4、最多 80 epochs、patience 8、16 decision dates/batch；只允许首轮前冻结的一组配置。
+- [x] 每个 trial 原子写预测检查点；中断后只继续未完成 trial。相同 request/seed/device 双跑 prediction/model digests 一致，CUDA 不可用时不得伪报。
+- [x] 小 fixture runner 全套 46/46 通过；真实 D1 fold-01 seed-7 使用 628,603 fit、35,880 inner-valid、17,972 outer-test rows，RTX 4060 Ti 两次全新训练分别 434.97/439.20 秒，观察显存约 3.6/8.2 GB、内存约 2.6 GB；两份 response SHA-256 均为 `3EE3A31B51F35004B738426FF48D6D5F009780833F0006475CF382283B6A1D29`。单 fold RankIC `0.035166`、扣费 base net `-9.8483%`，仅证明 runner 可用，不作为 54-trial 最终裁决。
 
 ## Task 4: Integrate and execute the unified StockMixer challenge
 

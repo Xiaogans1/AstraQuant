@@ -14,6 +14,7 @@ from astraquant_domain.run_manifest import canonical_json_bytes
 from tools.research.run_stage_b_v2_baselines import (
     _apply_relative_gate,
     _load_materialization,
+    _prepare_stockmixer_v2_request,
     _select_batch_incumbent,
     main,
 )
@@ -171,6 +172,84 @@ def test_materialization_loader_reads_one_horizon_at_a_time(tmp_path: Path) -> N
     assert rows
     assert {row.horizon_sessions for row in rows} == {5}
     assert set(portfolio_inputs) == {row.row_id for row in rows}
+
+
+def test_prepares_stockmixer_request_from_one_shared_panel_without_copying_payload(
+    tmp_path: Path,
+) -> None:
+    source = _materialization(tmp_path / "source")
+    manifest, rows, _portfolio_inputs = _load_materialization(source, horizon=5)
+    panel_root = tmp_path / "panel"
+    panel_root.mkdir()
+    panel_file = panel_root / "temporal-panel.parquet"
+    rows_file = panel_root / "rows.parquet"
+    panel_file.write_bytes(b"sealed-temporal-panel")
+    rows_file.write_bytes(b"sealed-label-rows")
+    panel_body = {
+        "schema_version": "astraquant.stage-b-v2-stockmixer-panel/v1",
+        "source_raw_export_digest": "sha256:" + "3" * 64,
+        "source_materialization_digest": manifest["content_digest"],
+        "horizons": [5],
+        "lookback": 64,
+        "price_transform": "PREVIOUS_CLOSE_RELATIVE_V1",
+        "volume_transform": "LOG1P_DIFFERENCE_V1",
+        "context_visibility": "DECISION_TIME_ONLY",
+        "temporal_columns": [
+            "open_relative",
+            "high_relative",
+            "low_relative",
+            "close_relative",
+            "log_volume_change",
+            "log_turnover_change",
+        ],
+        "context_columns": ["signal", "volatility_20"],
+        "instrument_count": 10,
+        "session_count": 80,
+        "panel_row_count": 800,
+        "row_count": len(rows),
+        "temporal_panel_file": {
+            "path": "temporal-panel.parquet",
+            "digest": _digest(panel_file.read_bytes()),
+            "row_count": 800,
+        },
+        "rows_file": {"path": "rows.parquet", "digest": _digest(rows_file.read_bytes())},
+    }
+    (panel_root / "manifest.json").write_bytes(
+        canonical_json_bytes(
+            {"content_digest": _digest(canonical_json_bytes(panel_body)), **panel_body}
+        )
+        + b"\n"
+    )
+    identity = {
+        "package": "astraquant-stockmixer-runner",
+        "version": "0.1.0",
+        "torch_version": "2.7.1+test",
+        "device": "cpu",
+    }
+
+    request_path = _prepare_stockmixer_v2_request(
+        root=tmp_path / "request",
+        panel_root=panel_root,
+        manifest=manifest,
+        rows=rows,
+        seeds=(7,),
+        minimum_fit_sessions=20,
+        inner_valid_sessions=5,
+        outer_test_sessions=5,
+        fold_count=2,
+        purge_sessions=11,
+        runner_identity=identity,
+    )
+
+    request = json.loads(request_path.read_text(encoding="utf-8"))
+    assert request["horizon_sessions"] == 5
+    assert request["source_raw_export_digest"] == panel_body["source_raw_export_digest"]
+    assert len(request["trials"]) == 2
+    assert request["trials"][0]["trial_id"].startswith("h5-stockmixer_v2-s7-")
+    assert (
+        request_path.parent / "temporal-panel.parquet"
+    ).stat().st_ino == panel_file.stat().st_ino
+    assert (request_path.parent / "rows.parquet").stat().st_ino == rows_file.stat().st_ino
 
 
 def test_cli_combines_independently_loaded_horizon_reports(tmp_path: Path) -> None:
