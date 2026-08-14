@@ -24,7 +24,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 | D 专家路由与漂移 | 未开始 | TRA/DoubleAdapt、任务专家、漂移检测、可靠 fallback | 路由可解释，失效时自动回退且不放大风险 |
 | E 组合与发布闭环 | 未开始 | ForecastCombiner、唯一目标仓位、Shadow/Paper 反馈 | 成本、容量、回撤、漂移和账户一致性全部过门 |
 
-**当前唯一主节点：** Stage B v2 Batch 3 已完成 216/216 四模型真实 trials，并按全周期统一规则冻结 `DOUBLE_ENSEMBLE` 为 Batch 4 incumbent。当前进入 [Batch 4 StockMixer v2 / MASTER](2026-08-14-stage-b-v2-batch-4-stockmixer-master.md)：先把 exact raw OHLCV/context 物化为 64 日动态时间窗口，再让时间混合与市场引导关系模型在同一费用/组合下挑战，不因 Shared MLP 或 DoubleEnsemble 的阶段性领先提前结束长期目标。
+**当前唯一主节点：** Stage B v2 Batch 3 已完成 216/216 四模型真实 trials，并按全周期统一规则冻结 `DOUBLE_ENSEMBLE` 为 Batch 4 incumbent。[Batch 4 StockMixer v2 / MASTER](2026-08-14-stage-b-v2-batch-4-stockmixer-master.md) 的 external contract 与 718 股票共享时序面板已完成；当前实现可恢复 StockMixer v2 runner，再让时间混合与市场引导关系模型在同一费用/组合下挑战，不因 Shared MLP 或 DoubleEnsemble 的阶段性领先提前结束长期目标。
 
 **Stage B v2 已批准方向：** 采用[全市场截面训练设计](../specs/2026-08-13-stage-b-v2-cross-sectional-design.md)。第一主战场改为真实 A 股日线动态 universe；统一训练 `D1/D5/D10` 的收益、截面 rank 和风险 heads；先通过 Ridge/LightGBM/DoubleEnsemble 标签可学习门，再让 StockMixer v2 与 MASTER 竞争。模型输出进入统一 rank-aware long-only 目标组合，不再把 rank score 当作固定收益阈值。
 
@@ -89,7 +89,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 
 ## 下一结果
 
-Batch 3 已完成并冻结 DoubleEnsemble 为唯一 incumbent。当前执行 Batch 4 Task 1：冻结 StockMixer v2 的 64 日 raw OHLCV/context 动态面板与 external runner contract。下一份模型结论必须回答“时间混合是否在同一成本下同时超过 DoubleEnsemble 的 RankIC 与净收益”，不回退到 demo 规模。
+Batch 3 已完成并冻结 DoubleEnsemble 为唯一 incumbent。Batch 4 Tasks 1–2 已完成：程序已生成一份可供 D1/D5/D10 和全部 trials 复用的 64 日动态时序面板，真实规模构建峰值仅 1.806 GB。当前进入 Task 3 可恢复 StockMixer v2 runner；下一份模型结论必须回答“时间混合是否在同一成本下同时超过 DoubleEnsemble 的 RankIC 与净收益”，不回退到 demo 规模。
 
 macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、优先级和验收条件见
 [macOS 数据源与批量训练数据计划](2026-08-11-macos-data-source-and-batch-training.md)。

@@ -34,11 +34,11 @@
 - Create: `tools/research/build_stage_b_v2_stockmixer_request.py`
 - Create: `tests/research/test_build_stage_b_v2_stockmixer_request.py`
 
-- [ ] 从 `stage-b-v2-export-*/request.json` 的 exact `bars.parquet/context.parquet/labels.parquet` 和 materialization `matrix.parquet` 构造共享 panel；不调用网络、不使用 StockMixer 示例数据。
-- [ ] 每个 decision time 使用当日真实动态 universe；停牌/缺 bar 用显式 `presence_mask/feature_mask/tradable_mask/label_mask`，数值 0 不能代表缺失。
-- [ ] panel 只保存一次 `time × instrument` 历史张量，trial 只保存行 ID 与窗口索引；不得按 54 个 trial 重复复制 lookback 数据。
-- [ ] 相同输入双跑 manifest、panel、samples 文件逐字节一致；改任一 raw/context/materialization digest 必须改变 request digest。
-- [ ] 在当前 718 股票真实输入上记录 row 数、文件大小、构造耗时和 32 GB Windows 峰值内存。
+- [x] 从 `stage-b-v2-export-*/request.json` 的 exact `bars.parquet/context.parquet/labels.parquet` 和 materialization `matrix.parquet` 构造共享 panel；不调用网络、不使用 StockMixer 示例数据。
+- [x] 每个 decision time 使用当日真实动态 universe；停牌/缺 bar 用显式 `presence_mask/feature_mask/context_mask/tradable_mask`，数值 0 不能代表缺失。
+- [x] panel 只保存一次 `time × instrument` 历史张量，D1/D5/D10 与后续 54 个 trial 共用；不得按 trial 重复复制 lookback 数据。
+- [x] 相同输入三跑 manifest、panel、rows 文件逐字节一致；改任一 raw/context/materialization digest 必须改变 panel digest。
+- [x] 真实 718 股票面板为 2,427 sessions、1,742,586 panel rows、2,058,999 label rows；panel `154,143,661` bytes、rows `6,242,706` bytes，实测 46.4–50.6 秒、峰值 working set `1.806 GB`。
 
 ## Task 3: Implement the resumable StockMixer v2 runner
 

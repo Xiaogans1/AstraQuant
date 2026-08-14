@@ -58,4 +58,6 @@ Shared MLP 合并报告摘要：`sha256:536907f451f0aa29cf24738333dccfcb832af3d5
 - Shared MLP 54 个真实 CUDA trials 约 40.7 分钟完成；按 16 个交易日 masked batch 并行，动态股票数不改变网络宽度。
 - Shared MLP 完整 checkpoint 恢复到全新 output root 用时 7.61 秒，报告文件 SHA-256 一致。
 - 四模型 216-trial 统一成本重评分约 14.1 分钟；完成后仅从检查点生成新输出用时 13.1 秒，第二次独立恢复用时 9.4 秒且报告文件 SHA-256 一致。
+- Batch 4 共享时序面板已从同一 raw export/materialization 生成：718 股票、2,427 sessions、1,742,586 个 `time × instrument` 槽位和全部 2,058,999 个 D1/D5/D10 标签行。64 日 OHLCV/turnover 相对变化与 15 个同日 context 字段只保存一份，panel `154,143,661` bytes，实测 46.4–50.6 秒、峰值 working set `1.806 GB`。
+- 三个全新输出根的面板 SHA-256 均为 `2F92FE7BFAF5C22A4D377AAEE289C2D2DB297941B61DD6C66F7AB1162075966F`，完整 manifest SHA-256 均为 `003E11044ECF13979109B898EBBD0B2D920A4DDBE300063D6F271B277801F5DC`。
 - 32 GB Windows 机器单作业可运行；本地模型峰值约 20.5 GB，DoubleEnsemble 主/子合计约 18 GB，禁止并发两套训练矩阵。
