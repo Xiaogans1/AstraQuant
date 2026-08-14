@@ -72,6 +72,8 @@
 - [ ] 聚合晋级门固定为：base net 至少 `2.806151%`、RankIC 严格高于 `0.04918929`、每周期至少 4/6 正 folds、三 seeds 净收益均正、severe net 为正、容量违约 0、最大回撤不高于 `40.204491%`。
 - [ ] 任一门失败则 `STOCKMIXER_V2=NO_NET_EDGE`；仍保留 runner、预测和失败归因，不事后调整 lookback/损失/组合。
 
+**2026-08-14 真实矩阵结果：** 54/54 trials 完成、0 失败。D1/D5/D10 的 RankIC 分别为 `0.041641/0.054960/0.064369`，base net 为 `+1.7308%/+3.2970%/+1.7308%`，severe net 为 `-0.7072%/+2.7350%/+1.4830%`，最差最大回撤 `27.4637%`，容量违约 0。三周期等权聚合 RankIC `0.053657` 高于 DoubleEnsemble `0.049189`，但聚合 base net `+2.2528%` 低于 incumbent `+2.6062%` 和挑战门 `+2.8062%`，聚合 severe net `+1.1703%` 也低于 incumbent `+1.4649%`；因此冻结 `STOCKMIXER_V2=NO_NET_EDGE`，不改 lookback、loss 或组合追结果，下一主节点转 Task 5 MASTER。
+
 ## Task 5: Pin and run MASTER as the relation challenger
 
 **Files:**

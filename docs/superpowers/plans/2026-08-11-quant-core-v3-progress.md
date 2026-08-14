@@ -19,12 +19,12 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 | Stage | 当前状态 | 程序交付 | 进入下一阶段的硬门 |
 | --- | --- | --- | --- |
 | A 统一协议与强基线 | **完成** | exact snapshot、统一 score、walk-forward、真实执行评价、DoubleEnsemble | 不同模型能在相同数据/费用/切分下可重复比较 |
-| B 全市场共享表征 | **v2 Batch 3 完成 / Batch 4 StockMixer v2 正式矩阵准备运行** | 10 年真实宽历史、D1/D5/D10 截面矩阵、四模型 216 trials；StockMixer 时序 runner 与真实 smoke 已完成 | StockMixer v2/MASTER 在同一协议下同时改善 RankIC、净收益与风险 |
+| B 全市场共享表征 | **v2 Batch 4 StockMixer 完成 / MASTER 下一节点** | StockMixer 54/54 真实 trials 完成，聚合 RankIC 提升但净收益未超过 DoubleEnsemble，状态 `NO_NET_EDGE` | MASTER 在同一协议下挑战 DoubleEnsemble；不事后调 StockMixer |
 | C 关系与市场状态 | 未开始 | MASTER/HIST、行业/概念/潜在关系、regime conditioning | 关系输入无未来信息，跨 regime 改善可重复 |
 | D 专家路由与漂移 | 未开始 | TRA/DoubleAdapt、任务专家、漂移检测、可靠 fallback | 路由可解释，失效时自动回退且不放大风险 |
 | E 组合与发布闭环 | 未开始 | ForecastCombiner、唯一目标仓位、Shadow/Paper 反馈 | 成本、容量、回撤、漂移和账户一致性全部过门 |
 
-**当前唯一主节点：** Stage B v2 Batch 3 已完成 216/216 四模型真实 trials，并按全周期统一规则冻结 `DOUBLE_ENSEMBLE` 为 Batch 4 incumbent。[Batch 4 StockMixer v2 / MASTER](2026-08-14-stage-b-v2-batch-4-stockmixer-master.md) 的 external contract、718 股票共享时序面板和可恢复 StockMixer v2 runner 均已完成；真实 D1 smoke 已证明 32 GB Windows 单机可稳定训练并逐字节复现，当前运行 54-trial 正式矩阵，再让 MASTER 在同一费用/组合下挑战。
+**当前唯一主节点：** [Batch 4 StockMixer v2 / MASTER](2026-08-14-stage-b-v2-batch-4-stockmixer-master.md) 的 StockMixer 54/54 真实 trials 已完成。时间混合把三周期聚合 RankIC 提高到 `0.053657`，但聚合净收益仅 `+2.2528%`，未超过 DoubleEnsemble 的 `+2.6062%`，且 D1 severe net 为负，正式冻结 `NO_NET_EDGE`。当前保留其 D5/D10 能力但不事后调参，下一主节点按原计划实现 MASTER 市场引导关系模型。
 
 **Stage B v2 已批准方向：** 采用[全市场截面训练设计](../specs/2026-08-13-stage-b-v2-cross-sectional-design.md)。第一主战场改为真实 A 股日线动态 universe；统一训练 `D1/D5/D10` 的收益、截面 rank 和风险 heads；先通过 Ridge/LightGBM/DoubleEnsemble 标签可学习门，再让 StockMixer v2 与 MASTER 竞争。模型输出进入统一 rank-aware long-only 目标组合，不再把 rank score 当作固定收益阈值。
 
@@ -89,7 +89,7 @@ AstraQuant 最终交付的不是“一个预测模型”，而是一套可持续
 
 ## 下一结果
 
-Batch 3 已完成并冻结 DoubleEnsemble 为唯一 incumbent。Batch 4 Tasks 1–3 已完成：D1 真实 smoke 双跑分别耗时 434.97/439.20 秒，响应 SHA-256 完全一致，观察显存约 3.6 GB。单 fold RankIC `0.035166`、base net `-9.8483%`，说明工程链路已经可用但单 fold 效果偏弱；当前进入 Task 4 的 54-trial 正式矩阵，最终仍按 D1/D5/D10 统一门裁决，不挑选有利 fold。
+StockMixer v2 正式矩阵 54/54、0 失败：D1/D5/D10 base net 为 `+1.7308%/+3.2970%/+1.7308%`，三周期聚合 RankIC `0.053657`、base net `+2.2528%`、severe net `+1.1703%`。它证明时间混合在 D5 有真实增益，但全周期净收益和压力收益均未超过 DoubleEnsemble，故状态 `NO_NET_EDGE`。当前进入 MASTER，不降低门槛、不按周期拼多个赢家。
 
 macOS、Choice、AKShare 批量训练与未来 Broker Gateway 的完整调研、优先级和验收条件见
 [macOS 数据源与批量训练数据计划](2026-08-11-macos-data-source-and-batch-training.md)。
