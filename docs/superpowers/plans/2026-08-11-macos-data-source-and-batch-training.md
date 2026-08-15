@@ -3,7 +3,7 @@
 > **生产训练硬约束：** macOS 数据源与批量任务必须产出和 Windows 完全一致的 snapshot、training task 与 artifact 语义，并支撑[生产级全市场统一训练](../specs/2026-08-12-production-training-architecture-design.md)。平台差异只允许停留在 provider/runtime adapter；小样本或单平台跑通不得视为训练核心完成。
 
 日期：2026-08-11
-状态：P0 已完成，进入 P1 认证数据源资格验证
+状态：P0.1 行情可用性修复已完成，进入 P1 认证数据源资格验证
 适用范围：macOS 开发运行、A 股/ETF/指数行情、全市场批量分钟数据、后续训练数据扩展与未来 Broker Gateway
 
 ## 1. 结论摘要
@@ -84,6 +84,10 @@ AKShare 冷路径用于低成本扩大历史和市场状态覆盖；它不能因
 - [x] 新增 Mac 延迟行情 Provider：30 秒有界轮询全市场 A 股与核心指数快照，支持搜索、
   1/5/15/30/60 分钟及日/周/月/年图表；所有 Quote 明确标为 `DELAYED`，UI 显示
   “公开网页延迟行情”，量化信号门不把它视为交易级 LIVE。
+- [x] **P0.1 最高优先级故障修复（2026-08-12）**：东财全市场与指数公开接口出现
+  `RemoteDisconnected` 后，实时观察链改为仅按活动标的请求腾讯轻量批量行情，新浪作为
+  自动备用；不再每 30 秒抓取 58 页全市场。两者都失败时保留最近行情并显示 `STALE`，
+  首次完全无数据才显示 `ERROR`；所有结果继续标记 `DELAYED`，禁止进入正式信号或执行。
 - [x] 扩展已有 AKShare Adapter：A 股日线、SSE/SZSE/BSE 5 分钟线、全市场股票快照与
   核心指数快照已实现；ETF 可按 A 股代码搜索和看盘，完整指数/ETF 资格矩阵留到 P1。
 - [x] 实现 Astra 原生批量 Worker：有界线程并发、指数退避、按标的原子 checkpoint、resume、
@@ -121,6 +125,9 @@ uv run astraquant-data collect-5m \
 
 ### P1：引入第二个认证数据源，建立交叉验证
 
+- [ ] **P1-A（最高）** 评估富途 OpenD 的 macOS 原生运行、A 股行情权限、订阅配额、账户
+  地区限制、交易品种、委托/成交回报与对账；它是目前 Mac 上同时覆盖官方行情网关和未来
+  Broker Gateway 的首选候选，但未完成账户/权限实测前不得视为可交易方案。
 - [ ] 实测 Tushare Pro 的日线、历史分钟、实时分钟、指数、ETF、标的状态、权限、频次、
   修订和授权，按 endpoint 生成 `ProviderQualificationReport`。
 - [ ] 实测 Choice `EMQuantAPI C++ Mac` 在 Apple Silicon 的 native/Rosetta 运行、字段、历史
@@ -130,6 +137,10 @@ uv run astraquant-data collect-5m \
   停牌、复权和交易日差异；冲突进入 quarantine，不静默选值。
 - [ ] 只有资格、授权和质量门通过的 endpoint 才可进入 `REAL_API_MARKET` 或
   `REAL_API_REFERENCE`。
+
+候选优先级：富途 OpenD（行情 + 未来交易）> Choice Mac API（认证数据，需 ARM/Rosetta
+实测）> Tushare Pro（研究/训练与交叉验证）。腾讯/新浪/AKShare 仅是无需账户的观察与
+探索数据层，不参与实盘决策。
 
 P1 验收：至少一个 macOS 可用的认证 Provider 能独立生成 Formal 日线/分钟快照；相同
 canonical 请求可重现，差异报告有来源、时间和处置结论。

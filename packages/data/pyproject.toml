@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-akshare = ["akshare>=1.18.64,<1.19"]
+akshare = ["akshare>=1.18.64,<1.19", "certifi>=2026.1.4"]
 
 [project.scripts]
 astraquant-data = "astraquant_data.cli:main"
